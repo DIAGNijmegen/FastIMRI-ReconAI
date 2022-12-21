@@ -18,11 +18,8 @@ from .cascadenet_pytorch.model_pytorch import *
 from .cascadenet_pytorch.dnn_io import to_tensor_format
 from .cascadenet_pytorch.dnn_io import from_tensor_format
 
-
-# def iimshow(im):
-#     import matplotlib.pyplot as plt
-#     plt.imshow(im.squeeze(), cmap="Greys_r")
-#     plt.show()
+cuda = True if torch.cuda.is_available() else False
+Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
 
 def prep_input(im, acc=4.0):
@@ -125,9 +122,6 @@ def crnn_mri(args):
     volumes = generate_volumes(args.data_dir)
     data = np.concatenate([prepare_case(volume, shape=shape, T=args.t, sequence_shift=0.666) for volume in volumes])
 
-    cuda = True if torch.cuda.is_available() else False
-    Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
-
     # Project config
     model_name = 'crnn_mri_test' if args.test else 'crnn_mri'
     acc = args.acceleration_factor  # undersampling rate
@@ -166,7 +160,7 @@ def crnn_mri(args):
     i = 0
     for epoch in range(num_epoch):
         t_start = time.time()
-        # Training
+
         train_err = 0
         train_batches = 0
         for im in iterate_minibatch(train, batch_size, shuffle=True):

@@ -50,4 +50,4 @@ pip install git+https://github.com/DIAGNijmegen/FastIMRI-ReconAI
 [//]: # ()
 [//]: # (train nnunet on trainset)
 
-[//]: # (create statistics code for inference testset)
+[//]: # (create statistics code for inference testset)  also train on KIKINET or something to see whether hypothesis of fake biopsy over time is better than just regular reconstruction based on just images
