@@ -1,9 +1,11 @@
 from setuptools import setup
 
-from reconai.__version__ import __version__
-
 
 if __name__ == '__main__':
+    name = 'fastimri_reconai'
+    __version__ = ''
+    exec(open(f'{name}/__version__.py').read())
+
     try:
         import torch
     except ModuleNotFoundError as e:
@@ -13,7 +15,7 @@ if __name__ == '__main__':
         raise ModuleNotFoundError('Make sure CUDA is installed!')
 
     setup(
-        name='fastimri_reconai',
+        name=name,
         version=__version__,
         license='MIT',
         author='C.R. Noordman',
