@@ -1,6 +1,6 @@
 from setuptools import setup
 
-from reconai.version import __version__
+from reconai.__version__ import __version__
 
 
 if __name__ == '__main__':
@@ -20,15 +20,10 @@ if __name__ == '__main__':
         author_email='stan.noordman@radboudumc.nl',
         description='',
         install_requires=[
-            'numpy~=1.22',
+            'numpy~=1.24',
             'SimpleITK~=2.1',
             'click',
             'matplotlib',
             'python-box~=6.0'
-        ],
-        entry_points={
-            'console_scripts': [
-                'fastimri-reconai = reconai.__main__:cli',
-            ]
-        }
+        ]
     )
