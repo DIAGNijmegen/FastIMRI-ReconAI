@@ -164,3 +164,6 @@ dcm2mha*.json
 
 RUMC.db
 *.pickle
+data
+result
+.idea
