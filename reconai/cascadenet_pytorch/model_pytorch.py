@@ -237,7 +237,7 @@ class BCRNNlayer(Module):
     def forward(self, input, input_iteration):
         nt, nb, nc, nx, ny = input.shape
         size_h = [nb, self.hidden_size, nx, ny]
-        hid_init =  self.init_hidden(size_h)
+        hid_init = self.init_hidden(size_h)
 
         output_f = []
         output_b = []

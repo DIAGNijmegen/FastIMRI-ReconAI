@@ -6,233 +6,45 @@ import random
 import time
 import logging
 from pathlib import Path
-from typing import List
-from os.path import join
 
 import numpy as np
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
-import matplotlib
 import matplotlib.pyplot as plt
-import SimpleITK as sitk
 from sklearn.preprocessing import normalize
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
+from box import Box
 
-from reconai.utils.kspace import get_rand_exp_decay_mask
-from reconai.utils import compressed_sensing as cs
 from reconai.utils.metric import complex_psnr
 from reconai.cascadenet_pytorch.module import Module
 from reconai.cascadenet_pytorch.model_pytorch import CRNN_MRI
-from reconai.cascadenet_pytorch.dnn_io import to_tensor_format, from_tensor_format
+from reconai.cascadenet_pytorch.dnn_io import from_tensor_format
 from .utils.kspace import kspace_to_image, image_to_kspace
-from .utils.data import prepare_input, iterate_minibatch, generate_datasets, show_images
+from .data.data import get_data_volumes, get_dataset_batchers, prepare_input
+
+from .data.Volume import Volume
 
 def iimshow(im):
     plt.imshow(np.abs(im.squeeze()), cmap="Greys_r")
     plt.show()
 
-
-def prep_input(im, R: int = 4):
-    """Undersample the batch, then reformat them into what the network accepts.
-
-    Parameters
-    ----------
-    R: float - controls the undersampling rate.
-                        higher the value, more undersampling
-    """
-    b, s, y, x = im.shape
-    mask = np.zeros(im.shape)
-    for b_ in range(b):
-        for s_ in range(s):
-            mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / R, 1 / 3)
-
-    im_und, k_und = cs.undersample(im, mask, centred=True, norm='ortho')
-    im_und_l = torch.from_numpy(to_tensor_format(im_und))
-    k_und_l = torch.from_numpy(to_tensor_format(k_und, complex=True))
-    mask_l = torch.from_numpy(to_tensor_format(mask))
-    im_gnd_l = torch.from_numpy(to_tensor_format(im))
-
-    return im_und_l, k_und_l, mask_l, im_gnd_l
-
-
-def gather_data(data_dir: Path, debug: bool = False):
-    data = []
-    for patient_dir in data_dir.iterdir():
-        try:
-            if patient_dir.is_dir():
-                files = list(patient_dir.iterdir())
-                study_ids = {fn.name.split('_')[1] for fn in files if not fn.name.startswith('tmp')}
-                for study_id in study_ids:
-                    data.append(Volume(study_id, [fn for fn in files if study_id in fn.name]))
-        except:
-            continue
-        if debug and len(data) > 20:
-            break
-    return data
-
-
-class Volume:
-    key: str = 'sag'
-    shape: int = 256  # intended shape of image (w x h)
-    sequence: int = 15  # length of total sequence
-    slicing: int = 3  # slices to take from image and add to sequence
-    sequence_shift: float = 2/3
-
-    def __init__(self, study_id: str, files: List[Path]):
-        self.study_id = study_id
-        self.files = files
-        self._ifr = sitk.ImageFileReader()
-        if not (self.sequence / self.slicing).is_integer():
-            raise ValueError(f'{self.sequence}÷{self.slicing} is not an integer')
-
-    def __repr__(self):
-        return f'{self.study_id} ({len(self.files)} files)'
-
-    def to_ndarray(self) -> np.ndarray:
-        key, sh, T, sc, s_shift = self.key, self.shape, self.sequence, self.slicing, self.sequence_shift
-        files = list(sorted([file for file in self.files if key in file.name]))
-        if len(files) * sc < T:
-            raise ValueError(f'insufficient data in case {self.study_id} to reach a sequence of length {T}')
-        images = dict()
-
-        volumes, t, rev = [], 0, False
-        while t + T <= len(files) * sc:
-            sequence = []
-            for file in files[t // sc:(t + T) // sc]:
-                self._ifr.SetFileName(str(file))
-                images[file] = images.get(file, sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64'))
-                img = images[file]
-                # do we guarantee to take the center slice? do we take all 5 slices, or less? just one? what order?
-                z, y, x = img.shape
-                if z < sc:
-                    raise ValueError(f'{z} < {sc}, cannot split image up ({file}')
-                split_n = lambda a: ([a // 2 + (1 if a < a % 2 else 0) for _ in range(2)])
-                split_x = split_n(np.abs(x - sh))
-                split_y = split_n(np.abs(y - sh))
-
-                if x > sh:
-                    img = img[:, split_x[0]:-split_x[1], :]
-                elif x < sh:
-                    img = np.pad(img, ([0, 0], [0, 0], x), mode='edge')
-                if y > sh:
-                    img = img[:, :, split_y[0]:-split_y[1]]
-                elif y < sh:
-                    img = np.pad(img, ([0, 0], y, [0, 0]), mode='edge')
-
-                # randoms, center, randoms
-                slices = np.random.choice(list(set(range(z)).difference([z // 2])), size=sc, replace=False)
-                slices[len(slices) // 2] = z // 2
-                for s in slices:
-                    sequence.append(img[s, :, :])
-
-            sequence = list(reversed(sequence)) if rev else sequence
-            volumes.append(sequence)
-
-            rev = not rev
-            t += int(s_shift * T)
-
-        # sanity check
-        if not all(len(s) == T for s in volumes):
-            raise ValueError(f'not all sequences are equal to {T}')
-        return np.stack(volumes)
-
-
-class Batcher:
-    batch_size: int = 1
-    shuffle: bool = True
-
-    def __init__(self, volumes: List[Volume]):
-        self.volumes: List[Volume | np.ndarray] = list(volumes)
-        self._blacklist = []
-
-    def get_blacklist(self):
-        for _ in self.generate():
-            pass
-        return self._blacklist
-
-    def generate(self):
-        minibatch = []
-        all_array = False  # self.volumes only has array elements
-        while not (all_array and len(self.volumes) < self.batch_size - len(minibatch)):
-            nv = len(self.volumes)
-
-            # convert all self.volumes to arrays when it is small, while loop conditional takes effect
-            if not all_array and nv <= self.batch_size:
-                for item in self.volumes:
-                    if isinstance(item, Volume):
-                        self.volumes.remove(item)
-                        try:
-                            data = item.to_ndarray()
-                        except Exception as e:
-                            logging.warning(str(e))
-                            self._blacklist.append(item.study_id)
-                            continue
-                        else:
-                            self.volumes.extend([data[d] for d in reversed(range(len(data)))])
-                all_array = True
-
-            # select a random from volume
-            nex = np.random.choice(range(nv)) if Batcher.shuffle else nv - 1
-            try:
-                item = self.volumes.pop(nex)
-            except IndexError as e:
-                logging.warning(str(e))
-                break
-
-            if isinstance(item, Volume):
-                # select random array if volume splits into multiple, rest is put back
-                try:
-                    data = item.to_ndarray()
-                except Exception as e:
-                    logging.warning(str(e))
-                    self._blacklist.append(item.study_id)
-                    continue
-                else:
-                    nex = np.random.choice(range(len(data))) if Batcher.shuffle else 0
-                    for d in reversed(range(len(data))):
-                        if d == nex:
-                            minibatch.append(data[d])
-                        else:
-                            self.volumes.append(data[d])
-            else:
-                data = item
-                minibatch.append(data)
-
-            if len(minibatch) == Batcher.batch_size:
-                yield np.stack(minibatch)
-                minibatch = []
-
-
-def train(args):
+def train_network(args: Box):
     # change relu to leakyrelu, change loss to 0-1 somehow
     # Project config
+    if not torch.cuda.is_available():
+        raise Exception('Can only run in Cuda')
+
+    get_data_information(args)
+    exit(1)
+
     model_name = f'crnn_mri_debug' if args.debug else f'crnn_mri'
-    acc = args.acceleration_factor  # undersampling rate
     num_epoch = 3 if args.debug else args.num_epoch
-    folds = args.folds if args.folds > 2 else 1
+    n_folds = args.folds if args.folds > 2 else 1
     seg_ai_dir = args.seg_ai_dir
-
-    Batcher.batch_size = args.batch_size
-    Volume.key = 'sag'
-    Volume.shape = 256
-    Volume.sequence = args.sequence_len
-    Volume.slicing = 3
-    Volume.sequence_shift = 0.666
-
-    data = gather_data(args.in_dir, debug=args.debug)
-    data_error = Batcher(data).get_blacklist()
-    data = list(filter(lambda a: a.study_id not in data_error, data))
-    data_n = len(data)
-    logging.info(f"{data_n} volumes found, {len(data_error)} dropped out")
-    if data_n < 3:
-        raise ValueError('insufficient data for training')
 
     cuda = True if torch.cuda.is_available() else False
     logging.info("using cuda" if cuda else "using cpu")
-
-    Module.TensorType = torch.cuda.FloatTensor if cuda else torch.FloatTensor
-    Tensor = Module.TensorType
 
     # Configure directory info
     save_dir: Path = args.out_dir / f'{model_name}_{args.date}'
@@ -240,7 +52,7 @@ def train(args):
     logging.info(f"saving model to {save_dir.absolute()}")
 
     # Specify network
-    rec_net = CRNN_MRI(n_ch=1, nc=2 if args.debug else 5)
+    rec_net = CRNN_MRI(n_ch=1, nc=2 if args.debug else 5).cuda()
     optimizer = optim.Adam(rec_net.parameters(), lr=float(args.lr), betas=(0.5, 0.999))
     if args.loss == 'ssim':
         segAI = True
@@ -250,49 +62,33 @@ def train(args):
         raise NotImplementedError()
     else:  # 'mse'
         segAI = False
-        criterion = torch.nn.MSELoss()
+        criterion = torch.nn.MSELoss().cuda()
 
     if segAI and not seg_ai_dir:
         raise ValueError(f'missing {seg_ai_dir} directory')
 
-    if cuda:
-        rec_net = rec_net.cuda()
-        criterion.cuda()
-    else:
-        rec_net = rec_net.cpu()
-        criterion.cpu()
+    data = get_data_volumes(args)
 
-    data_n = list(range(data_n))
-    random.seed(args.seed)
-    random.shuffle(data_n)
-    data_split = np.array_split(data_n, folds + 1 if folds > 2 else 5)
-    logging.info(f'started {folds}-fold training at {datetime.datetime.now()}')
-    for fold in range(folds):
+    logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
+    for fold in range(n_folds):
         fold_dir = save_dir / f'fold_{fold}'
-        k_validation = {fold + 1}
-        k_training = set(range(1, len(data_split))).difference(k_validation)
-        # k_test is 0
-        graph_train_err, graph_val_err = [], []
 
+        train, validate, test = get_dataset_batchers(args, data, n_folds, fold)
+        graph_train_err, graph_val_err = [], []
         for epoch in range(num_epoch):
             t_start = time.time()
-            train = Batcher([data[i] for i in np.concatenate([data_split[i] for i in k_training])])
-            validate = Batcher([data[i] for i in np.concatenate([data_split[i] for i in k_validation])])
-            test = Batcher([data[i] for i in data_split[0]])
 
-            # Training
-            train_err = 0
-            train_batches = 0
+            train_err, train_batches = 0, 0
             for im in train.generate():
                 logging.debug(f"batch {train_batches}")
-                scaler = MinMaxScaler()
-                for layer in range(im.shape[1]):
-                    im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
-                im_und, k_und, mask, im_gnd = prep_input(im, acc)
-                im_u = Variable(im_und.type(Tensor))
-                k_u = Variable(k_und.type(Tensor))
-                mask = Variable(mask.type(Tensor))
-                gnd = Variable(im_gnd.type(Tensor))
+                # scaler = MinMaxScaler()
+                # for layer in range(im.shape[1]):
+                #     im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
+                im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
+                im_u = Variable(im_und.type(Module.TensorType))
+                k_u = Variable(k_und.type(Module.TensorType))
+                mask = Variable(mask.type(Module.TensorType))
+                gnd = Variable(im_gnd.type(Module.TensorType))
 
                 optimizer.zero_grad()
                 rec = rec_net(im_u, k_u, mask)
@@ -308,20 +104,19 @@ def train(args):
                     break
             logging.info(f"completed {train_batches} train batches")
 
-            validate_err = 0
-            validate_batches = 0
+            validate_err, validate_batches = 0, 0
             rec_net.eval()
             with torch.no_grad():
                 for im in validate.generate():
                     logging.debug(f"batch {validate_batches}")
-                    scaler = MinMaxScaler()
-                    for layer in range(im.shape[1]):
-                        im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
-                    im_und, k_und, mask, im_gnd = prep_input(im, acc)
-                    im_u = Variable(im_und.type(Tensor))
-                    k_u = Variable(k_und.type(Tensor))
-                    mask = Variable(mask.type(Tensor))
-                    gnd = Variable(im_gnd.type(Tensor))
+                    # scaler = MinMaxScaler()
+                    # for layer in range(im.shape[1]):
+                    #     im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
+                    im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
+                    im_u = Variable(im_und.type(Module.TensorType))
+                    k_u = Variable(k_und.type(Module.TensorType))
+                    mask = Variable(mask.type(Module.TensorType))
+                    gnd = Variable(im_gnd.type(Module.TensorType))
 
                     pred = rec_net(im_u, k_u, mask, test=True)
                     err = criterion(pred, gnd)
@@ -340,13 +135,13 @@ def train(args):
             with torch.no_grad():
                 for im in test.generate():
                     logging.debug(f"batch {test_batches}")
-                    scaler = MinMaxScaler()
-                    for layer in range(im.shape[1]):
-                        im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
-                    im_und, k_und, mask, im_gnd = prep_input(im, acc)
-                    im_u = Variable(im_und.type(Tensor))
-                    k_u = Variable(k_und.type(Tensor))
-                    mask = Variable(mask.type(Tensor))
+                    # scaler = MinMaxScaler()
+                    # for layer in range(im.shape[1]):
+                    #     im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
+                    im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
+                    im_u = Variable(im_und.type(Module.TensorType))
+                    k_u = Variable(k_und.type(Module.TensorType))
+                    mask = Variable(mask.type(Module.TensorType))
 
                     pred = rec_net(im_u, k_u, mask, test=True)
 
@@ -384,14 +179,15 @@ def train(args):
             graph_train_err.append(train_err)
             graph_val_err.append(validate_err)
 
-            # graph_train_err_norm = [err / np.linalg.norm(graph_train_err, ord=np.inf) for err in graph_train_err]
-            # graph_val_err_norm = [err / np.linalg.norm(graph_val_err, ord=np.inf) for err in graph_val_err]
+            graph_train_err_norm = [err / np.linalg.norm(graph_train_err, ord=np.inf) for err in graph_train_err]
+            graph_val_err_norm = [err / np.linalg.norm(graph_val_err, ord=np.inf) for err in graph_val_err]
 
+            # TODO: put this in separate functions
             if epoch > 0:
                 graph_x = list(range(len(graph_train_err)))
                 fig = plt.figure()
-                plt.plot(graph_x, graph_train_err, label="train_loss", lw=1)
-                plt.plot(graph_x, graph_val_err, label="val_loss", lw=1)
+                plt.plot(graph_x, graph_train_err_norm, label="train_loss", lw=1)
+                plt.plot(graph_x, graph_val_err_norm, label="val_loss", lw=1)
                 plt.legend()
                 plt.ylim(bottom=0)
                 plt.ylabel(f'{args.loss} loss')
@@ -444,50 +240,80 @@ def train(args):
 def normalization_test(args):
     def show_im(original, minmaxscaled, standardscaled, sampledimageminmax, sampledimagestandard):
         fig, axs = plt.subplots(2, 4)
-        axs[0, 0].imshow(original[0])
+        axs[0, 0].imshow(original)
         axs[0, 0].set_title('Original Image')
-        axs[0, 1].imshow(minmaxscaled[0])
+        axs[0, 1].imshow(minmaxscaled)
         axs[0, 1].set_title('MinMaxScaled')
         axs[0, 2].imshow(sampledimageminmax)
         axs[0, 2].set_title('Sampled')
-        axs[0, 3].imshow(sampledimageminmax - minmaxscaled[0])
+        axs[0, 3].imshow(sampledimageminmax - minmaxscaled)
         axs[0, 3].set_title('MM - S diff')
-        axs[1, 0].imshow(original[0])
+        axs[1, 0].imshow(original)
         axs[1, 0].set_title('Original Image')
-        axs[1, 1].imshow(standardscaled[0])
+        axs[1, 1].imshow(standardscaled)
         axs[1, 1].set_title('StandardScaled')
         axs[1, 2].imshow(sampledimagestandard)
         axs[1, 2].set_title('Sampled')
-        axs[1, 3].imshow(sampledimagestandard - standardscaled[0])
+        axs[1, 3].imshow(sampledimagestandard - standardscaled)
         axs[1, 3].set_title('SS - S diff')
         plt.show()
-    train, _, _ = generate_datasets(args.batch_size, args.sequence_len, args.in_dir)
 
-    image = next(iterate_minibatch(train, args.batch_size, shuffle=True))
+    Volume.key = 'needle'
+    data = get_data_volumes(args)
+    train, _, _ = get_dataset_batchers(args, data, 1, 0)
 
-    # MINMAX Scaling
+    image = next(train.generate())
+
     scaler = MinMaxScaler()
     minmax_scaled_image = image.copy()
     for layer in range(image.shape[1]):
         minmax_scaled_image[0, layer, :, :] = scaler.fit_transform(minmax_scaled_image[0, layer, :, :])
-    # minmax_scaled_image = scaler.fit_transform(image.reshape(-1, image.shape[-1])).reshape(image.shape)
-
-    # Standard Scaling
 
     scaler = StandardScaler()
     standard_scaled_image = image.copy()
     for layer in range(image.shape[1]):
         standard_scaled_image[0, layer, :, :] = scaler.fit_transform(standard_scaled_image[0, layer, :, :])
-    # standard_scaled_image = scaler.fit_transform(image.reshape(-1, image.shape[-1])).reshape(image.shape)
 
-    #
-    # im_und, k_und, mask, im_gnd = prepare_input(minmax_scaled_image, 1)
-    # und_array_mm = np.asarray(from_tensor_format(im_und.detach().cpu(), True))
-    #
-    # im_und, k_und, mask, im_gnd = prepare_input(standard_scaled_image, 1)
-    # und_array_ss = np.asarray(from_tensor_format(im_und.detach().cpu(), True))
     sampled_mm = kspace_to_image(image_to_kspace(minmax_scaled_image[0][0]))
     sampled_ss = kspace_to_image(image_to_kspace(standard_scaled_image[0][0]))
-    show_im(image[0], minmax_scaled_image[0], standard_scaled_image[0], sampled_mm, sampled_ss)
+    show_im(image[0][0], minmax_scaled_image[0][0], standard_scaled_image[0][0], sampled_mm, sampled_ss)
 
     exit(1)
+
+def get_data_information(args):
+    # Volume.key = 'needle'
+    data = get_data_volumes(args)
+    train, _, _ = get_dataset_batchers(args, data, 1, 0)
+
+
+    mins = []
+    maxes = []
+    max_to_perc99 = []
+    averages = []
+    for image in train.generate():
+        image = image[0]
+
+        # go through each slice
+        for i in range(image.shape[0]):
+            slice = image[i]
+            mins.append(slice.min())
+            maxes.append(slice.max())
+            averages.append(slice.mean())
+            perc99 = np.percentile(slice, 99)
+            max_to_perc99.append(slice.max() - perc99)
+
+    print(f'Min {min(mins)}')
+    print(f'Min of maxes {min(maxes)}')
+    print(f'Average of maxes {np.mean(maxes)}')
+    print(f'Max of maxes {max(maxes)}')
+    print(f'Avg {np.mean(averages)}')
+    print(f'Min diff max-perc99 {np.min(max_to_perc99)}')
+    print(f'Avg diff max-perc99 {np.mean(max_to_perc99)}')
+    print(f'Max diff max-perc99 {np.max(max_to_perc99)}')
+    exit(1)
+
+
+
+
+
+

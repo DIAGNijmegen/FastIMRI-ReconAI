@@ -14,7 +14,7 @@ def relu():
 
 
 class Module(nn.Module):
-    TensorType = None
+    TensorType = torch.FloatTensor
 
     def __new__(cls, *args, **kwargs):
         if not cls.TensorType:
