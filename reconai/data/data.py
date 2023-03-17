@@ -40,7 +40,7 @@ def prepare_input(image: np.ndarray, acceleration: float = 4.0) \
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
     im_gnd_l = torch.from_numpy(to_tensor_format(image))
     im_und_l = torch.from_numpy(to_tensor_format(im_und))
-    k_und_l = torch.from_numpy(to_tensor_format(k_und))
+    k_und_l = torch.from_numpy(to_tensor_format(k_und, complex=True))
     mask_l = torch.from_numpy(to_tensor_format(mask))
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
@@ -62,10 +62,6 @@ def gather_data(data_dir: Path, debug: bool = False):
     return data
 
 
-
-
-
-
 def get_data_volumes(args: Box) -> List[Volume]:
     Batcher.batch_size = args.batch_size
     Volume.sequence_length = args.sequence_len
@@ -83,7 +79,8 @@ def get_data_volumes(args: Box) -> List[Volume]:
 
 def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fold: int) -> (Batcher, Batcher, Batcher):
     data_n = list(range(len(data_volumes)))
-    random.seed(args.seed)
+    # random.seed(args.seed)
+    random.seed(5)
     random.shuffle(data_n)
     data_split = np.array_split(data_n, n_folds + 1 if n_folds > 2 else 5)
 

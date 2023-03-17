@@ -45,7 +45,7 @@ class Volume:
                 slices = np.random.choice(list(set(range(z)).difference([z // 2])), size=self.slicing, replace=False)
                 slices[len(slices) // 2] = z // 2
                 for s in sorted(slices):
-                    sequence.append(img[s, :, :])
+                    sequence.append(img[s, :, :] / 1961.06)
 
             sequence = list(reversed(sequence)) if rev else sequence
             volumes.append(sequence)

@@ -6,6 +6,7 @@ import random
 import time
 import logging
 from pathlib import Path
+import math
 
 import numpy as np
 import torch
@@ -35,16 +36,13 @@ def train_network(args: Box):
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
-    get_data_information(args)
-    exit(1)
-
+    # normalization_test(args)
+    # exit(1)
+    # Volume.key = 'needle'
     model_name = f'crnn_mri_debug' if args.debug else f'crnn_mri'
     num_epoch = 3 if args.debug else args.num_epoch
     n_folds = args.folds if args.folds > 2 else 1
     seg_ai_dir = args.seg_ai_dir
-
-    cuda = True if torch.cuda.is_available() else False
-    logging.info("using cuda" if cuda else "using cpu")
 
     # Configure directory info
     save_dir: Path = args.out_dir / f'{model_name}_{args.date}'
@@ -73,17 +71,14 @@ def train_network(args: Box):
     for fold in range(n_folds):
         fold_dir = save_dir / f'fold_{fold}'
 
-        train, validate, test = get_dataset_batchers(args, data, n_folds, fold)
         graph_train_err, graph_val_err = [], []
         for epoch in range(num_epoch):
             t_start = time.time()
 
+            train, validate, test = get_dataset_batchers(args, data, n_folds, fold)
             train_err, train_batches = 0, 0
             for im in train.generate():
                 logging.debug(f"batch {train_batches}")
-                # scaler = MinMaxScaler()
-                # for layer in range(im.shape[1]):
-                #     im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
                 im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
                 im_u = Variable(im_und.type(Module.TensorType))
                 k_u = Variable(k_und.type(Module.TensorType))
@@ -109,9 +104,6 @@ def train_network(args: Box):
             with torch.no_grad():
                 for im in validate.generate():
                     logging.debug(f"batch {validate_batches}")
-                    # scaler = MinMaxScaler()
-                    # for layer in range(im.shape[1]):
-                    #     im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
                     im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
                     im_u = Variable(im_und.type(Module.TensorType))
                     k_u = Variable(k_und.type(Module.TensorType))
@@ -179,15 +171,15 @@ def train_network(args: Box):
             graph_train_err.append(train_err)
             graph_val_err.append(validate_err)
 
-            graph_train_err_norm = [err / np.linalg.norm(graph_train_err, ord=np.inf) for err in graph_train_err]
-            graph_val_err_norm = [err / np.linalg.norm(graph_val_err, ord=np.inf) for err in graph_val_err]
+            # graph_train_err_norm = [err / np.linalg.norm(graph_train_err, ord=np.inf) for err in graph_train_err]
+            # graph_val_err_norm = [err / np.linalg.norm(graph_val_err, ord=np.inf) for err in graph_val_err]
 
             # TODO: put this in separate functions
             if epoch > 0:
                 graph_x = list(range(len(graph_train_err)))
                 fig = plt.figure()
-                plt.plot(graph_x, graph_train_err_norm, label="train_loss", lw=1)
-                plt.plot(graph_x, graph_val_err_norm, label="val_loss", lw=1)
+                plt.plot(graph_x, graph_train_err, label="train_loss", lw=1)
+                plt.plot(graph_x, graph_val_err, label="val_loss", lw=1)
                 plt.legend()
                 plt.ylim(bottom=0)
                 plt.ylabel(f'{args.loss} loss')
@@ -218,7 +210,7 @@ def train_network(args: Box):
 
                     # gnd | pred | err | seg
                     set_ax("ground truth", gnd[0])
-                    set_ax("prediction", norm(pred[0]))
+                    set_ax("prediction 0", norm(pred[0]))
                     set_ax("error", norm(gnd[0]) - norm(pred[0]), cmap="magma")
 
                     gnd_t, pred_t = gnd[..., gnd.shape[-1] // 2], pred[..., pred.shape[-1] // 2]
@@ -228,6 +220,30 @@ def train_network(args: Box):
 
                     fig.tight_layout()
                     plt.savefig(epoch_dir / f'{name}.png', pad_inches=0)
+                    plt.close(fig)
+
+                for i, (gnd, pred, seg) in enumerate(vis):
+                    fig = plt.figure(figsize=(20, 8))
+                    fig.suptitle(f'{name} (val loss: {validate_err})')
+                    axes = [plt.subplot(2, 4 if segAI else math.ceil(args.sequence_len / 2), j+1) for j in range(args.sequence_len + 1)]
+                    ax: int = 0
+
+                    def set_ax(title: str, im, cmap="Greys_r"):
+                        nonlocal ax
+                        axes[ax].set_title(title)
+                        axes[ax].imshow(np.abs(im), cmap=cmap, interpolation="nearest", aspect='auto')
+                        axes[ax].set_axis_off()
+                        ax = ax + 1
+
+                    norm = lambda a: normalize(a, norm="max")
+
+                    # gnd | pred | err | seg
+                    set_ax("ground truth", gnd[0])
+                    for k in range(args.sequence_len):
+                        set_ax(f"prediction {k}", norm(pred[k]))
+
+                    fig.tight_layout()
+                    plt.savefig(epoch_dir / f'{name}_seq.png', pad_inches=0)
                     plt.close(fig)
 
                 torch.save(rec_net.state_dict(), epoch_dir / npz_name)
@@ -276,6 +292,7 @@ def normalization_test(args):
 
     sampled_mm = kspace_to_image(image_to_kspace(minmax_scaled_image[0][0]))
     sampled_ss = kspace_to_image(image_to_kspace(standard_scaled_image[0][0]))
+
     show_im(image[0][0], minmax_scaled_image[0][0], standard_scaled_image[0][0], sampled_mm, sampled_ss)
 
     exit(1)
@@ -283,7 +300,7 @@ def normalization_test(args):
 def get_data_information(args):
     # Volume.key = 'needle'
     data = get_data_volumes(args)
-    train, _, _ = get_dataset_batchers(args, data, 1, 0)
+    train, validate, _ = get_dataset_batchers(args, data, 1, 0)
 
 
     mins = []
@@ -302,14 +319,23 @@ def get_data_information(args):
             perc99 = np.percentile(slice, 99)
             max_to_perc99.append(slice.max() - perc99)
 
-    print(f'Min {min(mins)}')
+    for image in validate.generate():
+        image = image[0]
+
+        # go through each slice
+        for i in range(image.shape[0]):
+            slice = image[i]
+            maxes.append(slice.max())
+
+    # print(f'Min {min(mins)}')
     print(f'Min of maxes {min(maxes)}')
     print(f'Average of maxes {np.mean(maxes)}')
+    print(f'std of maxes {np.std(maxes)}')
     print(f'Max of maxes {max(maxes)}')
-    print(f'Avg {np.mean(averages)}')
-    print(f'Min diff max-perc99 {np.min(max_to_perc99)}')
-    print(f'Avg diff max-perc99 {np.mean(max_to_perc99)}')
-    print(f'Max diff max-perc99 {np.max(max_to_perc99)}')
+    # print(f'Avg {np.mean(averages)}')
+    # print(f'Min diff max-perc99 {np.min(max_to_perc99)}')
+    # print(f'Avg diff max-perc99 {np.mean(max_to_perc99)}')
+    # print(f'Max diff max-perc99 {np.max(max_to_perc99)}')
     exit(1)
 
 
