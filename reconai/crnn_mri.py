@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 from __future__ import print_function, division
 
+import ctypes
 import datetime
 import random
 import time
@@ -30,7 +31,39 @@ def iimshow(im):
     plt.imshow(np.abs(im.squeeze()), cmap="Greys_r")
     plt.show()
 
-def train_network(args: Box):
+def test_accelerations(args: Box):
+    accelerations = [1, 2, 4, 8, 12, 16, 32]
+
+    results = []
+    for acceleration in accelerations:
+        args['acceleration_factor'] = acceleration
+        train_results = train_network(args, True)
+        fold0, train_err, val_err = train_results[0]
+        results.append((acceleration, train_err, val_err))
+
+    graph_x = list(range(args.num_epoch))
+    fig = plt.figure()
+    for acceleration, train_err, val_err in results:
+        plt.plot(graph_x, train_err, label=f"train_loss_{acceleration}", lw=1)
+    plt.legend()
+    plt.ylim(bottom=0)
+    plt.ylabel(f'{args.loss} training loss')
+    plt.xlabel("epoch")
+    plt.savefig(args.out_dir / f'acceleration_{args.date}' / "training_loss.png")
+    plt.close(fig)
+
+    fig = plt.figure()
+    for acceleration, train_err, val_err in results:
+        plt.plot(graph_x, val_err, label=f"val_loss{acceleration}", lw=1)
+    plt.legend()
+    plt.ylim(bottom=0)
+    plt.ylabel(f'{args.loss} validation loss')
+    plt.xlabel("epoch")
+    plt.savefig(args.out_dir / f'acceleration_{args.date}' / "validation_loss.png")
+    plt.close(fig)
+
+
+def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
     # change relu to leakyrelu, change loss to 0-1 somehow
     # Project config
     if not torch.cuda.is_available():
@@ -45,7 +78,9 @@ def train_network(args: Box):
     seg_ai_dir = args.seg_ai_dir
 
     # Configure directory info
-    save_dir: Path = args.out_dir / f'{model_name}_{args.date}'
+    save_dir: Path = \
+        args.out_dir / f'acceleration_{args.date}' / f'{model_name}_acceleration_{args.acceleration_factor}' \
+        if test_acc else args.out_dir / f'{model_name}_{args.date}'
     save_dir.mkdir(parents=True)
     logging.info(f"saving model to {save_dir.absolute()}")
 
@@ -67,6 +102,7 @@ def train_network(args: Box):
 
     data = get_data_volumes(args)
 
+    results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
     for fold in range(n_folds):
         fold_dir = save_dir / f'fold_{fold}'
@@ -206,16 +242,14 @@ def train_network(args: Box):
                         axes[ax].set_axis_off()
                         ax = ax + 1
 
-                    norm = lambda a: normalize(a, norm="max")
-
                     # gnd | pred | err | seg
                     set_ax("ground truth", gnd[0])
-                    set_ax("prediction 0", norm(pred[0]))
-                    set_ax("error", norm(gnd[0]) - norm(pred[0]), cmap="magma")
+                    set_ax("prediction 0", pred[0])
+                    set_ax("error", gnd[0] - pred[0], cmap="magma")
 
                     gnd_t, pred_t = gnd[..., gnd.shape[-1] // 2], pred[..., pred.shape[-1] // 2]
                     set_ax("ground truth", gnd_t)
-                    set_ax("prediction", normalize(pred_t, norm="max"))
+                    set_ax("prediction", pred_t)
                     set_ax("error", gnd_t - pred_t, cmap="magma")
 
                     fig.tight_layout()
@@ -235,12 +269,9 @@ def train_network(args: Box):
                         axes[ax].set_axis_off()
                         ax = ax + 1
 
-                    norm = lambda a: normalize(a, norm="max")
-
-                    # gnd | pred | err | seg
                     set_ax("ground truth", gnd[0])
                     for k in range(args.sequence_len):
-                        set_ax(f"prediction {k}", norm(pred[k]))
+                        set_ax(f"prediction {k}", pred[k])
 
                     fig.tight_layout()
                     plt.savefig(epoch_dir / f'{name}_seq.png', pad_inches=0)
@@ -251,7 +282,18 @@ def train_network(args: Box):
                     log.write(stats)
 
                 logging.info(f'fold {fold} model parameters saved at {epoch_dir.absolute()}\n')
+            append_to_file(fold_dir, args.acceleration_factor, fold, epoch, train_err, validate_err)
+        results.append((fold, graph_train_err, graph_val_err))
     logging.info(f'completed training at {datetime.datetime.now()}')
+
+    return results
+
+def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
+    with open(fold_dir / f'progress.csv', 'a+') as file:
+        if epoch == 0:
+            file.write(f'Acceleration, Fold, Epoch, Train error, Validation error \n')
+        file.write(f'{acceleration}, {fold}, {epoch}, {train_err}, {val_err} \n')
+
 
 def normalization_test(args):
     def show_im(original, minmaxscaled, standardscaled, sampledimageminmax, sampledimagestandard):
