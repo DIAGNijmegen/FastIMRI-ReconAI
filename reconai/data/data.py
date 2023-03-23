@@ -98,7 +98,7 @@ def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fo
 def show_images(rec, gnd):
     # a = 1
     # ifr = sitk.ImageFileReader()
-    # ifr.SetFileName('../data/10105/10105_19104511215149791073699219583840411343_needle_0.mha')
+    # ifr.SetFileName('../data/10105/10105_19104511215149791073699219583840411343_sag_0.mha')
     # image = sitk.GetArrayFromImage(ifr.Execute()).astype('float64')
 
     # rec = from_tensor_format(rec.detach().cpu(), True)[0]

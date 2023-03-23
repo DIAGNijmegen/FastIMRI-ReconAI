@@ -7,7 +7,7 @@ import click
 from box import Box
 from os.path import join
 
-from .crnn_mri import train_network, test_accelerations
+from .crnn_mri import train_network, test_accelerations, print_graphs
 
 @click.group()
 def cli():
@@ -31,6 +31,7 @@ def train_recon(**kwargs):
     setup_logging('train_recon', kwargs, test=kwargs['debug'])
 
     try:
+        # print_graphs()
         train_network(Box(kwargs))
     except Exception as e:
         logging.exception(e)

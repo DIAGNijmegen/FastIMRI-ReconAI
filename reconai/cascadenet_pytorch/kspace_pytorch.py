@@ -60,6 +60,11 @@ class DataConsistencyInKspace(Module):
             k = fourier.fftshift(fourier.fft2(x, norm=self.normalized, dim=(2, 3)))
             k_c = data_consistency(k, k0, mask, self.noise_lvl)
             x_c = torch.abs(fourier.ifftshift(fourier.ifft2(k_c, norm=self.normalized, dim=(2, 3))))
+
+            # k = fourier.fft(x, 2, norm=self.normalized)
+            # k_c = data_consistency(k, k0, mask, self.noise_lvl)
+            # x_c = fourier.ifft(k_c, 2, norm=self.normalized)
+
         else:
             raise NotImplementedError()
 

@@ -29,6 +29,7 @@ if __name__ == '__main__':
             'matplotlib',
             'python-box~=6.0',
             'torch',
-            'scikit-learn'
+            'scikit-learn',
+            'opencv-python'
         ]
     )
