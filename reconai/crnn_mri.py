@@ -1,70 +1,22 @@
 #!/usr/bin/env python
 from __future__ import print_function, division
 
-import ctypes
 import datetime
-import random
 import time
 import logging
-from pathlib import Path
-import math
-import cv2
-import pandas as pd
 
-import numpy as np
 import torch
-import torch.optim as optim
 from torch.autograd import Variable
-import matplotlib.pyplot as plt
-from sklearn.preprocessing import StandardScaler, MinMaxScaler
+import torch.optim as optim
 from box import Box
+from typing import List
 
-from reconai.utils.metric import complex_psnr
-from reconai.cascadenet_pytorch.module import Module
 from reconai.cascadenet_pytorch.model_pytorch import CRNN_MRI
 from reconai.cascadenet_pytorch.dnn_io import from_tensor_format
-from .utils.kspace import kspace_to_image, image_to_kspace
-from .data.data import get_data_volumes, get_dataset_batchers, prepare_input
+from reconai.cascadenet_pytorch.module import Module
 
-from .data.Volume import Volume
-
-def iimshow(im):
-    plt.imshow(np.abs(im.squeeze()), cmap="Greys_r")
-    plt.show()
-
-def print_graphs():
-    accelerations = [1, 2, 4, 8, 12, 16, 32, 64]
-
-    graph_x = list(range(100))
-    fig = plt.figure()
-    for acceleration in accelerations:
-        filename = f'../data/progress_{acceleration}.csv'
-        frame = pd.read_csv(filename, delimiter=',')
-        if acceleration == 64:
-            graph_x = list(range(46))
-        plt.plot(graph_x, frame.iloc[:, 3], label=f"train_loss_{acceleration}", lw=1)
-    plt.legend()
-    plt.ylim(bottom=0, top=0.008)
-    plt.ylabel(f'mse training loss')
-    plt.xlabel("epoch")
-    plt.savefig('../data/training_loss.png')
-    plt.close(fig)
-
-    graph_x = list(range(100))
-    fig = plt.figure()
-    for acceleration in accelerations:
-        filename = f'../data/progress_{acceleration}.csv'
-        frame = pd.read_csv(filename, delimiter=',')
-        if acceleration == 64:
-            graph_x = list(range(46))
-        plt.plot(graph_x, frame.iloc[:, 4], label=f"validation_loss_{acceleration}", lw=1)
-    plt.legend()
-    plt.ylim(bottom=0, top=0.005)
-    plt.ylabel(f'mse validation loss')
-    plt.xlabel("epoch")
-    plt.savefig('../data/validation_loss.png')
-    plt.close(fig)
-
+from .data.data import get_data_volumes, get_dataset_batchers, prepare_input_as_variable, prepare_input
+from .utils.graph import *
 
 def test_accelerations(args: Box):
     # accelerations = [1, 2, 4, 8, 12, 16, 32]
@@ -99,19 +51,15 @@ def test_accelerations(args: Box):
     plt.close(fig)
 
 
-def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
-    # change relu to leakyrelu, change loss to 0-1 somehow
-    # Project config
+def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int], List[int]]]:
+    # change relu to leakyrelu
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
-    # normalization_test(args)
-    # exit(1)
     # Volume.key = 'needle'
     model_name = f'crnn_mri_debug' if args.debug else f'crnn_mri'
     num_epoch = 3 if args.debug else args.num_epoch
     n_folds = args.folds if args.folds > 2 else 1
-    seg_ai_dir = args.seg_ai_dir
 
     # Configure directory info
     save_dir: Path = \
@@ -121,20 +69,9 @@ def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
     logging.info(f"saving model to {save_dir.absolute()}")
 
     # Specify network
-    rec_net = CRNN_MRI(n_ch=1, nc=2 if args.debug else 6).cuda()
-    optimizer = optim.Adam(rec_net.parameters(), lr=float(args.lr), betas=(0.5, 0.999))
-    if args.loss == 'ssim':
-        segAI = True
-        raise NotImplementedError()
-    elif args.loss == 'mse+ssim':
-        segAI = True
-        raise NotImplementedError()
-    else:  # 'mse'
-        segAI = False
-        criterion = torch.nn.MSELoss().cuda()
-
-    if segAI and not seg_ai_dir:
-        raise ValueError(f'missing {seg_ai_dir} directory')
+    network = CRNN_MRI(n_ch=1, nc=2 if args.debug else 5).cuda()
+    optimizer = optim.Adam(network.parameters(), lr=float(args.lr), betas=(0.5, 0.999))
+    criterion = torch.nn.MSELoss().cuda()
 
     data = get_data_volumes(args)
 
@@ -151,17 +88,13 @@ def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
             train_err, train_batches = 0, 0
             for im in train.generate():
                 logging.debug(f"batch {train_batches}")
-                im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
-                im_u = Variable(im_und.type(Module.TensorType))
-                k_u = Variable(k_und.type(Module.TensorType))
-                mask = Variable(mask.type(Module.TensorType))
-                gnd = Variable(im_gnd.type(Module.TensorType))
+                im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
                 optimizer.zero_grad()
-                rec = rec_net(im_u, k_u, mask)
+                rec = network(im_u, k_u, mask)
                 loss = criterion(rec, gnd)
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(rec_net.parameters(), max_norm=5)
+                torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=5)
                 optimizer.step()
 
                 train_err += loss.item()
@@ -172,17 +105,13 @@ def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
             logging.info(f"completed {train_batches} train batches")
 
             validate_err, validate_batches = 0, 0
-            rec_net.eval()
+            network.eval()
             with torch.no_grad():
                 for im in validate.generate():
                     logging.debug(f"batch {validate_batches}")
-                    im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
-                    im_u = Variable(im_und.type(Module.TensorType))
-                    k_u = Variable(k_und.type(Module.TensorType))
-                    mask = Variable(mask.type(Module.TensorType))
-                    gnd = Variable(im_gnd.type(Module.TensorType))
+                    im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
-                    pred = rec_net(im_u, k_u, mask, test=True)
+                    pred = network(im_u, k_u, mask, test=True)
                     err = criterion(pred, gnd)
 
                     validate_err += err.item()
@@ -192,22 +121,16 @@ def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
                         break
             logging.info(f"completed {validate_batches} validate batches")
 
-            vis = []
-            base_psnr = 0
-            test_psnr = 0
-            test_batches = 0
+            vis, base_psnr, test_psnr, test_batches = [], 0, 0, 0
             with torch.no_grad():
                 for im in test.generate():
                     logging.debug(f"batch {test_batches}")
-                    # scaler = MinMaxScaler()
-                    # for layer in range(im.shape[1]):
-                    #     im[0, layer, :, :] = scaler.fit_transform(im[0, layer, :, :])
                     im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
                     im_u = Variable(im_und.type(Module.TensorType))
                     k_u = Variable(k_und.type(Module.TensorType))
                     mask = Variable(mask.type(Module.TensorType))
 
-                    pred = rec_net(im_u, k_u, mask, test=True)
+                    pred = network(im_u, k_u, mask, test=True)
 
                     for im_i, und_i, pred_i in zip(im,
                                                    from_tensor_format(im_und.numpy()),
@@ -215,11 +138,12 @@ def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
                         base_psnr += complex_psnr(im_i, und_i, peak='max')
                         test_psnr += complex_psnr(im_i, pred_i, peak='max')
 
+                    # TODO: change to take all n
                     if test_batches == 0:  # save n samples
                         vis.append((from_tensor_format(im_gnd.numpy())[0],
                                     from_tensor_format(pred.data.cpu().numpy())[0],
                                     from_tensor_format(im_und.numpy())[0],
-                                    0 if not segAI else 0))
+                                    0))
 
                     test_batches += 1
                     if args.debug and test_batches == 2:
@@ -234,31 +158,18 @@ def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
             test_psnr /= (test_batches * args.batch_size)
 
             stats = '\n'.join([f'Epoch {epoch + 1}/{num_epoch}',
-                     f'\ttime: {t_end - t_start} s',
-                     f'\ttraining loss:\t\t{train_err}',
-                     f'\tvalidation loss:\t\t{validate_err}',
-                     f'\tbase PSNR:\t\t\t{base_psnr}',
-                     f'\ttest PSNR:\t\t\t{test_psnr}'])
+                               f'\ttime: {t_end - t_start} s',
+                               f'\ttraining loss:\t\t{train_err}',
+                               f'\tvalidation loss:\t\t{validate_err}',
+                               f'\tbase PSNR:\t\t\t{base_psnr}',
+                               f'\ttest PSNR:\t\t\t{test_psnr}'
+                               ])
             logging.info(stats)
 
             graph_train_err.append(train_err)
             graph_val_err.append(validate_err)
 
-            # graph_train_err_norm = [err / np.linalg.norm(graph_train_err, ord=np.inf) for err in graph_train_err]
-            # graph_val_err_norm = [err / np.linalg.norm(graph_val_err, ord=np.inf) for err in graph_val_err]
-
-            # TODO: put this in separate functions
-            if epoch > 0:
-                graph_x = list(range(len(graph_train_err)))
-                fig = plt.figure()
-                plt.plot(graph_x, graph_train_err, label="train_loss", lw=1)
-                plt.plot(graph_x, graph_val_err, label="val_loss", lw=1)
-                plt.legend()
-                plt.ylim(bottom=0)
-                plt.ylabel(f'{args.loss} loss')
-                plt.xlabel("epoch")
-                plt.savefig(fold_dir / "progress.png")
-                plt.close(fig)
+            print_loss_progress(graph_train_err, graph_val_err, fold_dir, args.loss)
 
             if epoch % 5 == 0 or epoch > num_epoch - 5:
                 name = f'{model_name}_fold_{fold}_epoch_{epoch}'
@@ -266,94 +177,15 @@ def train_network(args: Box, test_acc: bool = False) -> ctypes.Array:
 
                 epoch_dir = fold_dir / name
                 epoch_dir.mkdir(parents=True, exist_ok=True)
-                for i, (gnd, pred, und, seg) in enumerate(vis):
-                    fig = plt.figure()
-                    fig.suptitle(f'{name} (val loss: {validate_err})')
-                    axes = [plt.subplot(2, 4 if segAI else 3, j + 1) for j in range(4 if segAI else 3 * 2)]
-                    ax: int = 0
 
-                    def set_ax(title: str, im, cmap="Greys_r"):
-                        nonlocal ax
-                        axes[ax].set_title(title)
-                        axes[ax].imshow(np.abs(im), cmap=cmap, interpolation="nearest", aspect='auto')
-                        axes[ax].set_axis_off()
-                        ax = ax + 1
+                print_prediction_error(epoch_dir, vis, name, validate_err)
 
-                    # gnd | pred | err | seg
-                    set_ax("ground truth", gnd[0])
-                    set_ax("prediction 0", pred[0])
-                    set_ax("error", gnd[0] - pred[0], cmap="magma")
+                print_full_prediction_sequence(epoch_dir, vis, name, validate_err,
+                                               args.sequence_len, args.acceleration_factor)
 
-                    gnd_t, pred_t = gnd[..., gnd.shape[-1] // 2], pred[..., pred.shape[-1] // 2]
-                    set_ax("ground truth", gnd_t)
-                    set_ax("prediction", pred_t)
-                    set_ax("error", gnd_t - pred_t, cmap="magma")
+                print_loss_comparison_graphs(epoch_dir, vis, name)
 
-                    fig.tight_layout()
-                    plt.savefig(epoch_dir / f'{name}.png', pad_inches=0)
-                    plt.close(fig)
-
-                for i, (gnd, pred, und, seg) in enumerate(vis):
-                    fig = plt.figure(figsize=(20, 8))
-                    fig.suptitle(f'{name} (val loss: {validate_err})')
-                    axes = [plt.subplot(2, 4 if segAI else math.ceil(args.sequence_len / 2), j+1) for j in range(args.sequence_len + 1)]
-                    ax: int = 0
-
-                    def set_ax(title: str, im, cmap="Greys_r"):
-                        nonlocal ax
-                        axes[ax].set_title(title)
-                        axes[ax].imshow(np.abs(im), cmap=cmap, interpolation="nearest", aspect='auto')
-                        axes[ax].set_axis_off()
-                        ax = ax + 1
-
-                    set_ax("ground truth", gnd[0])
-                    for k in range(args.sequence_len):
-                        set_ax(f"prediction {k}, MSE gnd {mse(gnd[0], pred[k])}", pred[k])
-
-                    fig.tight_layout()
-                    plt.savefig(epoch_dir / f'{name}_seq.png', pad_inches=0)
-                    plt.close(fig)
-
-                for i, (gnd, pred, und, seg) in enumerate(vis):
-                    fig = plt.figure(figsize=(20, 8))
-                    fig.suptitle(f'{name} (val loss: {validate_err})')
-                    axes = [plt.subplot(2, 4 if segAI else math.ceil(args.sequence_len / 2), j+1) for j in range(args.sequence_len + 1)]
-                    ax: int = 0
-
-                    def set_ax(title: str, im, cmap="Greys_r"):
-                        nonlocal ax
-                        axes[ax].set_title(title)
-                        axes[ax].imshow(np.abs(im), cmap=cmap, interpolation="nearest", aspect='auto')
-                        axes[ax].set_axis_off()
-                        ax = ax + 1
-
-                    set_ax(f"{args.acceleration_factor}x undersampled", und[0])
-                    for k in range(args.sequence_len):
-                        set_ax(f"prediction {k}, MSE gnd {mse(gnd[0], pred[k])}", pred[k])
-
-                    fig.tight_layout()
-                    plt.savefig(epoch_dir / f'{name}_seq_und.png', pad_inches=0)
-                    plt.close(fig)
-
-                for i, (gnd, pred, und, seg) in enumerate(vis):
-                    graph_x = list(range(len(gnd)))
-                    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(12, 5))
-                    mse_val, psnr_val, ssim_val = [], [], []
-                    for j in graph_x:
-                        mse_val.append(mse(gnd[j], pred[j]))
-                        psnr_val.append(psnr(gnd[j], pred[j]))
-                        ssim_val.append(ssim(gnd[j], pred[j]))
-                    ax1.plot(graph_x, mse_val, label=f"mse", lw=1)
-                    ax1.set_title('MSE')
-                    ax2.plot(graph_x, psnr_val, label=f"psnr", lw=1)
-                    ax2.set_title('PSNR')
-                    ax3.plot(graph_x, ssim_val, label=f"ssim", lw=1)
-                    ax3.set_title('SSIM')
-                    plt.savefig(epoch_dir / f'{name}_errors.png')
-                    plt.close(fig)
-
-
-                torch.save(rec_net.state_dict(), epoch_dir / npz_name)
+                torch.save(network.state_dict(), epoch_dir / npz_name)
                 with open(epoch_dir / f'{name}.log', 'w') as log:
                     log.write(stats)
 
@@ -370,116 +202,11 @@ def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, t
             file.write(f'Acceleration, Fold, Epoch, Train error, Validation error \n')
         file.write(f'{acceleration}, {fold}, {epoch}, {train_err}, {val_err} \n')
 
-def mse(imagea, imageb):
-    # the 'Mean Squared Error' between the two images is the
-    # sum of the squared difference between the two images;
-    # NOTE: the two images must have the same dimension
-    err1 = np.sum((imagea.astype("float") - imageb.astype("float")) ** 2)
-    err1 /= float(imagea.shape[0] * imagea.shape[1])
-
-    # return the MSE, the lower the error, the more "similar"
-    # the two images are
-    return err1
-
-def psnr(img1, img2):
-    # img1 and img2 have range [0, 255]
-    img1 = img1.astype(np.float64)
-    img2 = img2.astype(np.float64)
-    mse_score = mse(img1, img2)
-    if mse_score == 0:
-        return float('inf')
-    return 20 * math.log10(255.0 / math.sqrt(mse_score))
-
-
-def ssim(img1, img2):
-    def calc_ssim(imga, imgb):
-        C1 = (0.01 * 255) ** 2
-        C2 = (0.03 * 255) ** 2
-
-        imga = imga.astype(np.float64)
-        imgb = imgb.astype(np.float64)
-        kernel = cv2.getGaussianKernel(11, 1.5)
-        window = np.outer(kernel, kernel.transpose())
-
-        mu1 = cv2.filter2D(imga, -1, window)[5:-5, 5:-5]  # valid
-        mu2 = cv2.filter2D(imgb, -1, window)[5:-5, 5:-5]
-        mu1_sq = mu1 ** 2
-        mu2_sq = mu2 ** 2
-        mu1_mu2 = mu1 * mu2
-        sigma1_sq = cv2.filter2D(imga ** 2, -1, window)[5:-5, 5:-5] - mu1_sq
-        sigma2_sq = cv2.filter2D(imgb ** 2, -1, window)[5:-5, 5:-5] - mu2_sq
-        sigma12 = cv2.filter2D(imga * imgb, -1, window)[5:-5, 5:-5] - mu1_mu2
-
-        ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
-                                                                (sigma1_sq + sigma2_sq + C2))
-        return ssim_map.mean()
-
-    if not img1.shape == img2.shape:
-        raise ValueError('Input images must have the same dimensions.')
-    if img1.ndim == 2:
-        return calc_ssim(img1, img2)
-    elif img1.ndim == 3:
-        if img1.shape[2] == 3:
-            ssims = []
-            for i in range(3):
-                ssims.append(calc_ssim(img1, img2))
-            return np.array(ssims).mean()
-        elif img1.shape[2] == 1:
-            return ssim(np.squeeze(img1), np.squeeze(img2))
-    else:
-        raise ValueError('Wrong input image dimensions.')
-
-
-
-def normalization_test(args):
-    def show_im(original, minmaxscaled, standardscaled, sampledimageminmax, sampledimagestandard):
-        fig, axs = plt.subplots(2, 4)
-        axs[0, 0].imshow(original)
-        axs[0, 0].set_title('Original Image')
-        axs[0, 1].imshow(minmaxscaled)
-        axs[0, 1].set_title('MinMaxScaled')
-        axs[0, 2].imshow(sampledimageminmax)
-        axs[0, 2].set_title('Sampled')
-        axs[0, 3].imshow(sampledimageminmax - minmaxscaled)
-        axs[0, 3].set_title('MM - S diff')
-        axs[1, 0].imshow(original)
-        axs[1, 0].set_title('Original Image')
-        axs[1, 1].imshow(standardscaled)
-        axs[1, 1].set_title('StandardScaled')
-        axs[1, 2].imshow(sampledimagestandard)
-        axs[1, 2].set_title('Sampled')
-        axs[1, 3].imshow(sampledimagestandard - standardscaled)
-        axs[1, 3].set_title('SS - S diff')
-        plt.show()
-
-    Volume.key = 'needle'
-    data = get_data_volumes(args)
-    train, _, _ = get_dataset_batchers(args, data, 1, 0)
-
-    image = next(train.generate())
-
-    scaler = MinMaxScaler()
-    minmax_scaled_image = image.copy()
-    for layer in range(image.shape[1]):
-        minmax_scaled_image[0, layer, :, :] = scaler.fit_transform(minmax_scaled_image[0, layer, :, :])
-
-    scaler = StandardScaler()
-    standard_scaled_image = image.copy()
-    for layer in range(image.shape[1]):
-        standard_scaled_image[0, layer, :, :] = scaler.fit_transform(standard_scaled_image[0, layer, :, :])
-
-    sampled_mm = kspace_to_image(image_to_kspace(minmax_scaled_image[0][0]))
-    sampled_ss = kspace_to_image(image_to_kspace(standard_scaled_image[0][0]))
-
-    show_im(image[0][0], minmax_scaled_image[0][0], standard_scaled_image[0][0], sampled_mm, sampled_ss)
-
-    exit(1)
 
 def get_data_information(args):
     # Volume.key = 'needle'
     data = get_data_volumes(args)
     train, validate, _ = get_dataset_batchers(args, data, 1, 0)
-
 
     mins = []
     maxes = []
@@ -515,9 +242,3 @@ def get_data_information(args):
     # print(f'Avg diff max-perc99 {np.mean(max_to_perc99)}')
     # print(f'Max diff max-perc99 {np.max(max_to_perc99)}')
     exit(1)
-
-
-
-
-
-

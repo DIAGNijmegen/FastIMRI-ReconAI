@@ -30,6 +30,7 @@ if __name__ == '__main__':
             'python-box~=6.0',
             'torch',
             'scikit-learn',
-            'opencv-python'
+            'opencv-python',
+            'pandas'
         ]
     )

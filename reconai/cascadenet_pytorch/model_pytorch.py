@@ -303,7 +303,7 @@ class CRNN_MRI(Module):
         self.conv3_x = conv2d()
         self.conv3_h = conv2d()
         self.conv4_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2).type(self.TensorType)
-        self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(inplace=True)
 
         dcs = []
         for i in range(nc):

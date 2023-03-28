@@ -5,15 +5,28 @@ from box import Box
 from pathlib import Path
 
 import torch
+from torch.autograd import Variable
 import logging
 
 from reconai.utils.kspace import get_rand_exp_decay_mask
 import reconai.utils.compressed_sensing as cs
 from reconai.cascadenet_pytorch.dnn_io import to_tensor_format, from_tensor_format
+from reconai.cascadenet_pytorch.module import Module
 import matplotlib.pyplot as plt
 
 from .Batcher import Batcher
 from .Volume import Volume
+
+def prepare_input_as_variable(image: np.ndarray, acceleration: float = 4.0) \
+        -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
+    im_und, k_und, mask, im_gnd = prepare_input(image, acceleration)
+    im_u = Variable(im_und.type(Module.TensorType))
+    k_u = Variable(k_und.type(Module.TensorType))
+    mask = Variable(mask.type(Module.TensorType))
+    gnd = Variable(im_gnd.type(Module.TensorType))
+
+    return im_u, k_u, mask, gnd
+
 
 def prepare_input(image: np.ndarray, acceleration: float = 4.0) \
         -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
