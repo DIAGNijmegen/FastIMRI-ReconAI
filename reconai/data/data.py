@@ -53,7 +53,7 @@ def prepare_input(image: np.ndarray, acceleration: float = 4.0) \
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
     im_gnd_l = torch.from_numpy(to_tensor_format(image))
     im_und_l = torch.from_numpy(to_tensor_format(im_und))
-    k_und_l = torch.from_numpy(to_tensor_format(k_und, complex=True))
+    k_und_l = torch.from_numpy(to_tensor_format(k_und, mask=True))  # param was named complex
     mask_l = torch.from_numpy(to_tensor_format(mask))
 
     return im_und_l, k_und_l, mask_l, im_gnd_l

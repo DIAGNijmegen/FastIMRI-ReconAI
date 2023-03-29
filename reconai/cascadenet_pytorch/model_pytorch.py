@@ -326,7 +326,7 @@ class CRNN_MRI(Module):
         for j in range(self.nd - 1):
             net['t0_x%d' % j] = hid_init
 
-        k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)
+        # k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)
 
         for i in range(1, self.nc + 1):
             o = i - 1

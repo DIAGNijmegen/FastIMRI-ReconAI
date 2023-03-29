@@ -17,8 +17,8 @@ def psnr(x, y):
     :return:
     """
     assert x.shape == y.shape
-    assert x.dtype == y.dtype or np.issubdtype(x.dtype, np.float) \
-        and np.issubdtype(y.dtype, np.float)
+    assert x.dtype == y.dtype or np.issubdtype(x.dtype, np.floating) \
+        and np.issubdtype(y.dtype, np.floating)
     if x.dtype == np.uint8:
         max_intensity = 256
     else:
