@@ -63,15 +63,15 @@ def to_tensor_format(x, mask=False):
     if x.ndim == 4:  # n 3D inputs. reorder axes
         x = np.transpose(x, (0, 2, 3, 1))
 
-    # if not np.iscomplexobj(x):  # Hacky solution
-    #     x = x*(1+1j)
+    if not np.iscomplexobj(x):  # Hacky solution
+        x = x*(1+1j)
 
     # if complex:
     #     x = c2r(x)
     # else:
     #     x = np.abs(x[np.newaxis, :])
-    if mask:  # Hacky solution
-        x = x * (1 + 1j)
+    # if mask:  # Hacky solution
+    #     x = x * (1 + 1j)
 
     x = c2r(x)
 
