@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def r2c(x, axis=1):
     """Convert pseudo-complex data (2 real channels) to complex data
 
@@ -10,8 +11,9 @@ def r2c(x, axis=1):
         e.g. if axis == i, then x.shape looks like (n_1, n_2, ..., n_i-1, 2, n_i+1, ..., nm)
     """
     shape = x.shape
-    if axis < 0: axis = x.ndim + axis
-    ctype = np.complex64 if x.dtype == np.float32 else np.complex128
+    if axis < 0:
+        axis = x.ndim + axis
+    ctype = np.complex64 if x.dtype == np.float16 else np.complex128
 
     if axis < len(shape):
         newshape = tuple([i for i in range(0, axis)]) \
@@ -33,12 +35,13 @@ def c2r(x, axis=1):
         e.g. if axis == i, then x.shape looks like (n_1, n_2, ..., n_i-1, 2, n_i+1, ..., nm)
     """
     shape = x.shape
-    dtype = np.float32 if x.dtype == np.complex64 else np.float64
+    dtype = np.float32 if x.dtype == np.complex64 else np.float64  # was np.float16 if x.dtype ...
 
     x = np.ascontiguousarray(x).view(dtype=dtype).reshape(shape + (2,))
 
     n = x.ndim
-    if axis < 0: axis = n + axis
+    if axis < 0:
+        axis = n + axis
     if axis < n:
         newshape = tuple([i for i in range(0, axis)]) + (n-1,) \
                    + tuple([i for i in range(axis, n-1)])
@@ -51,7 +54,7 @@ def mask_r2c(m):
     return m[0] if m.ndim == 3 else m[:, 0]
 
 
-def to_tensor_format(x):
+def to_tensor_format(x, mask=False):
     """
     Assumes data is of shape (n[, nt], nx, ny).
     Reshapes to (n, n_channels, nx, ny[, nt])
@@ -63,18 +66,33 @@ def to_tensor_format(x):
     if not np.iscomplexobj(x):  # Hacky solution
         x = x*(1+1j)
 
+    # if complex:
+    #     x = c2r(x)
+    # else:
+    #     x = np.abs(x[np.newaxis, :])
+    # if mask:  # Hacky solution
+    #     x = x * (1 + 1j)
+
     x = c2r(x)
 
     return x
 
 
-def from_tensor_format(x, mask=False):
+def from_tensor_format(x, mask=False):  #, complex=False):
     """
-    Assumes data is of shape (n, 2, nx, ny[, nt]).
+    Assumes data is of shape (n, nc, nx, ny[, nt]).
     Reshapes to (n, [nt, ]nx, ny)
     """
     if x.ndim == 5:  # n 3D inputs. reorder axes
         x = np.transpose(x, (0, 1, 4, 2, 3))
+
+    # if complex:
+    #     if mask:
+    #         x = mask_r2c(x)
+    #     else:
+    #         x = r2c(x)
+    # else:
+    #     x = x.squeeze(1)
 
     if mask:
         x = mask_r2c(x)

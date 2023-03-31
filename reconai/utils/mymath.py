@@ -1,8 +1,8 @@
 __author__ = 'Jo Schlemper'
 
+from numpy.fft import fft, fft2, ifft2, ifft, ifftshift, fftshift
 import numpy as np
 sqrt = np.sqrt
-from numpy.fft import fft, fft2, ifft2, ifft, ifftshift, fftshift
 
 
 def fftc(x, axis=-1, norm='ortho'):

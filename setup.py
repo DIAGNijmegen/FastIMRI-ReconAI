@@ -2,7 +2,7 @@ from setuptools import setup
 
 
 if __name__ == '__main__':
-    name = 'fastimri_reconai'
+    name = 'reconai'
     __version__ = ''
     exec(open(f'{name}/__version__.py').read())
 
@@ -18,6 +18,7 @@ if __name__ == '__main__':
         name=name,
         version=__version__,
         license='MIT',
+        py_modules=[],
         author='C.R. Noordman',
         author_email='stan.noordman@radboudumc.nl',
         description='',
@@ -26,6 +27,10 @@ if __name__ == '__main__':
             'SimpleITK~=2.1',
             'click',
             'matplotlib',
-            'python-box~=6.0'
+            'python-box~=6.0',
+            'torch',
+            'scikit-learn',
+            'opencv-python',
+            'pandas'
         ]
     )

@@ -1,74 +1,36 @@
+import logging
+
 import torch
-import torch.nn as nn
-from torch.autograd import Variable, grad
 import numpy as np
+import torch.nn as nn
 
-import reconai.cascadenet_pytorch.kspace_pytorch as kspace
-
-
-def lrelu():
-    return nn.LeakyReLU(0.01, inplace=True)
+from reconai.cascadenet_pytorch.kspace_pytorch import DataConsistencyInKspace, AveragingInKspace
+from reconai.cascadenet_pytorch.module import Module
 
 
-def relu():
-    return nn.ReLU(inplace=True)
+def mem_info():
+    gb = 1073741824
+    t = torch.cuda.get_device_properties(0).total_memory
+    r = torch.cuda.memory_reserved(0)
+    a = torch.cuda.memory_allocated(0)
+    m = lambda a: np.round(a/gb, decimals=2)
+    return f'max: {m(t)} GiB, reserved: {m(r)} GiB, allocated: {m(a)} GiB, free: {m(r - a)} GiB'
 
 
-def conv_block(n_ch, nd, nf=32, ks=3, dilation=1, bn=False, nl='lrelu', conv_dim=2, n_out=None):
-
-    # convolution dimension (2D or 3D)
-    if conv_dim == 2:
-        conv = nn.Conv2d
-    else:
-        conv = nn.Conv3d
-
-    # output dim: If None, it is assumed to be the same as n_ch
-    if not n_out:
-        n_out = n_ch
-
-    # dilated convolution
-    pad_conv = 1
-    if dilation > 1:
-        # in = floor(in + 2*pad - dilation * (ks-1) - 1)/stride + 1)
-        # pad = dilation
-        pad_dilconv = dilation
-    else:
-        pad_dilconv = pad_conv
-
-    def conv_i():
-        return conv(nf,   nf, ks, stride=1, padding=pad_dilconv, dilation=dilation, bias=True)
-
-    conv_1 = conv(n_ch, nf, ks, stride=1, padding=pad_conv, bias=True)
-    conv_n = conv(nf, n_out, ks, stride=1, padding=pad_conv, bias=True)
-
-    # relu
-    nll = relu if nl == 'relu' else lrelu
-
-    layers = [conv_1, nll()]
-    for i in range(nd-2):
-        if bn:
-            layers.append(nn.BatchNorm2d(nf))
-        layers += [conv_i(), nll()]
-
-    layers += [conv_n]
-
-    return nn.Sequential(*layers)
-
-
-class DnCn(nn.Module):
+class DnCn(Module):
     def __init__(self, n_channels=2, nc=5, nd=5, **kwargs):
         super(DnCn, self).__init__()
         self.nc = nc
         self.nd = nd
-        print('Creating D{}C{}'.format(nd, nc))
+        logging.debug('Creating D{}C{}'.format(nd, nc))
         conv_blocks = []
         dcs = []
 
-        conv_layer = conv_block
+        conv_layer = self.conv_block
 
         for i in range(nc):
             conv_blocks.append(conv_layer(n_channels, nd, **kwargs))
-            dcs.append(kspace.DataConsistencyInKspace(norm='ortho'))
+            dcs.append(DataConsistencyInKspace(norm='ortho'))
 
         self.conv_blocks = nn.ModuleList(conv_blocks)
         self.dcs = dcs
@@ -90,11 +52,10 @@ class StochasticDnCn(DnCn):
         self.p = p
         if not p:
             self.p = np.linspace(0, 0.5, nc)
-        print(self.p)
+        logging.debug(self.p)
 
     def forward(self, x, k, m):
         for i in range(self.nc):
-
             # stochastically drop connection
             if self.training or self.sample:
                 if np.random.random() <= self.p[i]:
@@ -110,20 +71,20 @@ class StochasticDnCn(DnCn):
         self.sample = flag
 
 
-class DnCn3D(nn.Module):
+class DnCn3D(Module):
     def __init__(self, n_channels=2, nc=5, nd=5, **kwargs):
         super(DnCn3D, self).__init__()
         self.nc = nc
         self.nd = nd
-        print('Creating D{}C{} (3D)'.format(nd, nc))
+        logging.debug('Creating D{}C{} (3D)'.format(nd, nc))
         conv_blocks = []
         dcs = []
 
-        conv_layer = conv_block
+        conv_layer = self.conv_block
 
         for i in range(nc):
             conv_blocks.append(conv_layer(n_channels, nd, **kwargs))
-            dcs.append(kspace.DataConsistencyInKspace(norm='ortho'))
+            dcs.append(DataConsistencyInKspace(norm='ortho'))
 
         self.conv_blocks = nn.ModuleList(conv_blocks)
         self.dcs = nn.ModuleList(dcs)
@@ -137,7 +98,7 @@ class DnCn3D(nn.Module):
         return x
 
 
-class DnCn3DDS(nn.Module):
+class DnCn3DDS(Module):
     def __init__(self, n_channels=2, nc=5, nd=5, fr_d=None, clipped=False, mode='pytorch', **kwargs):
         """
 
@@ -151,9 +112,9 @@ class DnCn3DDS(nn.Module):
         self.nc = nc
         self.nd = nd
         self.mode = mode
-        print('Creating D{}C{}-DS (3D)'.format(nd, nc))
+        logging.debug('Creating D{}C{}-DS (3D)'.format(nd, nc))
         if self.mode == 'theano':
-            print('Initialised with theano mode (backward-compatibility)')
+            logging.debug('Initialised with theano mode (backward-compatibility)')
         conv_blocks = []
         dcs = []
         kavgs = []
@@ -162,7 +123,7 @@ class DnCn3DDS(nn.Module):
             fr_d = list(range(10))
         self.fr_d = fr_d
 
-        conv_layer = conv_block
+        conv_layer = self.conv_block
 
         # update input-output channels for data sharing
         n_channels = 2 * len(fr_d)
@@ -170,9 +131,9 @@ class DnCn3DDS(nn.Module):
         kwargs.update({'n_out': 2})
 
         for i in range(nc):
-            kavgs.append(kspace.AveragingInKspace(fr_d, i > 0, clipped, norm='ortho'))
+            kavgs.append(AveragingInKspace(fr_d, i > 0, clipped, norm='ortho'))
             conv_blocks.append(conv_layer(n_channels, nd, **kwargs))
-            dcs.append(kspace.DataConsistencyInKspace(norm='ortho'))
+            dcs.append(DataConsistencyInKspace(norm='ortho'))
 
         self.conv_blocks = nn.ModuleList(conv_blocks)
         self.dcs = nn.ModuleList(dcs)
@@ -186,8 +147,8 @@ class DnCn3DDS(nn.Module):
                 x_ds_tmp = torch.zeros_like(x_ds)
                 nneigh = len(self.fr_d)
                 for j in range(nneigh):
-                    x_ds_tmp[:,2*j] = x_ds[:,j]
-                    x_ds_tmp[:,2*j+1] = x_ds[:,j+nneigh]
+                    x_ds_tmp[:, 2 * j] = x_ds[:, j]
+                    x_ds_tmp[:, 2 * j + 1] = x_ds[:, j + nneigh]
                 x_ds = x_ds_tmp
 
             x_cnn = self.conv_blocks[i](x_ds)
@@ -197,15 +158,15 @@ class DnCn3DDS(nn.Module):
         return x
 
 
-class DnCn3DShared(nn.Module):
+class DnCn3DShared(Module):
     def __init__(self, n_channels=2, nc=5, nd=5, **kwargs):
         super(DnCn3DShared, self).__init__()
         self.nc = nc
         self.nd = nd
-        print('Creating D{}C{}-S (3D)'.format(nd, nc))
+        logging.debug('Creating D{}C{}-S (3D)'.format(nd, nc))
 
-        self.conv_block = conv_block(n_channels, nd, **kwargs)
-        self.dc = kspace.DataConsistencyInKspace(norm='ortho')
+        self.conv_block = self.conv_block(n_channels, nd, **kwargs)
+        self.dc = DataConsistencyInKspace(norm='ortho')
 
     def forward(self, x, k, m):
         for i in range(self.nc):
@@ -216,7 +177,7 @@ class DnCn3DShared(nn.Module):
         return x
 
 
-class CRNNcell(nn.Module):
+class CRNNcell(Module):
     """
     Convolutional RNN cell that evolves over both time and iterations
 
@@ -234,10 +195,10 @@ class CRNNcell(nn.Module):
     def __init__(self, input_size, hidden_size, kernel_size):
         super(CRNNcell, self).__init__()
         self.kernel_size = kernel_size
-        self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
-        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2).type(self.TensorType)
+        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2).type(self.TensorType)
         # add iteration hidden connection
-        self.ih2ih = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2)
+        self.ih2ih = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2).type(self.TensorType)
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, input, hidden_iteration, hidden):
@@ -250,7 +211,7 @@ class CRNNcell(nn.Module):
         return hidden
 
 
-class BCRNNlayer(nn.Module):
+class BCRNNlayer(Module):
     """
     Bidirectional Convolutional RNN layer
 
@@ -265,6 +226,7 @@ class BCRNNlayer(nn.Module):
     output: 5d tensor, shape (n_seq, n_batch, hidden_size, width, height)
 
     """
+
     def __init__(self, input_size, hidden_size, kernel_size):
         super(BCRNNlayer, self).__init__()
         self.hidden_size = hidden_size
@@ -272,14 +234,10 @@ class BCRNNlayer(nn.Module):
         self.input_size = input_size
         self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
 
-    def forward(self, input, input_iteration, test=False):
+    def forward(self, input, input_iteration):
         nt, nb, nc, nx, ny = input.shape
         size_h = [nb, self.hidden_size, nx, ny]
-        if test:
-            with torch.no_grad():
-                hid_init = Variable(torch.zeros(size_h)).cuda()
-        else:
-            hid_init = Variable(torch.zeros(size_h)).cuda()
+        hid_init = self.init_hidden(size_h)
 
         output_f = []
         output_b = []
@@ -294,7 +252,7 @@ class BCRNNlayer(nn.Module):
         # backward
         hidden = hid_init
         for i in range(nt):
-            hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i -1], hidden)
+            hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
 
             output_b.append(hidden)
         output_b = torch.cat(output_b[::-1])
@@ -307,7 +265,7 @@ class BCRNNlayer(nn.Module):
         return output
 
 
-class CRNN_MRI(nn.Module):
+class CRNN_MRI(Module):
     """
     Model for Dynamic MRI Reconstruction using Convolutional Neural Networks
 
@@ -319,6 +277,7 @@ class CRNN_MRI(nn.Module):
     ------------------------------
     output: 5d tensor, [output_image] with shape (batch_size, 2, width, height, n_seq)
     """
+
     def __init__(self, n_ch=2, nf=64, ks=3, nc=5, nd=5):
         """
         :param n_ch: number of channels
@@ -333,19 +292,22 @@ class CRNN_MRI(nn.Module):
         self.nf = nf
         self.ks = ks
 
+        def conv2d():
+            return nn.Conv2d(nf, nf, ks, padding=ks // 2).type(self.TensorType)
+
         self.bcrnn = BCRNNlayer(n_ch, nf, ks)
-        self.conv1_x = nn.Conv2d(nf, nf, ks, padding = ks//2)
-        self.conv1_h = nn.Conv2d(nf, nf, ks, padding = ks//2)
-        self.conv2_x = nn.Conv2d(nf, nf, ks, padding = ks//2)
-        self.conv2_h = nn.Conv2d(nf, nf, ks, padding = ks//2)
-        self.conv3_x = nn.Conv2d(nf, nf, ks, padding = ks//2)
-        self.conv3_h = nn.Conv2d(nf, nf, ks, padding = ks//2)
-        self.conv4_x = nn.Conv2d(nf, n_ch, ks, padding = ks//2)
-        self.relu = nn.ReLU(inplace=True)
+        self.conv1_x = conv2d()
+        self.conv1_h = conv2d()
+        self.conv2_x = conv2d()
+        self.conv2_h = conv2d()
+        self.conv3_x = conv2d()
+        self.conv3_h = conv2d()
+        self.conv4_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2).type(self.TensorType)
+        self.relu = nn.LeakyReLU(inplace=True)
 
         dcs = []
         for i in range(nc):
-            dcs.append(kspace.DataConsistencyInKspace(norm='ortho'))
+            dcs.append(DataConsistencyInKspace(norm='ortho'))
         self.dcs = dcs
 
     def forward(self, x, k, m, test=False):
@@ -355,56 +317,57 @@ class CRNN_MRI(nn.Module):
         m   - corresponding nonzero location
         test - True: the model is in test mode, False: train mode
         """
-        net = {}
+        net, ti_out = {}, ''
+        logging.debug(f'net init @ {mem_info()}')
         n_batch, n_ch, width, height, n_seq = x.size()
-        size_h = [n_seq*n_batch, self.nf, width, height]
-        if test:
-            with torch.no_grad():
-                hid_init = Variable(torch.zeros(size_h)).cuda()
-        else:
-            hid_init = Variable(torch.zeros(size_h)).cuda()
+        size_h = [n_seq * n_batch, self.nf, width, height]
+        hid_init = self.init_hidden(size_h)
 
-        for j in range(self.nd-1):
-            net['t0_x%d'%j]=hid_init
+        for j in range(self.nd - 1):
+            net['t0_x%d' % j] = hid_init
 
-        for i in range(1,self.nc+1):
+        # k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)
+
+        for i in range(1, self.nc + 1):
             o = i - 1
 
-            x = x.permute(4,0,1,2,3)
+            x = x.permute(4, 0, 1, 2, 3)
             x = x.contiguous()
 
             ti_x0, to_x0 = f't{i}_x0', f't{o}_x0'
-            net[to_x0] = net[to_x0].view(n_seq, n_batch,self.nf,width, height)
-            net[ti_x0] = self.bcrnn(x, net[to_x0], test)
-            net[ti_x0] = net[ti_x0].view(-1,self.nf,width, height)
+            net[to_x0] = net[to_x0].view(n_seq, n_batch, self.nf, width, height)
+            net[ti_x0] = self.bcrnn(x, net[to_x0])
+            net[ti_x0] = net[ti_x0].view(-1, self.nf, width, height)
 
             ti_x1, ti_h1, to_x1 = f't{i}_x1', f't{i}_h1', f't{o}_x1'
             net[ti_x1] = self.conv1_x(net[ti_x0])
             net[ti_h1] = self.conv1_h(net[to_x1])
-            net[ti_x1] = self.relu(net[ti_h1]+net[ti_x1])
+            net[ti_x1] = self.relu(net[ti_h1] + net[ti_x1])
 
             ti_x2, ti_h2, to_x2 = f't{i}_x2', f't{i}_h2', f't{o}_x2'
             net[ti_x2] = self.conv2_x(net[ti_x1])
             net[ti_h2] = self.conv2_h(net[to_x2])
-            net[ti_x2] = self.relu(net[ti_h2]+net[ti_x2])
+            net[ti_x2] = self.relu(net[ti_h2] + net[ti_x2])
 
             ti_x3, ti_h3, to_x3 = f't{i}_x3', f't{i}_h3', f't{o}_x3'
             net[ti_x3] = self.conv3_x(net[ti_x2])
             net[ti_h3] = self.conv3_h(net[to_x3])
-            net[ti_x3] = self.relu(net[ti_h3]+net[ti_x3])
+            net[ti_x3] = self.relu(net[ti_h3] + net[ti_x3])
 
             ti_x4 = f't{i}_x4'
             net[ti_x4] = self.conv4_x(net[ti_x3])
 
-            x = x.view(-1,n_ch,width, height)
+            x = x.view(-1, n_ch, width, height)
             ti_out = f't{i}_out'
             net[ti_out] = x + net[ti_x4]
 
-            net[ti_out] = net[ti_out].view(-1,n_batch, n_ch, width, height)
-            net[ti_out] = net[ti_out].permute(1,2,3,4,0)
+            net[ti_out] = net[ti_out].view(-1, n_batch, n_ch, width, height)
+            net[ti_out] = net[ti_out].permute(1, 2, 3, 4, 0)
             net[ti_out].contiguous()
-            net[ti_out] = self.dcs[i-1].perform(net[ti_out], k, m)  # this causes ti_out to become complex64
+            net[ti_out] = self.dcs[i - 1].perform(net[ti_out], k, m)
             x = net[ti_out]
+
+            logging.debug(f'it {i} @ {mem_info()}')
 
             # clean up o=i-1
             if test:
@@ -416,5 +379,7 @@ class CRNN_MRI(nn.Module):
                 torch.cuda.empty_cache()
 
         return net[ti_out]
+
+
 
 

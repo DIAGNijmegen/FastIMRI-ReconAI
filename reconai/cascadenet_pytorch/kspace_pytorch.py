@@ -1,6 +1,12 @@
+import logging
+
 import numpy as np
 import torch
+import torch.fft as fourier
 import torch.nn as nn
+
+
+from reconai.cascadenet_pytorch.module import Module
 
 
 def data_consistency(k, k0, mask, noise_lvl=None):
@@ -17,7 +23,7 @@ def data_consistency(k, k0, mask, noise_lvl=None):
     return out
 
 
-class DataConsistencyInKspace(nn.Module):
+class DataConsistencyInKspace(Module):
     """ Create data consistency operator
 
     Warning: note that FFT2 (by the default of torch.fft) is applied to the last 2 axes of the input.
@@ -36,23 +42,36 @@ class DataConsistencyInKspace(nn.Module):
 
     def perform(self, x, k0, mask):
         """
-        x    - input in image domain, of shape (n, 2, nx, ny[, nt])
+        x    - input in image domain, of shape (n, n_ch, nx, ny[, nt])
         k0   - initially sampled elements in k-space
         mask - corresponding nonzero location
         """
-
-        if x.dim() == 4: # input is 2D
-            x    = x.permute(0, 2, 3, 1)
-            k0   = k0.permute(0, 2, 3, 1)
+        # n_ch = x.shape[1]
+        if x.dim() == 4:  # input is 2D
+            x = x.permute(0, 2, 3, 1)
+            k0 = k0.permute(0, 2, 3, 1)
             mask = mask.permute(0, 2, 3, 1)
-        elif x.dim() == 5: # input is 3D
-            x    = x.permute(0, 4, 2, 3, 1)
-            k0   = k0.permute(0, 4, 2, 3, 1)
+        elif x.dim() == 5:  # input is 3D
+            x = x.permute(0, 4, 2, 3, 1)
+            k0 = k0.permute(0, 4, 2, 3, 1)
             mask = mask.permute(0, 4, 2, 3, 1)
 
-        k = torch.fft.fft(x, 2, norm=self.normalized)
+        k = fourier.fft(x, 2, normalized=self.normalized)
         out = data_consistency(k, k0, mask, self.noise_lvl)
-        x_res = torch.abs(torch.fft.ifft(out, 2, norm=self.normalized))
+        x_res = fourier.ifft(out, 2, normalized=self.normalized)
+
+        # if n_ch == 1:
+        #     k = fourier.fftshift(fourier.fft2(x, norm=self.normalized, dim=(2, 3)))
+        #     k_c = data_consistency(k, k0, mask, self.noise_lvl)
+        #     x_res = torch.abs(fourier.ifftshift(fourier.ifft2(k_c, norm=self.normalized, dim=(2, 3))))
+
+        # k = fourier.fft(x, n_ch, norm=self.normalized)
+        # if n_ch == 1:
+        #     k = torch.abs(torch.cat((k, torch.zeros_like(k)), 4))
+        # out = data_consistency(k, k0, mask, self.noise_lvl)
+        # if n_ch == 1:
+        #     out = torch.complex(torch.select(out, 4, 0), torch.select(out, 4, 0)).unsqueeze(4)
+        # x_res = torch.abs(fourier.ifft(out, n_ch, norm=self.normalized))
 
         if x.dim() == 4:
             x_res = x_res.permute(0, 3, 1, 2)
@@ -62,41 +81,7 @@ class DataConsistencyInKspace(nn.Module):
         return x_res
 
 
-def get_add_neighbour_op(nc, frame_dist, divide_by_n, clipped):
-    max_sample = max(frame_dist) *2 + 1
-
-    # for non-clipping, increase the input circularly
-    if clipped:
-        padding = (max_sample//2, 0, 0)
-    else:
-        padding = 0
-
-    # expect data to be in this format: (n, nc, nt, nx, ny) (due to FFT)
-    conv = nn.Conv3d(in_channels=nc, out_channels=nc*len(frame_dist),
-                     kernel_size=(max_sample, 1, 1),
-                     stride=1, padding=padding, bias=False)
-
-    # Although there is only 1 parameter, need to iterate as parameters return generator
-    conv.weight.requires_grad = False
-
-    # kernel has size nc=2, nc'=8, kt, kx, ky
-    for i, n in enumerate(frame_dist):
-        m = max_sample // 2
-        #c = 1 / (n * 2 + 1) if divide_by_n else 1
-        c = 1
-        wt = np.zeros((2, max_sample, 1, 1), dtype=np.float32)
-        wt[0, m-n:m+n+1] = c
-        wt2 = np.zeros((2, max_sample, 1, 1), dtype=np.float32)
-        wt2[1, m-n:m+n+1] = c
-
-        conv.weight.data[2*i] = torch.from_numpy(wt)
-        conv.weight.data[2*i+1] = torch.from_numpy(wt2)
-
-    conv.cuda()
-    return conv
-
-
-class KspaceFillNeighbourLayer(nn.Module):
+class KspaceFillNeighbourLayer(Module):
     '''
     k-space fill layer - The input data is assumed to be in k-space grid.
 
@@ -104,10 +89,11 @@ class KspaceFillNeighbourLayer(nn.Module):
     This layer should be invoked from AverageInKspaceLayer
     '''
     def __init__(self, frame_dist, divide_by_n=False, clipped=True, **kwargs):
+        raise NotImplementedError()
         # frame_dist is the extent that data sharing goes.
         # e.g. current frame is 3, frame_dist = 2, then 1,2, and 4,5 are added for reconstructing 3
         super(KspaceFillNeighbourLayer, self).__init__()
-        print("fr_d={}, divide_by_n={}, clippd={}".format(frame_dist, divide_by_n, clipped))
+        logging.debug("fr_d={}, divide_by_n={}, clippd={}".format(frame_dist, divide_by_n, clipped))
         if 0 not in frame_dist:
             raise ValueError("There suppose to be a 0 in fr_d in config file!")
             frame_dist = [0] + frame_dist # include ID
@@ -116,7 +102,7 @@ class KspaceFillNeighbourLayer(nn.Module):
         self.n_samples   = [1 + 2*i for i in self.frame_dist]
         self.divide_by_n = divide_by_n
         self.clipped     = clipped
-        self.op = get_add_neighbour_op(2, frame_dist, divide_by_n, clipped)
+        self.op = get_add_neighbour_op(2)
 
     def forward(self, *input, **kwargs):
         return self.perform(*input)
@@ -161,8 +147,41 @@ class KspaceFillNeighbourLayer(nn.Module):
         res = res.reshape(nb, nc_ri//2, 2, nt, nx, ny)
         return res
 
+    def get_add_neighbour_op(self, nc):
+        max_sample = max(self.frame_dist) * 2 + 1
 
-class AveragingInKspace(nn.Module):
+        # for non-clipping, increase the input circularly
+        if self.clipped:
+            padding = (max_sample // 2, 0, 0)
+        else:
+            padding = 0
+
+        # expect data to be in this format: (n, nc, nt, nx, ny) (due to FFT)
+        conv = nn.Conv3d(in_channels=nc, out_channels=nc * len(self.frame_dist),
+                         kernel_size=(max_sample, 1, 1),
+                         stride=1, padding=padding, bias=False)
+
+        # Although there is only 1 parameter, need to iterate as parameters return generator
+        conv.weight.requires_grad = False
+
+        # kernel has size nc=2, nc'=8, kt, kx, ky
+        for i, n in enumerate(self.frame_dist):
+            m = max_sample // 2
+            # c = 1 / (n * 2 + 1) if divide_by_n else 1
+            c = 1
+            wt = np.zeros((2, max_sample, 1, 1), dtype=np.float16)
+            wt[0, m - n:m + n + 1] = c
+            wt2 = np.zeros((2, max_sample, 1, 1), dtype=np.float16)
+            wt2[1, m - n:m + n + 1] = c
+
+            conv.weight.data[2 * i] = torch.from_numpy(wt)
+            conv.weight.data[2 * i + 1] = torch.from_numpy(wt2)
+
+        conv.cuda()
+        return conv
+
+
+class AveragingInKspace(Module):
     '''
     Average-in-k-space layer
 
@@ -197,6 +216,7 @@ class AveragingInKspace(nn.Module):
     '''
 
     def __init__(self, frame_dist, divide_by_n=False, clipped=True, norm='ortho'):
+        raise NotImplementedError()
         super(AveragingInKspace, self).__init__()
         self.normalized = norm == 'ortho'
         self.frame_dist = frame_dist
@@ -213,8 +233,9 @@ class AveragingInKspace(nn.Module):
         """
         mask = mask.permute(0, 1, 4, 2, 3)
 
+        n_ch = x.shape[1]
         x = x.permute(0, 4, 2, 3, 1) # put t to front, in convenience for fft
-        k = torch.fft(x, 2, normalized=self.normalized)
+        k = fourier.fft(x, n_ch, normalized=self.normalized)
         k = k.permute(0, 4, 1, 2, 3) # then put ri to the front, then t
 
         # data sharing
@@ -227,7 +248,7 @@ class AveragingInKspace(nn.Module):
         # out.shape: [nb, 2*len(frame_dist), nt, nx, ny]
         # we then detatch confused real/img channel and replica kspace channel due to datasharing (nc)
         out = out.permute(0,1,3,4,5,2) # jo version, split ri and nc, put ri to the back for ifft
-        x_res = torch.ifft(out, 2, normalized=self.normalized)
+        x_res = fourier.ifft(out, 2, normalized=self.normalized)
 
 
         # now nb, nc, nt, nx, ny, ri, put ri to channel position, and after nc (i.e. within each nc)
