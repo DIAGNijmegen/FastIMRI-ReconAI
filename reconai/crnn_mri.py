@@ -1,26 +1,18 @@
 #!/usr/bin/env python
 from __future__ import print_function, division
 
-import datetime
-import time
-import logging
-
-import torch
-from torch.autograd import Variable
-import torch.optim as optim
-from box import Box
-from typing import List
-
-from reconai.cascadenet_pytorch.model_pytorch import CRNN_MRI
-from reconai.cascadenet_pytorch.dnn_io import from_tensor_format
-from reconai.cascadenet_pytorch.module import Module
-
-from .data.data import get_data_volumes, get_dataset_batchers, prepare_input_as_variable, prepare_input
+from .data.data import *
 from .utils.graph import *
 
+import datetime
+import time
+import torch.optim as optim
+
+from reconai.cascadenet_pytorch.model_pytorch import CRNN_MRI
+
 def test_accelerations(args: Box):
-    # accelerations = [1, 2, 4, 8, 12, 16, 32]
-    accelerations = [32, 64]
+    accelerations = [1, 2, 4, 8, 12, 16, 32]
+    # accelerations = [32, 64]
 
     results = []
     for acceleration in accelerations:
@@ -29,26 +21,9 @@ def test_accelerations(args: Box):
         fold0, train_err, val_err = train_results[0]
         results.append((acceleration, train_err, val_err))
 
-    graph_x = list(range(args.num_epoch))
-    fig = plt.figure()
-    for acceleration, train_err, val_err in results:
-        plt.plot(graph_x, train_err, label=f"train_loss_{acceleration}", lw=1)
-    plt.legend()
-    plt.ylim(bottom=0)
-    plt.ylabel(f'{args.loss} training loss')
-    plt.xlabel("epoch")
-    plt.savefig(args.out_dir / f'acceleration_{args.date}' / "training_loss.png")
-    plt.close(fig)
+    print_acceleration_train_loss(results, args.num_epoch,args.loss, args.out_dir / f'acceleration_{args.date}')
 
-    fig = plt.figure()
-    for acceleration, train_err, val_err in results:
-        plt.plot(graph_x, val_err, label=f"val_loss{acceleration}", lw=1)
-    plt.legend()
-    plt.ylim(bottom=0)
-    plt.ylabel(f'{args.loss} validation loss')
-    plt.xlabel("epoch")
-    plt.savefig(args.out_dir / f'acceleration_{args.date}' / "validation_loss.png")
-    plt.close(fig)
+    print_acceleration_validation_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
 
 
 def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int], List[int]]]:
@@ -56,7 +31,6 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
-    # Volume.key = 'needle'
     model_name = f'crnn_mri_debug' if args.debug else f'crnn_mri'
     num_epoch = 3 if args.debug else args.num_epoch
     n_folds = args.folds if args.folds > 2 else 1
@@ -196,49 +170,3 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
 
     return results
 
-def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
-    with open(fold_dir / f'progress.csv', 'a+') as file:
-        if epoch == 0:
-            file.write(f'Acceleration, Fold, Epoch, Train error, Validation error \n')
-        file.write(f'{acceleration}, {fold}, {epoch}, {train_err}, {val_err} \n')
-
-
-def get_data_information(args):
-    # Volume.key = 'needle'
-    data = get_data_volumes(args)
-    train, validate, _ = get_dataset_batchers(args, data, 1, 0)
-
-    mins = []
-    maxes = []
-    max_to_perc99 = []
-    averages = []
-    for image in train.generate():
-        image = image[0]
-
-        # go through each slice
-        for i in range(image.shape[0]):
-            slice = image[i]
-            mins.append(slice.min())
-            maxes.append(slice.max())
-            averages.append(slice.mean())
-            perc99 = np.percentile(slice, 99)
-            max_to_perc99.append(slice.max() - perc99)
-
-    for image in validate.generate():
-        image = image[0]
-
-        # go through each slice
-        for i in range(image.shape[0]):
-            slice = image[i]
-            maxes.append(slice.max())
-
-    # print(f'Min {min(mins)}')
-    print(f'Min of maxes {min(maxes)}')
-    print(f'Average of maxes {np.mean(maxes)}')
-    print(f'std of maxes {np.std(maxes)}')
-    print(f'Max of maxes {max(maxes)}')
-    # print(f'Avg {np.mean(averages)}')
-    # print(f'Min diff max-perc99 {np.min(max_to_perc99)}')
-    # print(f'Avg diff max-perc99 {np.mean(max_to_perc99)}')
-    # print(f'Max diff max-perc99 {np.max(max_to_perc99)}')
-    exit(1)
