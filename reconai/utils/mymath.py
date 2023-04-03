@@ -56,9 +56,9 @@ def fourier_matrix(rows, cols):
     scale = 1 / np.sqrt(cols)
 
     coeffs = np.outer(row_range, col_range)
-    fourier_matrix = np.exp(coeffs * (-2. * np.pi * 1j / cols)) * scale
+    fourier_mat = np.exp(coeffs * (-2. * np.pi * 1j / cols)) * scale
 
-    return fourier_matrix
+    return fourier_mat
 
 
 def inverse_fourier_matrix(rows, cols):

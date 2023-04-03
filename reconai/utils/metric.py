@@ -49,9 +49,8 @@ def ssim(img1, img2):
     def calc_ssim(imga, imgb):
         C1 = (0.01 * 255) ** 2
         C2 = (0.03 * 255) ** 2
-
-        imga = imga.astype(np.float64)
-        imgb = imgb.astype(np.float64)
+        imga = np.abs(imga).astype(np.float64)
+        imgb = np.abs(imgb).astype(np.float64)
         kernel = cv2.getGaussianKernel(11, 1.5)
         window = np.outer(kernel, kernel.transpose())
 

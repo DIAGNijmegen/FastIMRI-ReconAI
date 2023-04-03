@@ -107,6 +107,29 @@ def print_loss_comparison_graphs(epoch_dir: Path, vis, name: str):
         plt.savefig(epoch_dir / f'{name}_errors.png')
         plt.close(fig)
 
+def print_acceleration_train_loss(results, num_epochs: int, loss: str, out_dir: Path):
+    graph_x = list(range(num_epochs))
+    fig = plt.figure()
+    for acceleration, train_err, _ in results:
+        plt.plot(graph_x, train_err, label=f"train_loss_{acceleration}", lw=1)
+    plt.legend()
+    plt.ylim(bottom=0)
+    plt.ylabel(f'{loss} training loss')
+    plt.xlabel("epoch")
+    plt.savefig(out_dir / "training_loss.png")
+    plt.close(fig)
+
+def print_acceleration_validation_loss(results, num_epochs: int, loss: str, out_dir: Path):
+    graph_x = list(range(num_epochs))
+    fig = plt.figure()
+    for acceleration, _, val_err in results:
+        plt.plot(graph_x, val_err, label=f"val_loss{acceleration}", lw=1)
+    plt.legend()
+    plt.ylim(bottom=0)
+    plt.ylabel(f'{loss} validation loss')
+    plt.xlabel("epoch")
+    plt.savefig(out_dir / "validation_loss.png")
+    plt.close(fig)
 
 def set_ax(axes, ax: int, title: str, image, cmap="Greys_r"):
     axes[ax].set_title(title)

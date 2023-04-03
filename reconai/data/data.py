@@ -53,7 +53,7 @@ def prepare_input(image: np.ndarray, acceleration: float = 4.0) \
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
     im_gnd_l = torch.from_numpy(to_tensor_format(image))
     im_und_l = torch.from_numpy(to_tensor_format(im_und))
-    k_und_l = torch.from_numpy(to_tensor_format(k_und, mask=True))  # param was named complex
+    k_und_l = torch.from_numpy(to_tensor_format(k_und, complex=True))
     mask_l = torch.from_numpy(to_tensor_format(mask))
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
@@ -107,6 +107,11 @@ def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fo
 
     return train, validate, test
 
+def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
+    with open(fold_dir / f'progress.csv', 'a+') as file:
+        if epoch == 0:
+            file.write(f'Acceleration, Fold, Epoch, Train error, Validation error \n')
+        file.write(f'{acceleration}, {fold}, {epoch}, {train_err}, {val_err} \n')
 
 def show_images(rec, gnd):
     # a = 1
@@ -125,3 +130,43 @@ def show_images(rec, gnd):
     ax3.imshow(gnd2[0] - rec)
     ax3.set_title('Difference')
     plt.show()
+
+def get_data_information(args):
+    # Volume.key = 'needle'
+    data = get_data_volumes(args)
+    train, validate, _ = get_dataset_batchers(args, data, 1, 0)
+
+    mins = []
+    maxes = []
+    max_to_perc99 = []
+    averages = []
+    for image in train.generate():
+        image = image[0]
+
+        # go through each slice
+        for i in range(image.shape[0]):
+            slice = image[i]
+            mins.append(slice.min())
+            maxes.append(slice.max())
+            averages.append(slice.mean())
+            perc99 = np.percentile(slice, 99)
+            max_to_perc99.append(slice.max() - perc99)
+
+    for image in validate.generate():
+        image = image[0]
+
+        # go through each slice
+        for i in range(image.shape[0]):
+            slice = image[i]
+            maxes.append(slice.max())
+
+    # print(f'Min {min(mins)}')
+    print(f'Min of maxes {min(maxes)}')
+    print(f'Average of maxes {np.mean(maxes)}')
+    print(f'std of maxes {np.std(maxes)}')
+    print(f'Max of maxes {max(maxes)}')
+    # print(f'Avg {np.mean(averages)}')
+    # print(f'Min diff max-perc99 {np.min(max_to_perc99)}')
+    # print(f'Avg diff max-perc99 {np.mean(max_to_perc99)}')
+    # print(f'Max diff max-perc99 {np.max(max_to_perc99)}')
+    exit(1)

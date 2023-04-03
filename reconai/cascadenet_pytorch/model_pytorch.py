@@ -7,176 +7,6 @@ import torch.nn as nn
 from reconai.cascadenet_pytorch.kspace_pytorch import DataConsistencyInKspace, AveragingInKspace
 from reconai.cascadenet_pytorch.module import Module
 
-
-def mem_info():
-    gb = 1073741824
-    t = torch.cuda.get_device_properties(0).total_memory
-    r = torch.cuda.memory_reserved(0)
-    a = torch.cuda.memory_allocated(0)
-    m = lambda a: np.round(a/gb, decimals=2)
-    return f'max: {m(t)} GiB, reserved: {m(r)} GiB, allocated: {m(a)} GiB, free: {m(r - a)} GiB'
-
-
-class DnCn(Module):
-    def __init__(self, n_channels=2, nc=5, nd=5, **kwargs):
-        super(DnCn, self).__init__()
-        self.nc = nc
-        self.nd = nd
-        logging.debug('Creating D{}C{}'.format(nd, nc))
-        conv_blocks = []
-        dcs = []
-
-        conv_layer = self.conv_block
-
-        for i in range(nc):
-            conv_blocks.append(conv_layer(n_channels, nd, **kwargs))
-            dcs.append(DataConsistencyInKspace(norm='ortho'))
-
-        self.conv_blocks = nn.ModuleList(conv_blocks)
-        self.dcs = dcs
-
-    def forward(self, x, k, m):
-        for i in range(self.nc):
-            x_cnn = self.conv_blocks[i](x)
-            x = x + x_cnn
-            x = self.dcs[i].perform(x, k, m)
-
-        return x
-
-
-class StochasticDnCn(DnCn):
-    def __init__(self, n_channels=2, nc=5, nd=5, p=None, **kwargs):
-        super(StochasticDnCn, self).__init__(n_channels, nc, nd, **kwargs)
-
-        self.sample = False
-        self.p = p
-        if not p:
-            self.p = np.linspace(0, 0.5, nc)
-        logging.debug(self.p)
-
-    def forward(self, x, k, m):
-        for i in range(self.nc):
-            # stochastically drop connection
-            if self.training or self.sample:
-                if np.random.random() <= self.p[i]:
-                    continue
-
-            x_cnn = self.conv_blocks[i](x)
-            x = x + x_cnn
-            x = self.dcs[i].perform(x, k, m)
-
-        return x
-
-    def set_sample(self, flag=True):
-        self.sample = flag
-
-
-class DnCn3D(Module):
-    def __init__(self, n_channels=2, nc=5, nd=5, **kwargs):
-        super(DnCn3D, self).__init__()
-        self.nc = nc
-        self.nd = nd
-        logging.debug('Creating D{}C{} (3D)'.format(nd, nc))
-        conv_blocks = []
-        dcs = []
-
-        conv_layer = self.conv_block
-
-        for i in range(nc):
-            conv_blocks.append(conv_layer(n_channels, nd, **kwargs))
-            dcs.append(DataConsistencyInKspace(norm='ortho'))
-
-        self.conv_blocks = nn.ModuleList(conv_blocks)
-        self.dcs = nn.ModuleList(dcs)
-
-    def forward(self, x, k, m):
-        for i in range(self.nc):
-            x_cnn = self.conv_blocks[i](x)
-            x = x + x_cnn
-            x = self.dcs[i].perform(x, k, m)
-
-        return x
-
-
-class DnCn3DDS(Module):
-    def __init__(self, n_channels=2, nc=5, nd=5, fr_d=None, clipped=False, mode='pytorch', **kwargs):
-        """
-
-        Parameters
-        ----------
-
-        fr_d: frame distance for data sharing layer. e.g. [1, 3, 5]
-
-        """
-        super(DnCn3DDS, self).__init__()
-        self.nc = nc
-        self.nd = nd
-        self.mode = mode
-        logging.debug('Creating D{}C{}-DS (3D)'.format(nd, nc))
-        if self.mode == 'theano':
-            logging.debug('Initialised with theano mode (backward-compatibility)')
-        conv_blocks = []
-        dcs = []
-        kavgs = []
-
-        if not fr_d:
-            fr_d = list(range(10))
-        self.fr_d = fr_d
-
-        conv_layer = self.conv_block
-
-        # update input-output channels for data sharing
-        n_channels = 2 * len(fr_d)
-        n_out = 2
-        kwargs.update({'n_out': 2})
-
-        for i in range(nc):
-            kavgs.append(AveragingInKspace(fr_d, i > 0, clipped, norm='ortho'))
-            conv_blocks.append(conv_layer(n_channels, nd, **kwargs))
-            dcs.append(DataConsistencyInKspace(norm='ortho'))
-
-        self.conv_blocks = nn.ModuleList(conv_blocks)
-        self.dcs = nn.ModuleList(dcs)
-        self.kavgs = nn.ModuleList(kavgs)
-
-    def forward(self, x, k, m):
-        for i in range(self.nc):
-            x_ds = self.kavgs[i](x, m)
-            if self.mode == 'theano':
-                # transpose the layes
-                x_ds_tmp = torch.zeros_like(x_ds)
-                nneigh = len(self.fr_d)
-                for j in range(nneigh):
-                    x_ds_tmp[:, 2 * j] = x_ds[:, j]
-                    x_ds_tmp[:, 2 * j + 1] = x_ds[:, j + nneigh]
-                x_ds = x_ds_tmp
-
-            x_cnn = self.conv_blocks[i](x_ds)
-            x = x + x_cnn
-            x = self.dcs[i](x, k, m)
-
-        return x
-
-
-class DnCn3DShared(Module):
-    def __init__(self, n_channels=2, nc=5, nd=5, **kwargs):
-        super(DnCn3DShared, self).__init__()
-        self.nc = nc
-        self.nd = nd
-        logging.debug('Creating D{}C{}-S (3D)'.format(nd, nc))
-
-        self.conv_block = self.conv_block(n_channels, nd, **kwargs)
-        self.dc = DataConsistencyInKspace(norm='ortho')
-
-    def forward(self, x, k, m):
-        for i in range(self.nc):
-            x_cnn = self.conv_block(x)
-            x = x + x_cnn
-            x = self.dc.perform(x, k, m)
-
-        return x
-
-
 class CRNNcell(Module):
     """
     Convolutional RNN cell that evolves over both time and iterations
@@ -326,7 +156,7 @@ class CRNN_MRI(Module):
         for j in range(self.nd - 1):
             net['t0_x%d' % j] = hid_init
 
-        # k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)
+        k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)
 
         for i in range(1, self.nc + 1):
             o = i - 1
@@ -380,6 +210,13 @@ class CRNN_MRI(Module):
 
         return net[ti_out]
 
+def mem_info():
+    gb = 1073741824
+    t = torch.cuda.get_device_properties(0).total_memory
+    r = torch.cuda.memory_reserved(0)
+    a = torch.cuda.memory_allocated(0)
+    m = lambda a: np.round(a/gb, decimals=2)
+    return f'max: {m(t)} GiB, reserved: {m(r)} GiB, allocated: {m(a)} GiB, free: {m(r - a)} GiB'
 
 
 
