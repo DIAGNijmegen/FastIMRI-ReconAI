@@ -1,36 +1,79 @@
 from pathlib import Path
-from collections import OrderedDict
+import collections.abc
 
-from strictyaml import load as yamlload, CommaSeparated, Map, Str, Int, Float, Map, Optional, YAMLError
+from yaml import dump
+from strictyaml import load as strict_load, dirty_load, CommaSeparated, Str, Int, Float, Map, EmptyDict, FixedSeq
+
 
 volume = Map({
-    Optional("key", "sag"): Str(),
-    Optional("shape", [256, 256, 15]): CommaSeparated(Int()),
-    Optional("slices", 3): Int()}
-)
+    "key": Str(),
+    "shape": FixedSeq([Int()] * 3) | CommaSeparated(Int()),
+    "slices": Int()
+})
+
 train = Map({
-    Optional("epochs", 100): Int(),
+    "epochs": Int(),
     "loss": Map({
-        Optional("mse", 1): Float(),
-        Optional("ssim"): Float(),
-        Optional("dice"): Float(),
+        "mse": Float(),
+        "ssim": Float(),
+        "dice": Float(),
     }),
-    Optional("lr", 0.001): Float(),
-    Optional("undersampling", 8): Int(),
-    Optional("seed", -1): Int()})
-experiment = Map({
+    "lr": Float(),
+    "undersampling": Int(),
+    "seed": Int()
+})
+
+experiment = EmptyDict() | Map({
 
 })
-schema = Map({"volume": volume, "train": train, "experiment": experiment})
 
-def OptionalRoot():
-    pass
+schema = Map({
+    "volume": volume,
+    "train": train,
+    "experiment": experiment
+})
 
-def load(path: Path | str):
+
+def deep_update(d, u):
+    for k, v in u.items():
+        if isinstance(v, collections.abc.Mapping):
+            d[k] = deep_update(d.get(k, {}), v)
+        else:
+            d[k] = v
+    return d
+
+
+def apply_defaults(yaml_input: str):
+    yaml_input = strict_load(yaml_input)
+    yaml_default = strict_load("""
+    volume:
+      key: sag
+      # x, y, sequence length
+      shape: 256,256,15
+      # files * slices <= sequence length, else the case is skipped
+      slices: 3
+    train:
+      epochs: 75
+      loss:
+        mse: 1
+        ssim: 0
+        dice: 0
+      lr: 0.001
+      undersampling: 8
+      seed: -1
+    experiment:
+    """, schema)
+
+    if yaml_input.data:
+        yaml_final = deep_update(yaml_default.data, yaml_input.data)
+        return dirty_load(dump(yaml_final), schema, allow_flow_style=True)
+    else:
+        return yaml_default
+
+def load(path: Path):
     with open(path) as f:
-        t = yamlload(f.read())
-        yaml = yamlload(f.read(), schema)
+        return apply_defaults(f.read())
 
 
-
-    pass
+def load_str(yaml: str):
+    return apply_defaults(yaml)
