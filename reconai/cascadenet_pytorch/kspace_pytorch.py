@@ -28,6 +28,7 @@ class DataConsistencyInKspace(Module):
         mask - corresponding nonzero location
         """
 
+        n_ch = x.shape[1]
         if x.dim() == 4:  # input is 2D
             x = x.permute(0, 2, 3, 1)
             k0 = k0.permute(0, 2, 3, 1)
@@ -37,7 +38,6 @@ class DataConsistencyInKspace(Module):
             k0 = k0.permute(0, 4, 2, 3, 1)
             mask = mask.permute(0, 4, 2, 3, 1)
 
-        n_ch = x.shape[1]
         if n_ch == 1:
             dim = (2, 3)
             k = fourier.fft2(x, dim=dim)
