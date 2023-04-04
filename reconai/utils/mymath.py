@@ -15,27 +15,27 @@ def ifftc(x, axis=-1, norm='ortho'):
     return fftshift(ifft(ifftshift(x, axes=axis), axis=axis, norm=norm), axes=axis)
 
 
-def fft2c(x):
+def fft2c(x, axes=(-2, -1)):
     """
     Centered fft
     Note: fft2 applies fft to last 2 axes by default
     :param x: 2D onwards. e.g: if its 3d, x.shape = (n,row,col). 4d:x.shape = (n,slice,row,col)
+    :param axes: axes to shift
     :return:
     """
     # axes = (len(x.shape)-2, len(x.shape)-1)  # get last 2 axes
-    axes = (-2, -1)  # get last 2 axes
     res = fftshift(fft2(ifftshift(x, axes=axes), norm='ortho'), axes=axes)
     return res
 
 
-def ifft2c(x):
+def ifft2c(x, axes=(-2, -1)):
     """
     Centered ifft
     Note: fft2 applies fft to last 2 axes by default
     :param x: 2D onwards. e.g: if its 3d, x.shape = (n,row,col). 4d:x.shape = (n,slice,row,col)
+    :param axes: axes to shift
     :return:
     """
-    axes = (-2, -1)  # get last 2 axes
     res = fftshift(ifft2(ifftshift(x, axes=axes), norm='ortho'), axes=axes)
     return res
 
