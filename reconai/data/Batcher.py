@@ -1,9 +1,37 @@
-import logging
+import logging, re, os
+from pathlib import Path
 
 import numpy as np
 from typing import List
 
 from .Volume import Volume
+
+
+class Batcher1:
+    def __init__(self, data_dir: Path, n_folds: int = 1):
+        self._data_dir = data_dir
+        self._n_folds = n_folds
+        self._paths = []
+
+    def load(self, regex: str = None, n: int = 0):
+        for root, dirs, files in os.walk(self._data_dir):
+            for file in files:
+                search = re.search(regex, file) if regex else True
+                if search and file.endswith('.mha'):
+                    self._paths.append((root / Path(file)).relative_to(self._data_dir))
+                    if 0 < n == len(self._paths):
+                        return
+
+
+        # for patient_dir in data_dir.iterdir():
+        #     try:
+        #         if patient_dir.is_dir():
+        #             files = list(patient_dir.iterdir())
+        #             study_ids = {fn.name.split('_')[1] for fn in files if not fn.name.startswith('tmp')}
+        #             for study_id in study_ids:
+        #                 data.append(Volume(study_id, [fn for fn in files if study_id in fn.name]))
+        #     except:
+        #         continue
 
 
 class Batcher:
