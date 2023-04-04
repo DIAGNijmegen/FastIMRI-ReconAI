@@ -1,6 +1,6 @@
 import logging, re, os
 from pathlib import Path
-from typing import List
+from typing import List, Dict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 
@@ -14,15 +14,17 @@ class Batcher1:
     def __init__(self, data_dir: Path, n_folds: int = 1):
         self._data_dir = data_dir
         self._n_folds = n_folds
-        self._mha = {}
-        self._sequences = {}
+        # {case: a list of mhas}
+        self._mhas: Dict[str, List[np.ndarray]] = {}
+        # {case: a list of {mha: sequences as slice ids}}
+        self._sequences: Dict[str, List[Dict[str, List[int]]]] = {}
 
     def load(self, split_regex: str, *, filter_regex: str = '', as_float32: bool = True):
         """
         Parameters
         ----------
         split_regex: str
-            first capture group will be made into individual sequences (eg. '.*_(.*)_')
+            first capture group is how to split mhas into cases (eg. '.*_(.*)_')
         filter_regex: str=''
             result is loaded in the Batcher
         as_float32: bool=True
@@ -47,7 +49,7 @@ class Batcher1:
         with ThreadPoolExecutor() as pool:
             futures = {pool.submit(gather_mhas, d): d for d in all_dirs}
             for future in as_completed(futures):
-                self._mha.update(future.result())
+                self._mhas.update(future.result())
 
     @staticmethod
     def _load_mha(mha: Path):
@@ -55,7 +57,8 @@ class Batcher1:
         ifr.SetFileName(str(mha.resolve()))
         return sitk.GetArrayFromImage(ifr.Execute())
 
-    def prepare_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2, q: float = 0.5):
+    def prepare_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
+                          max_slices_per_mha: int = 3, q: float = 0.5):
         """
         Every MHA slice within a case has a 'usefulness' score, calculated as 1/2^x, where is the number of steps away
         from the center slice. For each MHA slice, a sequence takes 1 to (max_slices_per_mha)
@@ -65,18 +68,20 @@ class Batcher1:
             Seed to use for entire sequence generation
         seq_len: int=15
             Length of sequence
-        mean_slices_per_mha
+        mean_slices_per_mha: float
             Mean number of slices to take for each .mha
+        max_slices_per_mha: int
+            Max number of slices to take for each .mha
         q: float=1.75/3
             Quality preference. (0 <= q <= 1)
             Higher means fewer sequences per case, with each sequence containing primarily center slices.
             Lower means more sequences per case, with each sequence containing primarily edge slices.
         """
-        r = np.random.default_rng(seed if seed >= 0 else None)
         q = np.clip(q, 0, 1) * seq_len
         values_len = lambda a: sum([len(x) for x in a.values()])
 
-        def _generate_sequences(images):
+        def _generate_sequences(s_seed: int, images: List[np.ndarray]):
+            r = np.random.default_rng(s_seed if seed >= 0 else None)
             sequences = []
             range_len_images = range(len(images))
             available = {m: list(range(images[m].shape[0])) for m in range_len_images}
@@ -101,7 +106,7 @@ class Batcher1:
                         m_available_slices = len(c_available[m])
                         if m_available_slices > 0:
                             # we take n_slices, normally distributed around mean_slices_per_mha
-                            max_n_slices = min(m_available_slices, seq_len - c_sequence_len)
+                            max_n_slices = min(m_available_slices, max_slices_per_mha, seq_len - c_sequence_len)
                             n_slices = int(np.clip(np.round(r.normal(loc=mean_slices_per_mha)), 0, max_n_slices))
 
                             # quality of a slice is 1/2^x, where x is x steps away from center
@@ -117,7 +122,7 @@ class Batcher1:
                             selected_slices = r.choice(slices[m], size=int(n_slices), replace=False, p=m_p / m_p.sum())
 
                             c_quality += m_quality[selected_slices].sum()
-                            c_sequence[m] = c_sequence.get(m, []) + list(selected_slices)
+                            c_sequence[str(m)] = c_sequence.get(str(m), []) + selected_slices.tolist()
                             [c_available[m].remove(s) for s in selected_slices]
 
                         m = (m + 1) % len(c_available)
@@ -135,8 +140,12 @@ class Batcher1:
                     available = seq[2]
             return sequences
 
-        for key, images in self._mha.items():
-            self._sequences[key] = _generate_sequences(images)
+        with ThreadPoolExecutor() as pool:
+            seeds = {key: seed + s for s, key in enumerate(self._mhas.keys())}
+            futures = {pool.submit(_generate_sequences, seeds[key], images): key for key, images in self._mhas.items()}
+            for future in as_completed(futures):
+                key = futures[future]
+                self._sequences[key] = future.result()
 
 
 class Batcher:

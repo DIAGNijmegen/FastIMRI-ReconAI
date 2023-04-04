@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -17,14 +18,7 @@ from reconai.data.Volume import Volume
 def test_volume():
     b = Batcher1(Path('./input'))
     b.load('.*_(.*)_')
-    b.prepare_sequences()
-    pass
-    # output_mha = Volume.load(Path('./output/1_3_sag000.mha'))
-    #
-    # data = gather_data(Path('input'))
-    # Batcher.shuffle = False
-    # batcher = Batcher(data)
-    # for item in batcher.generate():
-    #     # TODO: check this with input yaml config file rather than constant val
-    #     assert item.shape == (1, 15, 256, 256)
-    # pass
+    b.prepare_sequences(seed=10, seq_len=15, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
+
+    with open('./output/test_data_expected_sequences.json') as f:
+        assert json.load(f) == b._sequences
