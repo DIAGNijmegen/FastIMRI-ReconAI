@@ -16,7 +16,8 @@ from reconai.data.Volume import Volume
 
 def test_volume():
     b = Batcher1(Path('./input'))
-    b.load()
+    b.load('.*_(.*)_')
+    b.prepare_sequences()
     pass
     # output_mha = Volume.load(Path('./output/1_3_sag000.mha'))
     #
