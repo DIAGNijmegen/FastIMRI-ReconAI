@@ -1,4 +1,5 @@
 import logging
+import pathlib
 
 import torch
 import numpy as np
@@ -6,6 +7,7 @@ import torch.nn as nn
 
 from reconai.cascadenet_pytorch.kspace_pytorch import DataConsistencyInKspace, AveragingInKspace
 from reconai.cascadenet_pytorch.module import Module
+import matplotlib.pyplot as plt
 
 class CRNNcell(Module):
     """
@@ -77,18 +79,21 @@ class BCRNNlayer(Module):
             hidden = self.CRNN_model(input[i], input_iteration[i], hidden)
             output_f.append(hidden)
 
-        output_f = torch.cat(output_f)
+        # DISABLED BACKWARD PASS
+
+        # output_f = torch.cat(output_f)
 
         # backward
-        hidden = hid_init
-        for i in range(nt):
-            hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
+        # hidden = hid_init
+        # for i in range(nt):
+        #     hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
+        #
+        #     output_b.append(hidden)
+        # output_b = torch.cat(output_b[::-1])
+        #
+        # output = output_f + output_b
 
-            output_b.append(hidden)
-        output_b = torch.cat(output_b[::-1])
-
-        output = output_f + output_b
-
+        output = torch.cat(output_f)
         if nb == 1:
             output = output.view(nt, 1, self.hidden_size, nx, ny)
 
@@ -140,11 +145,12 @@ class CRNN_MRI(Module):
             dcs.append(DataConsistencyInKspace(norm='ortho'))
         self.dcs = dcs
 
-    def forward(self, x, k, m, test=False):
+    def forward(self, x, k, m, gnd, test=False):
         """
         x   - input in image domain, of shape (n, 2, nx, ny, n_seq)
         k   - initially sampled elements in k-space
         m   - corresponding nonzero location
+        gnd - groundtruth
         test - True: the model is in test mode, False: train mode
         """
         net, ti_out = {}, ''
@@ -161,6 +167,7 @@ class CRNN_MRI(Module):
         for i in range(1, self.nc + 1):
             o = i - 1
 
+            # print_progress_model(gnd, x, 'pre_bcrnn', False)
             x = x.permute(4, 0, 1, 2, 3)
             x = x.contiguous()
 
@@ -169,16 +176,19 @@ class CRNN_MRI(Module):
             net[ti_x0] = self.bcrnn(x, net[to_x0])
             net[ti_x0] = net[ti_x0].view(-1, self.nf, width, height)
 
+            # print_progress_model(gnd, net[ti_x0], 'post_bcrnn', True)
             ti_x1, ti_h1, to_x1 = f't{i}_x1', f't{i}_h1', f't{o}_x1'
             net[ti_x1] = self.conv1_x(net[ti_x0])
             net[ti_h1] = self.conv1_h(net[to_x1])
             net[ti_x1] = self.relu(net[ti_h1] + net[ti_x1])
 
+            # print_progress_model(gnd, net[ti_x1], 'post_crnn1', True)
             ti_x2, ti_h2, to_x2 = f't{i}_x2', f't{i}_h2', f't{o}_x2'
             net[ti_x2] = self.conv2_x(net[ti_x1])
             net[ti_h2] = self.conv2_h(net[to_x2])
             net[ti_x2] = self.relu(net[ti_h2] + net[ti_x2])
 
+            # print_progress_model(gnd, net[ti_x2], 'post_crnn2', True)
             ti_x3, ti_h3, to_x3 = f't{i}_x3', f't{i}_h3', f't{o}_x3'
             net[ti_x3] = self.conv3_x(net[ti_x2])
             net[ti_h3] = self.conv3_h(net[to_x3])
@@ -196,7 +206,7 @@ class CRNN_MRI(Module):
             net[ti_out].contiguous()
             net[ti_out] = self.dcs[i - 1].perform(net[ti_out], k, m)
             x = net[ti_out]
-
+            # print_progress_model(gnd, x, 'post_dc', False)
             logging.debug(f'it {i} @ {mem_info()}')
 
             # clean up o=i-1
@@ -209,6 +219,33 @@ class CRNN_MRI(Module):
                 torch.cuda.empty_cache()
 
         return net[ti_out]
+
+
+def print_progress_model(gnd, pred, name, shape: bool):
+    fig = plt.figure(figsize=(20, 8))
+    axes = [plt.subplot(2, 4, j + 1) for j in range(4 + 2)]
+
+    gnd = gnd.permute(4, 0, 1, 2, 3).cpu()[0][0]
+    pred = pred.detach().cpu()
+    axes, ax = set_ax(axes, 0, "ground truth", gnd[0])
+    # axes, ax = set_ax(axes, ax, f"{1}x undersampled", und[0])
+    for k in range(3):
+        if shape:
+            im = pred.permute(1, 0, 2, 3)[-1]
+            axes, ax = set_ax(axes, ax, f"pred {k}", im[k])
+        else:
+            k_pred = pred.permute(4, 0, 1, 2, 3)
+            axes, ax = set_ax(axes, ax, f"pred {k}", k_pred[k, 0, 0])
+
+    fig.tight_layout()
+    plt.savefig(pathlib.Path('../data') / f'{name}_seq.png', pad_inches=0)
+    plt.close(fig)
+
+def set_ax(axes, ax: int, title: str, image, cmap="Greys_r"):
+    axes[ax].set_title(title)
+    axes[ax].imshow(np.abs(image), cmap=cmap, interpolation="nearest", aspect='auto')
+    axes[ax].set_axis_off()
+    return axes, ax + 1
 
 def mem_info():
     gb = 1073741824

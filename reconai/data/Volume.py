@@ -29,42 +29,47 @@ class Volume:
         images = dict()
 
         volumes, t, rev = [], 0, False
-        # while t + self.sequence_length <= len(files) * self.slicing:
-        #     sequence = []
-        #     for file in files[t // self.slicing:(t + self.sequence_length) // self.slicing]:
-        #         self._ifr.SetFileName(str(file))
-        #         images[file] = images.get(file, sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64'))
-        #         img = images[file]
-        #         # do we guarantee to take the center slice? do we take all 5 slices, or less? just one? what order?
-        #         z = img.shape[0]
-        #         if z < self.slicing:
-        #             raise ValueError(f'{z} < {self.slicing}, cannot split image up ({file}')
-        #         img = ensure_correct_image_shape(img, self.shape)
-        #
-        #         # randoms, center, randoms
-        #         slices = np.random.choice(list(set(range(z)).difference([z // 2])), size=self.slicing, replace=False)
-        #         slices[len(slices) // 2] = z // 2
-        #         for s in sorted(slices):
-        #             sequence.append(img[s, :, :] / 1961.06)
-        #
-        #     # sequence = list(reversed(sequence)) if rev else sequence
-        #     volumes.append(sequence)
-        #
-        #     rev = not rev
-        #     t += int(self.sequence_shift * self.sequence_length)
+        while t + self.sequence_length <= len(files) * self.slicing:
+            sequence = []
+            i = 0
+            for file in files[t // self.slicing:(t + self.sequence_length) // self.slicing]:
+                self._ifr.SetFileName(str(file))
+                images[file] = images.get(file, sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64'))
+                img = images[file]
+                # do we guarantee to take the center slice? do we take all 5 slices, or less? just one? what order?
+                z = img.shape[0]
+                if z < self.slicing:
+                    raise ValueError(f'{z} < {self.slicing}, cannot split image up ({file}')
+                img = ensure_correct_image_shape(img, self.shape)
+
+                # randoms, center, randoms
+                slices = np.random.choice(list(set(range(z)).difference([z // 2])), size=self.slicing, replace=False)
+                slices[len(slices) // 2] = z // 2
+                for s in sorted(slices):
+                    # s_im = img[s, :, :] / 1961.06
+                    # s_im[(64 * i):(64 * (i+1)), (64 * i):(64 * (i+1))] = 0
+                    # sequence.append(s_im)
+                    # i += 1
+                    sequence.append(img[s, :, :] / 1961.06)
+
+            # sequence = list(reversed(sequence)) if rev else sequence
+            volumes.append(sequence)
+
+            rev = not rev
+            t += int(self.sequence_shift * self.sequence_length)
 
         # CODE to switch slideshow to 1
         # Uncomment while-loop above
-        self._ifr.SetFileName(str(files[0]))
-        img = sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64')
-
-        # Get middle image
-        z = img.shape[0]
-        sequence = []
-        for i in range(self.sequence_length):
-            sequence.append(img[z//2, :, :] / 1961.06)
-
-        volumes.append(sequence)
+        # self._ifr.SetFileName(str(files[0]))
+        # img = sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64')
+        #
+        # # Get middle image
+        # z = img.shape[0]
+        # sequence = []
+        # for i in range(self.sequence_length):
+        #     sequence.append(img[z//2, :, :] / 1961.06)
+        #
+        # volumes.append(sequence)
 
         # sanity check
         if not all(len(s) == self.sequence_length for s in volumes):

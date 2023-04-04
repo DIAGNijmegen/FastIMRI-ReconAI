@@ -6,6 +6,7 @@ import torch.fft as fourier
 import torch.nn as nn
 
 from reconai.cascadenet_pytorch.module import Module
+from reconai.utils.mymath import fft2c, ifft2c
 
 def data_consistency(k, k0, mask, noise_lvl=None):
     """
@@ -55,13 +56,30 @@ class DataConsistencyInKspace(Module):
             mask = mask.permute(0, 4, 2, 3, 1)
 
         if n_ch == 1:
-            k = fourier.fftshift(fourier.fft2(x, norm=self.normalized, dim=(2, 3)))
+            # sequences = x.shape[1]
+            # x_res = []  #torch.empty((1,256,256,1), dtype=torch.float32).cuda()
+            # for i in range(sequences):
+            #     k = fourier.fftshift(fourier.fft2(fourier.ifftshift(x[:, i, :, :, :], dim=(2, 3)), norm=self.normalized, dim=(2, 3)))
+            #     k_c = data_consistency(k, k0[:, i, :, :, :], mask[:, i, :, :, :], self.noise_lvl)
+            #     x_res.append(torch.abs(fourier.fftshift(
+            #         fourier.ifft2(fourier.ifftshift(k_c, dim=(2, 3)), norm=self.normalized, dim=(2, 3)))))
+
+            k = fourier.fft2(x, dim=(2, 3))
             k_c = data_consistency(k, k0, mask, self.noise_lvl)
-            x_res = torch.abs(fourier.ifftshift(fourier.ifft2(k_c, norm=self.normalized, dim=(2, 3))))
+            x_res = torch.abs(fourier.ifftshift(fourier.ifft2(k_c, dim=(2, 3)), dim=(2,3)))
+
+            # k = fourier.fft2(fourier.fftshift(x, dim=(2, 3)), norm=self.normalized, dim=(2, 3))
+            # k_c = data_consistency(k, k0, mask, self.noise_lvl)
+            # x_res = fourier.ifftshift(fourier.ifft2(k_c, norm=self.normalized, dim=(2, 3)))
+
+            # k = fourier.fftshift(fourier.fft2(fourier.ifftshift(x, dim=(2, 3)), norm=self.normalized, dim=(2, 3)))
+            # k_c = data_consistency(k, k0, mask, self.noise_lvl)
+            # x_res = fourier.fftshift(
+            #     fourier.ifft2(fourier.ifftshift(k_c, dim=(2, 3)), norm=self.normalized, dim=(2, 3)))
 
             # k = fourier.fft(x, 2, norm=self.normalized)
             # k_c = data_consistency(k, k0, mask, self.noise_lvl)
-            # x_c = fourier.ifft(k_c, 2, norm=self.normalized)
+            # x_res = fourier.ifft(k_c, 2, norm=self.normalized)
 
         # k = fourier.fft(x, n_ch, norm=self.normalized)
         # if n_ch == 1:
@@ -70,11 +88,12 @@ class DataConsistencyInKspace(Module):
         # if n_ch == 1:
         #     out = torch.complex(torch.select(out, 4, 0), torch.select(out, 4, 0)).unsqueeze(4)
         # x_res = torch.abs(fourier.ifft(out, n_ch, norm=self.normalized))
-
+        # x_res = torch.stack(x_res)
         if x.dim() == 4:
             x_res = x_res.permute(0, 3, 1, 2)
         elif x.dim() == 5:
             x_res = x_res.permute(0, 4, 2, 3, 1)
+            # x_res = x_res.permute(2, 1, 3, 4, 0)
 
         return x_res
 

@@ -65,7 +65,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
                 optimizer.zero_grad()
-                rec = network(im_u, k_u, mask)
+                rec = network(im_u, k_u, mask, gnd)
                 loss = criterion(rec, gnd)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=5)
@@ -85,7 +85,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                     logging.debug(f"batch {validate_batches}")
                     im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
-                    pred = network(im_u, k_u, mask, test=True)
+                    pred = network(im_u, k_u, mask, gnd, test=True)
                     err = criterion(pred, gnd)
 
                     validate_err += err.item()
@@ -104,7 +104,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                     k_u = Variable(k_und.type(Module.TensorType))
                     mask = Variable(mask.type(Module.TensorType))
 
-                    pred = network(im_u, k_u, mask, test=True)
+                    pred = network(im_u, k_u, mask, gnd, test=True)
 
                     for im_i, und_i, pred_i in zip(im,
                                                    from_tensor_format(im_und.numpy()),
