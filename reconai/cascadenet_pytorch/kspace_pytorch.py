@@ -28,30 +28,49 @@ class DataConsistencyInKspace(Module):
         mask - corresponding nonzero location
         """
 
-        n_ch = x.shape[1]
-        if x.dim() == 4:  # input is 2D
-            x = x.permute(0, 2, 3, 1)
-            k0 = k0.permute(0, 2, 3, 1)
-            mask = mask.permute(0, 2, 3, 1)
-        elif x.dim() == 5:  # input is 3D
-            x = x.permute(0, 4, 2, 3, 1)
-            k0 = k0.permute(0, 4, 2, 3, 1)
-            mask = mask.permute(0, 4, 2, 3, 1)
+        batch, n_ch, height, width, sequence_length = x.shape
+        if batch != 1 or n_ch != 1:
+            raise NotImplementedError("Only implemented batchsize 1 and n_ch 1")
 
-        if n_ch == 1:
-            dim = (2, 3)
-            k = fourier.fft2(x, dim=dim)
-            k_c = self.data_consistency(k, k0, mask, self.noise_lvl)
-            x_res = torch.abs(fourier.ifftshift(fourier.ifft2(k_c, dim=dim), dim=dim))
-        else:
-            raise NotImplementedError()
+        x = x.permute(0, 1, 4, 2, 3).squeeze()
+        k0 = k0.permute(0, 1, 4, 2, 3).squeeze()
+        mask = mask.permute(0, 1, 4, 2, 3).squeeze()
 
-        if x.dim() == 4:
-            x_res = x_res.permute(0, 3, 1, 2)
-        elif x.dim() == 5:
-            x_res = x_res.permute(0, 4, 2, 3, 1)
+        x_res = torch.empty(size=(sequence_length, height, width), dtype=torch.float32, device="cuda")
+        for i in range(sequence_length):
+            k = fourier.fftshift(fourier.fft2(fourier.ifftshift(x[i]), norm=self.normalized))
+            k_c = self.data_consistency(k, k0[i], mask[i], self.noise_lvl)
+            x_res[i, :, :] = torch.abs(fourier.fftshift(fourier.ifft2(fourier.ifftshift(k_c), norm=self.normalized)))
 
+        x_res = x_res[None, None, :, :, :]  # Add 2 dims back again
+        x_res = x_res.permute(0, 1, 3, 4, 2)
         return x_res
+
+        # OLD
+        # n_ch = x.shape[1]
+        # if x.dim() == 4:  # input is 2D
+        #     x = x.permute(0, 2, 3, 1)
+        #     k0 = k0.permute(0, 2, 3, 1)
+        #     mask = mask.permute(0, 2, 3, 1)
+        # elif x.dim() == 5:  # input is 3D
+        #     x = x.permute(0, 4, 2, 3, 1)
+        #     k0 = k0.permute(0, 4, 2, 3, 1)
+        #     mask = mask.permute(0, 4, 2, 3, 1)
+        #
+        # if n_ch == 1:
+        #     dim = (2, 3)
+        #     k = fourier.fft2(x, dim=dim)
+        #     k_c = self.data_consistency(k, k0, mask, self.noise_lvl)
+        #     x_res = torch.abs(fourier.ifftshift(fourier.ifft2(k_c, dim=dim), dim=dim))
+        # else:
+        #     raise NotImplementedError()
+
+        # if x.dim() == 4:
+        #     x_res = x_res.permute(0, 3, 1, 2)
+        # elif x.dim() == 5:
+        #     x_res = x_res.permute(0, 4, 2, 3, 1)
+        #
+        # return x_res
 
     @staticmethod
     def data_consistency(k, k0, mask, noise_lvl=None):
