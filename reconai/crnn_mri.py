@@ -8,7 +8,7 @@ import datetime
 import time
 import torch.optim as optim
 
-from reconai.cascadenet_pytorch.model_pytorch import CRNN_MRI
+from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
 
 def test_accelerations(args: Box):
     accelerations = [1, 2, 4, 8, 12, 16, 32]
@@ -21,13 +21,12 @@ def test_accelerations(args: Box):
         fold0, train_err, val_err = train_results[0]
         results.append((acceleration, train_err, val_err))
 
-    print_acceleration_train_loss(results, args.num_epoch,args.loss, args.out_dir / f'acceleration_{args.date}')
+    print_acceleration_train_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
 
     print_acceleration_validation_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
 
 
 def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int], List[int]]]:
-    # change relu to leakyrelu
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
@@ -43,7 +42,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
     logging.info(f"saving model to {save_dir.absolute()}")
 
     # Specify network
-    network = CRNN_MRI(n_ch=1, nc=2 if args.debug else 5).cuda()
+    network = CRNNMRI(n_ch=1, nc=2 if args.debug else 5).cuda()
     optimizer = optim.Adam(network.parameters(), lr=float(args.lr), betas=(0.5, 0.999))
     criterion = torch.nn.MSELoss().cuda()
 
@@ -64,8 +63,8 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                 logging.debug(f"batch {train_batches}")
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
-                optimizer.zero_grad()
-                rec = network(im_u, k_u, mask)
+                optimizer.zero_grad(set_to_none=True)
+                rec = network(im_u, k_u, mask, gnd)
                 loss = criterion(rec, gnd)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=5)
@@ -85,7 +84,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                     logging.debug(f"batch {validate_batches}")
                     im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
-                    pred = network(im_u, k_u, mask, test=True)
+                    pred = network(im_u, k_u, mask, gnd, test=True)
                     err = criterion(pred, gnd)
 
                     validate_err += err.item()
@@ -104,7 +103,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                     k_u = Variable(k_und.type(Module.TensorType))
                     mask = Variable(mask.type(Module.TensorType))
 
-                    pred = network(im_u, k_u, mask, test=True)
+                    pred = network(im_u, k_u, mask, im_gnd, test=True)
 
                     for im_i, und_i, pred_i in zip(im,
                                                    from_tensor_format(im_und.numpy()),
@@ -169,4 +168,3 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
     logging.info(f'completed training at {datetime.datetime.now()}')
 
     return results
-

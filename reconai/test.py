@@ -1,6 +1,6 @@
 from reconai.data.data import get_data_volumes, get_dataset_batchers, prepare_input_as_variable, prepare_input
 import torch
-from reconai.cascadenet_pytorch.model_pytorch import CRNN_MRI
+from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
 import SimpleITK as sitk
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,7 +15,7 @@ def main_presentatie_stan():
     for acceleration in accelerations:
         filename = f'../data/model_checkpoints/acc_{acceleration}.npz'
 
-        network = CRNN_MRI(n_ch=1, nc=5).cuda()
+        network = CRNNMRI(n_ch=1, nc=5).cuda()
         state_dict = torch.load(filename)
         network.load_state_dict(state_dict)
         network.eval()
