@@ -47,10 +47,14 @@ class Volume:
                 slices[len(slices) // 2] = z // 2
                 for s in sorted(slices):
                     # s_im = img[s, :, :] / 1961.06
-                    # s_im[(64 * i):(64 * (i+1)), (64 * i):(64 * (i+1))] = 1
+                    #
+                    # squarewidth = self.shape // self.sequence_length
+                    #
+                    # s_im[(squarewidth * i):(squarewidth * (i+1)), (squarewidth * i):(squarewidth * (i+1))] = 1
                     # sequence.append(s_im)
                     # i += 1
-                    sequence.append(img[s, :, :] / 1961.06)
+
+                    sequence.append(img[s, :, :] / 1961.06)  # change number to config variable
 
             sequence = list(reversed(sequence)) if rev else sequence
             volumes.append(sequence)
