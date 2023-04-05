@@ -26,8 +26,7 @@ def test_dataconsistency(data_batcher):
         im_und, k_und, mask, im_gnd = prepare_input(im, 1)
         k_und = torch.complex(k_und[:, 0, ...], k_und[:, 1, ...]).unsqueeze(0)
 
-        im_dc = dc_layer(im_und, k_und, mask)
-        im_dc = im_dc.cpu()
+        im_dc = dc_layer(im_und, k_und, mask).cpu()
 
         assert im_dc.shape == im_und.shape
 
