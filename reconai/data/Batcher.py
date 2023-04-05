@@ -9,15 +9,32 @@ import SimpleITK as sitk
 
 from .Volume import Volume
 
+Sequence = List[Dict[str, List[int]]]
 
-class Batcher1:
-    def __init__(self, data_dir: Path, n_folds: int = 1):
+
+class Sequences:
+    def __init__(self, sequences: Dict[str, Sequence]):
+        # {case: a list of {mha: sequences as slice ids}}
+        self._sequences = sequences
+
+    def __eq__(self, other: Dict[str, Sequence]) -> bool:
+        return other == self._sequences
+
+    def __getitem__(self, item: str) -> Sequence:
+        return deepcopy(self._sequences[item])
+
+    def keys(self):
+        return self._sequences.keys()
+
+
+class DataLoader:
+    def __init__(self, data_dir: Path):
         self._data_dir = data_dir
-        self._n_folds = n_folds
         # {case: a list of mhas}
         self._mhas: Dict[str, List[np.ndarray]] = {}
-        # {case: a list of {mha: sequences as slice ids}}
-        self._sequences: Dict[str, List[Dict[str, List[int]]]] = {}
+
+    def __getitem__(self, item: str) -> List[np.ndarray]:
+        return [x.copy() for x in self._mhas[item]]
 
     def load(self, split_regex: str, *, filter_regex: str = '', as_float32: bool = True):
         """
@@ -57,8 +74,8 @@ class Batcher1:
         ifr.SetFileName(str(mha.resolve()))
         return sitk.GetArrayFromImage(ifr.Execute())
 
-    def prepare_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
-                          max_slices_per_mha: int = 3, q: float = 0.5):
+    def generate_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
+                          max_slices_per_mha: int = 3, q: float = 0.5) -> Sequences:
         """
         Every MHA slice within a case has a 'usefulness' score, calculated as 1/2^x, where is the number of steps away
         from the center slice. For each MHA slice, a sequence takes 1 to (max_slices_per_mha)
@@ -80,7 +97,7 @@ class Batcher1:
         q = np.clip(q, 0, 1) * seq_len
         values_len = lambda a: sum([len(x) for x in a.values()])
 
-        def _generate_sequences(s_seed: int, images: List[np.ndarray]):
+        def _generate_sequences(s_seed: int, images: List[np.ndarray]) -> Sequence:
             r = np.random.default_rng(s_seed if seed >= 0 else None)
             sequences = []
             range_len_images = range(len(images))
@@ -140,13 +157,28 @@ class Batcher1:
                     available = seq[2]
             return sequences
 
+        sequences: Dict[str, Sequence] = {}
         with ThreadPoolExecutor() as pool:
             seeds = {key: seed + s for s, key in enumerate(self._mhas.keys())}
             futures = {pool.submit(_generate_sequences, seeds[key], images): key for key, images in self._mhas.items()}
             for future in as_completed(futures):
                 key = futures[future]
-                self._sequences[key] = future.result()
+                sequences[key] = future.result()
+        return Sequences(sequences)
 
+
+class Batcher1:
+    def __init__(self, dataloader: DataLoader, n_folds: int = 1):
+        self._dataloader = dataloader
+        self._n_folds = n_folds
+        self._numpy_sequences = None
+
+    def append_sequences(self, sequences: Sequences, *, norm: float = 1, flip: str = '', rotate_deg: int = 0):
+        rotate_deg = rotate_deg % 360
+        for case in sequences.keys():
+            images = self._dataloader[case]
+            pass
+        pass
 
 class Batcher:
     batch_size: int = 1
