@@ -1,6 +1,6 @@
 import logging, re, os
 from pathlib import Path
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 
@@ -9,18 +9,18 @@ import SimpleITK as sitk
 
 from .Volume import Volume
 
-Sequence = List[Dict[str, List[int]]]
+Sequences = List[Dict[str, List[int]]]
 
 
-class Sequences:
-    def __init__(self, sequences: Dict[str, Sequence]):
+class SequenceCollection:
+    def __init__(self, sequences: Dict[str, Sequences]):
         # {case: a list of {mha: sequences as slice ids}}
         self._sequences = sequences
 
-    def __eq__(self, other: Dict[str, Sequence]) -> bool:
+    def __eq__(self, other: Dict[str, Sequences]) -> bool:
         return other == self._sequences
 
-    def __getitem__(self, item: str) -> Sequence:
+    def __getitem__(self, item: str) -> Sequences:
         return deepcopy(self._sequences[item])
 
     def keys(self):
@@ -75,7 +75,7 @@ class DataLoader:
         return sitk.GetArrayFromImage(ifr.Execute())
 
     def generate_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
-                          max_slices_per_mha: int = 3, q: float = 0.5) -> Sequences:
+                          max_slices_per_mha: int = 3, q: float = 0.5) -> SequenceCollection:
         """
         Every MHA slice within a case has a 'usefulness' score, calculated as 1/2^x, where is the number of steps away
         from the center slice. For each MHA slice, a sequence takes 1 to (max_slices_per_mha)
@@ -97,7 +97,7 @@ class DataLoader:
         q = np.clip(q, 0, 1) * seq_len
         values_len = lambda a: sum([len(x) for x in a.values()])
 
-        def _generate_sequences(s_seed: int, images: List[np.ndarray]) -> Sequence:
+        def _generate_sequences(s_seed: int, images: List[np.ndarray]) -> Sequences:
             r = np.random.default_rng(s_seed if seed >= 0 else None)
             sequences = []
             range_len_images = range(len(images))
@@ -118,7 +118,7 @@ class DataLoader:
                     c_available = deepcopy(available)
 
                     # while our candidate sequence is not a full sequence of length seq_len
-                    m = 0
+                    m, loop = 0, 0
                     while (c_sequence_len := values_len(c_sequence)) < seq_len:
                         m_available_slices = len(c_available[m])
                         if m_available_slices > 0:
@@ -139,10 +139,13 @@ class DataLoader:
                             selected_slices = r.choice(slices[m], size=int(n_slices), replace=False, p=m_p / m_p.sum())
 
                             c_quality += m_quality[selected_slices].sum()
-                            c_sequence[str(m)] = c_sequence.get(str(m), []) + selected_slices.tolist()
+                            id = f'{loop}_{m}'
+                            c_sequence[id] = c_sequence.get(id, []) + selected_slices.tolist()
                             [c_available[m].remove(s) for s in selected_slices]
 
                         m = (m + 1) % len(c_available)
+                        if m == 0:
+                            loop += 1
 
                     # seq[0], [1], [2]
                     sequence_candidates.append((c_quality, c_sequence, c_available))
@@ -157,14 +160,33 @@ class DataLoader:
                     available = seq[2]
             return sequences
 
-        sequences: Dict[str, Sequence] = {}
+        sequences: Dict[str, Sequences] = {}
         with ThreadPoolExecutor() as pool:
             seeds = {key: seed + s for s, key in enumerate(self._mhas.keys())}
             futures = {pool.submit(_generate_sequences, seeds[key], images): key for key, images in self._mhas.items()}
             for future in as_completed(futures):
                 key = futures[future]
                 sequences[key] = future.result()
-        return Sequences(sequences)
+        return SequenceCollection(sequences)
+
+
+def crop_or_expand_to(image: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
+    z, y, x = image.shape
+    split_n = lambda a: [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]
+    split_x = split_n(np.abs(x - shape))
+    split_y = split_n(np.abs(y - shape))
+
+    if x > shape:
+        image = image[:, split_x[0]:-split_x[1], :]
+    elif x < shape:
+        image = np.pad(image, ([0, 0], [0, 0], x), mode='edge')
+
+    if y > shape:
+        image = image[:, :, split_y[0]:-split_y[1]]
+    elif y < shape:
+        image = np.pad(image, ([0, 0], y, [0, 0]), mode='edge')
+
+    return image
 
 
 class Batcher1:
@@ -173,11 +195,16 @@ class Batcher1:
         self._n_folds = n_folds
         self._numpy_sequences = None
 
-    def append_sequences(self, sequences: Sequences, *, norm: float = 1, flip: str = '', rotate_deg: int = 0):
+    def append_sequences(self, sequence_collection: SequenceCollection, *, norm: float = 1, flip: str = '',
+                         rotate_deg: int = 0, crop_expand_to: Tuple[int, int] = (256, 256)):
         rotate_deg = rotate_deg % 360
-        for case in sequences.keys():
+        for case in sequence_collection.keys():
             images = self._dataloader[case]
-            pass
+            sequences = sequence_collection[case]
+            for sequence in sequences:
+                # loop through 0_0 .. 0_n until doesn't exist, then 1_0 .. 1_n until k_0 .. k_n
+                pass
+
         pass
 
 class Batcher:
