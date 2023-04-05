@@ -63,7 +63,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                 logging.debug(f"batch {train_batches}")
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
-                optimizer.zero_grad()
+                optimizer.zero_grad(set_to_none=True)
                 rec = network(im_u, k_u, mask, gnd)
                 loss = criterion(rec, gnd)
                 loss.backward()
