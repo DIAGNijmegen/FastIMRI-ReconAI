@@ -6,7 +6,7 @@ from copy import deepcopy
 
 import numpy as np
 import SimpleITK as sitk
-from scipy.ndimage.interpolation import rotate as scipy_rotate
+from scipy.ndimage import rotate as scipy_rotate
 
 from .Volume import Volume
 
@@ -34,6 +34,9 @@ class Sequence:
         else:
             return False
 
+    def __repr__(self):
+        return repr(self._sequence)
+
     def items(self) -> Iterable[Tuple[int, List[int]]]:
         for key in sorted(self._sequence.keys()):
             yield int(re.search('\\d+$', key).group()), self._sequence[key]
@@ -50,6 +53,9 @@ class SequenceCollection:
     def __eq__(self, other: Dict[str, List[Sequence]]) -> bool:
         return other == self._sequences
 
+    def __repr__(self):
+        return repr(self._sequences)
+
     def items(self) -> Iterable[Sequence]:
         for case in self._sequences.keys():
             for seq in self._sequences[case]:
@@ -61,6 +67,9 @@ class DataLoader:
         self._data_dir = data_dir
         # {case: a list of mhas}
         self._mhas: Dict[str, List[np.ndarray]] = {}
+
+    def __len__(self):
+        return sum(len(v) for v in self._mhas.values())
 
     def __getitem__(self, item: str) -> List[np.ndarray]:
         return [x.copy() for x in self._mhas[item]]
@@ -235,23 +244,44 @@ def flip_ud_lr(seq: np.ndarray, *flips: str):
 
 def rotate(seq: np.ndarray, *rotate_deg: float):
     for s, img in enumerate(seq):
-        # order 0 prefers 'moving' the pixels, order 5 prefers interpolation
-        seq[s, :, :] = scipy_rotate(img, rotate_deg[s], reshape=False, mode='nearest', order=1)
+        if rotate_deg[s] != 0:
+            # order 0 prefers 'moving' the pixels, order 5 prefers interpolation
+            seq[s, :, :] = scipy_rotate(img, rotate_deg[s], reshape=False, mode='nearest', order=1)
     return seq
 
 
 class Batcher1:
-    def __init__(self, dataloader: DataLoader, n_folds: int = 1):
+    def __init__(self, dataloader: DataLoader):
         self._dataloader = dataloader
-        self._max_folds = n_folds
         self._processed_sequences = []
+        self._indexes = []
         self._crop_expand_to = None
+        self._norm = None
+
+    def __len__(self):
+        return len(self._processed_sequences)
 
     def append_sequence(self, sequence: Sequence, *,
                         crop_expand_to: Tuple[int, int] = (256, 256),
                         norm: float = 1,
                         flip: str = '',
                         rotate_degs: None | List[float] = None):
+        """
+        Append sequence to this batcher. Apply different norm/flip/rotate_deg in a for loop to multiply the dataset.
+
+        Parameters
+        ----------
+        sequence: Sequence
+            Sequence, likely iterated from SequenceCollection.items()
+        crop_expand_to: (int, int) = (256, 256)
+            Crop or expand all images in the sequence to width x height size (must be same across appends)
+        norm: float=1
+            Normalize images by 'norm' (must be same across appends)
+        flip: str
+            Flip the sequence either 'lr' or 'ud' or 'lrud' or 'udlr'
+        rotate_degs: List[float]
+            Rotate the image by rotate_degs. Length must equal length of sequence. None, for no rotation.
+        """
         # precalculate some values
         rotate_degs = [r % 360 for r in rotate_degs] if rotate_degs else [0] * len(sequence)
         flips: List[str] = [r.group() for r in re.finditer('(ud)|(lr)', flip)]
@@ -259,7 +289,8 @@ class Batcher1:
 
         assert len(rotate_degs) == len(sequence), ValueError(f'length of rotate_degs ({len(rotate_degs)}) != length of sequence ({len(sequence)})')
         assert not self._crop_expand_to or self._crop_expand_to == crop_expand_to, ValueError(f'crop_expand_to ({crop_expand_to}) != previous crop_expand_to ({self._crop_expand_to})')
-        self._crop_expand_to = crop_expand_to
+        assert not self._norm or self._norm == norm, ValueError(f'norm ({norm}) != previous norm ({self._norm})')
+        self._crop_expand_to, self._norm = crop_expand_to, norm
 
         images: List[np.ndarray] = self._dataloader[sequence.case]
         sequence_images = np.empty((0,) + crop_expand_to)
@@ -273,11 +304,45 @@ class Batcher1:
 
             sequence_images = np.vstack((sequence_images, img_slices))
 
+        self._indexes.append(len(self._processed_sequences))
         self._processed_sequences.append(sequence_images)
 
-    def items(self, fold: int):
-        assert fold < self._max_folds, IndexError(f'{fold} >= {self._max_folds}')
-        
+    def shuffle(self, seed: int = -1):
+        self.sort()
+        r = np.random.default_rng(seed if seed >= 0 else None)
+        r.shuffle(self._indexes)
+
+    def sort(self):
+        self._indexes.sort()
+
+    def items(self) -> np.ndarray:
+        """
+        Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
+        """
+        for i in self._indexes:
+            yield self._processed_sequences[i]
+
+    def items_fold(self, fold: int, max_folds: int = 1, validation: bool = False) -> np.ndarray:
+        """
+        Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
+
+        Parameters
+        ----------
+        fold: int
+            fold < max_folds
+        max_folds: int
+            Keep this value constant to keep folds consistent
+        validation: bool=False
+            Return the validation set or the training set
+        """
+        assert max_folds >= 0, ValueError('max_folds must be at least 0')
+        assert fold < max_folds, IndexError(f'fold ({fold}) >= max folds ({max_folds})')
+
+        validation_ids = set(self._indexes[fold::max_folds])
+        training_ids = validation_ids.symmetric_difference(self._indexes)
+
+        for i in validation_ids if validation else training_ids:
+            yield self._processed_sequences[i]
 
 
 class Batcher:
