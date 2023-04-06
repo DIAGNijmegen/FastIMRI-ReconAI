@@ -3,7 +3,7 @@ import pandas as pd
 from pathlib import Path
 import numpy as np
 import math
-from .metric import *
+from .metric import psnr, mse, ssim
 
 
 def print_loss_graphs():
@@ -19,8 +19,8 @@ def print_loss_graphs():
         plt.plot(graph_x, frame.iloc[:, 3], label=f"train_loss_{acceleration}", lw=1)
     plt.legend()
     plt.ylim(bottom=0, top=0.008)
-    plt.ylabel(f'mse training loss')
-    plt.xlabel("epoch")
+    plt.ylabel('mse training loss')
+    plt.xlabel('epoch')
     plt.savefig('../data/training_loss.png')
     plt.close(fig)
 
@@ -34,10 +34,11 @@ def print_loss_graphs():
         plt.plot(graph_x, frame.iloc[:, 4], label=f"validation_loss_{acceleration}", lw=1)
     plt.legend()
     plt.ylim(bottom=0, top=0.005)
-    plt.ylabel(f'mse validation loss')
+    plt.ylabel('mse validation loss')
     plt.xlabel("epoch")
     plt.savefig('../data/validation_loss.png')
     plt.close(fig)
+
 
 def print_loss_progress(train_err, val_err, fold_dir: Path, loss: str):
     graph_x = list(range(len(train_err)))
@@ -53,6 +54,7 @@ def print_loss_progress(train_err, val_err, fold_dir: Path, loss: str):
     plt.xlabel("epoch")
     plt.savefig(fold_dir / "progress.png")
     plt.close(fig)
+
 
 def print_prediction_error(epoch_dir: Path, vis, name: str, validate_err: float):
     for i, (gnd, pred, und, seg) in enumerate(vis):
@@ -74,7 +76,9 @@ def print_prediction_error(epoch_dir: Path, vis, name: str, validate_err: float)
         plt.savefig(epoch_dir / f'{name}.png', pad_inches=0)
         plt.close(fig)
 
-def print_full_prediction_sequence(epoch_dir: Path, vis, name: str, validate_err: float, sequence_len: int, acceleration_factor: int):
+
+def print_full_prediction_sequence(epoch_dir: Path, vis, name: str, validate_err: float,
+                                   sequence_len: int, acceleration_factor: int):
     for i, (gnd, pred, und, seg) in enumerate(vis):
         fig = plt.figure(figsize=(20, 8))
         fig.suptitle(f'{name} (val loss: {validate_err})')
@@ -89,6 +93,7 @@ def print_full_prediction_sequence(epoch_dir: Path, vis, name: str, validate_err
         plt.savefig(epoch_dir / f'{name}_seq.png', pad_inches=0)
         plt.close(fig)
 
+
 def print_loss_comparison_graphs(epoch_dir: Path, vis, name: str):
     for i, (gnd, pred, und, seg) in enumerate(vis):
         graph_x = list(range(len(gnd)))
@@ -98,14 +103,15 @@ def print_loss_comparison_graphs(epoch_dir: Path, vis, name: str):
             mse_val.append(mse(gnd[j], pred[j]))
             psnr_val.append(psnr(gnd[j], pred[j]))
             ssim_val.append(ssim(gnd[j], pred[j]))
-        ax1.plot(graph_x, mse_val, label=f"mse", lw=1)
+        ax1.plot(graph_x, mse_val, label="mse", lw=1)
         ax1.set_title('MSE')
-        ax2.plot(graph_x, psnr_val, label=f"psnr", lw=1)
+        ax2.plot(graph_x, psnr_val, label="psnr", lw=1)
         ax2.set_title('PSNR')
-        ax3.plot(graph_x, ssim_val, label=f"ssim", lw=1)
+        ax3.plot(graph_x, ssim_val, label="ssim", lw=1)
         ax3.set_title('SSIM')
         plt.savefig(epoch_dir / f'{name}_errors.png')
         plt.close(fig)
+
 
 def print_acceleration_train_loss(results, num_epochs: int, loss: str, out_dir: Path):
     graph_x = list(range(num_epochs))
@@ -119,6 +125,7 @@ def print_acceleration_train_loss(results, num_epochs: int, loss: str, out_dir: 
     plt.savefig(out_dir / "training_loss.png")
     plt.close(fig)
 
+
 def print_acceleration_validation_loss(results, num_epochs: int, loss: str, out_dir: Path):
     graph_x = list(range(num_epochs))
     fig = plt.figure()
@@ -130,6 +137,7 @@ def print_acceleration_validation_loss(results, num_epochs: int, loss: str, out_
     plt.xlabel("epoch")
     plt.savefig(out_dir / "validation_loss.png")
     plt.close(fig)
+
 
 def set_ax(axes, ax: int, title: str, image, cmap="Greys_r"):
     axes[ax].set_title(title)

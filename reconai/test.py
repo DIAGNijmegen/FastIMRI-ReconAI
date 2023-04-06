@@ -1,4 +1,4 @@
-from reconai.data.data import get_data_volumes, get_dataset_batchers, prepare_input_as_variable, prepare_input
+from reconai.data.data import get_data_volumes, get_dataset_batchers, prepare_input_as_variable
 import torch
 from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
 import SimpleITK as sitk
@@ -9,8 +9,9 @@ from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from reconai.utils.kspace import kspace_to_image, image_to_kspace
 from reconai.data.Volume import Volume
 
+
 def main_presentatie_stan():
-    accelerations = [1,32,64] #[1, 2, 4, 8, 12, 16, 32, 64]
+    accelerations = [1, 32, 64]  # [1, 2, 4, 8, 12, 16, 32, 64]
     image = get_image()
     for acceleration in accelerations:
         filename = f'../data/model_checkpoints/acc_{acceleration}.npz'
@@ -37,6 +38,7 @@ def main_presentatie_stan():
         plt.close(fig)
         # plt.savefig(f'../data/stan_pres/acc_{acceleration}_und.png')
 
+
 def get_image():
     volumes = []
     ifr = sitk.ImageFileReader()
@@ -48,6 +50,7 @@ def get_image():
         sequence.append(img[z//2, :, :] / 1961.06)
     volumes.append(sequence)
     return np.stack(volumes)
+
 
 def normalization_test(args):
     def show_im(original, minmaxscaled, standardscaled, sampledimageminmax, sampledimagestandard):

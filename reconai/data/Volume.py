@@ -4,6 +4,7 @@ import SimpleITK as sitk
 from typing import List
 from pathlib import Path
 
+
 class Volume:
     key: str = 'sag'
     shape: int = 256  # intended shape of image (w x h)
@@ -31,7 +32,7 @@ class Volume:
         volumes, t, rev = [], 0, False
         while t + self.sequence_length <= len(files) * self.slicing:
             sequence = []
-            i = 0
+            # i = 0
             for file in files[t // self.slicing:(t + self.sequence_length) // self.slicing]:
                 self._ifr.SetFileName(str(file))
                 images[file] = images.get(file, sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64'))
@@ -79,6 +80,7 @@ class Volume:
         if not all(len(s) == self.sequence_length for s in volumes):
             raise ValueError(f'not all sequences are equal to {self.sequence_length}')
         return np.stack(volumes)
+
 
 def split_n(a) -> List[int]:
     return [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]

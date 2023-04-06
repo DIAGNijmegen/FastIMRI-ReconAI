@@ -15,6 +15,7 @@ def data_batcher() -> Batcher:
     data = list(filter(lambda a: a.study_id not in data_error, data))
     return Batcher(data)
 
+
 def test_dataconsistency(data_batcher):
     """
     Tests whether the images remain in the correct order after applying data consistency,
@@ -37,8 +38,3 @@ def test_dataconsistency(data_batcher):
 
             assert np.isclose(im_dc_i.mean(), im_und_i.mean())
             assert np.isclose(np.std(im_dc_i), np.std(im_und_i))
-
-
-
-
-

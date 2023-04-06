@@ -9,6 +9,7 @@ from reconai.cascadenet_pytorch.kspace_pytorch import DataConsistencyInKspace
 from reconai.cascadenet_pytorch.module import Module
 import matplotlib.pyplot as plt
 
+
 class CRNNcell(Module):
     """
     Convolutional RNN cell that evolves over both time and iterations
@@ -17,10 +18,13 @@ class CRNNcell(Module):
     def __init__(self, input_size, hidden_size, kernel_size):
         super(CRNNcell, self).__init__()
         self.kernel_size = kernel_size
-        self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size, padding=self.kernel_size // 2).type(self.TensorType)
-        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2).type(self.TensorType)
+        self.i2h = nn.Conv2d(input_size, hidden_size, kernel_size,
+                             padding=self.kernel_size // 2).type(self.TensorType)
+        self.h2h = nn.Conv2d(hidden_size, hidden_size, kernel_size,
+                             padding=self.kernel_size // 2).type(self.TensorType)
         # add iteration hidden connection
-        self.ih2ih = nn.Conv2d(hidden_size, hidden_size, kernel_size, padding=self.kernel_size // 2).type(self.TensorType)
+        self.ih2ih = nn.Conv2d(hidden_size, hidden_size, kernel_size,
+                               padding=self.kernel_size // 2).type(self.TensorType)
         self.relu = nn.LeakyReLU(inplace=True)
 
     def forward(self, input, hidden_iteration, hidden):
@@ -263,19 +267,21 @@ def print_progress_model(gnd, pred, name, shape: bool):
     plt.savefig(pathlib.Path('../data') / f'{name}_seq.png', pad_inches=0)
     plt.close(fig)
 
+
 def set_ax(axes, ax: int, title: str, image, cmap="Greys_r"):
     axes[ax].set_title(title)
     axes[ax].imshow(np.abs(image), cmap=cmap, interpolation="nearest", aspect='auto')
     axes[ax].set_axis_off()
     return axes, ax + 1
 
-def mem_info():
+
+def m(a):
     gb = 1073741824
+    return np.round(a/gb, decimals=2)
+
+
+def mem_info():
     t = torch.cuda.get_device_properties(0).total_memory
     r = torch.cuda.memory_reserved(0)
     a = torch.cuda.memory_allocated(0)
-    m = lambda a: np.round(a/gb, decimals=2)
     return f'max: {m(t)} GiB, reserved: {m(r)} GiB, allocated: {m(a)} GiB, free: {m(r - a)} GiB'
-
-
-

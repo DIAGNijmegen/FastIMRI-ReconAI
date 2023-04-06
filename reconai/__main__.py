@@ -9,10 +9,12 @@ from os.path import join
 
 from .crnn_mri import train_network, test_accelerations
 
+
 @click.group()
 def cli():
     pass
-    
+
+
 @cli.command(name='train')
 @click.option('--debug', is_flag=True, default=False, help="light weight process for debugging")
 @click.option('--in_dir', type=Path, required=True)
@@ -20,7 +22,8 @@ def cli():
 @click.option('--sequence_len', type=int, default=15, help='number of frames')
 @click.option('-f', '--folds', count=True, help='number of folds, -fff for three folds')
 @click.option('--num_epoch', type=int, default=250, help='number of epochs')
-@click.option('--loss', type=click.Choice(['mse', 'mse+ssim', 'ssim'], case_sensitive=False), default='mse', help='loss function')
+@click.option('--loss', type=click.Choice(['mse', 'mse+ssim', 'ssim'], case_sensitive=False),
+              default='mse', help='loss function')
 @click.option('--batch_size', type=int, default=1, help='batch size')
 @click.option('--lr', type=float, default=0.001, help='initial learning rate')
 @click.option('--acceleration_factor', type=float, default=8.0, help='acceleration factor for k-space sampling')
@@ -37,6 +40,7 @@ def train_recon(**kwargs):
             train_network(Box(kwargs))
     except Exception as e:
         logging.exception(e)
+
 
 def setup_logging(name: str, kwargs: Dict, root_dir: Path = None, test: bool = False):
     kwargs['date'] = datetime.now().strftime("%Y%m%d_%H%M")

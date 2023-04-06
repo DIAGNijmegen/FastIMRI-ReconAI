@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 from .Batcher import Batcher
 from .Volume import Volume
 
+
 def prepare_input_as_variable(image: np.ndarray, acceleration: float = 4.0) \
         -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
     im_und, k_und, mask, im_gnd = prepare_input(image, acceleration)
@@ -107,11 +108,13 @@ def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fo
 
     return train, validate, test
 
+
 def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
-    with open(fold_dir / f'progress.csv', 'a+') as file:
+    with open(fold_dir / 'progress.csv', 'a+') as file:
         if epoch == 0:
-            file.write(f'Acceleration, Fold, Epoch, Train error, Validation error \n')
+            file.write('Acceleration, Fold, Epoch, Train error, Validation error \n')
         file.write(f'{acceleration}, {fold}, {epoch}, {train_err}, {val_err} \n')
+
 
 def show_images(rec, gnd):
     # a = 1
@@ -130,6 +133,7 @@ def show_images(rec, gnd):
     ax3.imshow(gnd2[0] - rec)
     ax3.set_title('Difference')
     plt.show()
+
 
 def get_data_information(args):
     # Volume.key = 'needle'
@@ -169,4 +173,3 @@ def get_data_information(args):
     # print(f'Min diff max-perc99 {np.min(max_to_perc99)}')
     # print(f'Avg diff max-perc99 {np.mean(max_to_perc99)}')
     # print(f'Max diff max-perc99 {np.max(max_to_perc99)}')
-    exit(1)
