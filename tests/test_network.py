@@ -16,7 +16,7 @@ def data_batcher() -> Batcher:
     return Batcher(data)
 
 
-def test_dataconsistency(data_batcher):
+def test_dc_image_shifting(data_batcher):
     """
     Tests whether the images remain in the correct order after applying data consistency,
     when undersampling rate 1 is used. It compares mean and std of both images.
@@ -38,3 +38,11 @@ def test_dataconsistency(data_batcher):
 
             assert np.isclose(im_dc_i.mean(), im_und_i.mean())
             assert np.isclose(np.std(im_dc_i), np.std(im_und_i))
+
+
+def test_crnncell(data_batcher):
+    a = 1
+
+
+def test_bcrnn(data_batcher):
+    a = 1
