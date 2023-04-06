@@ -61,8 +61,8 @@ class DataLoader:
         ifr.SetFileName(str(mha.resolve()))
         return sitk.GetArrayFromImage(ifr.Execute())
 
-    def generate_sequences_from_dataset(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
-                                        max_slices_per_mha: int = 3, q: float = 0.5) -> SequenceCollection:
+    def generate_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
+                           max_slices_per_mha: int = 3, q: float = 0.5) -> SequenceCollection:
         """
         Every MHA slice within a case has a 'usefulness' score, calculated as 1/2^x, where is the number of steps away
         from the center slice. For each MHA slice, a sequence takes 1 to (max_slices_per_mha)

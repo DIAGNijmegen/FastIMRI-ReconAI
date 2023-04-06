@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import numpy as np
 
-from reconai.data import Batcher1, DataLoader
+from reconai.data import Batcher, DataLoader
 from reconai.data.sequence import SequenceCollection
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def dataloader():
 
 @pytest.fixture
 def sequences(dataloader: DataLoader):
-    obj = dataloader.generate_sequences_from_dataset(seed=10, seq_len=5, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
+    obj = dataloader.generate_sequences(seed=10, seq_len=5, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
     assert len(obj) == 12, 'input data has changed'
     return obj
 
@@ -28,15 +28,15 @@ def test_generate_sequence(dataloader: DataLoader, sequences: SequenceCollection
         assert json.load(f) == repr(sequences)
 
     kwargs = {'seed': 11, 'seq_len': 5, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
-    obj1 = dataloader.generate_sequences_from_dataset(**kwargs)
-    obj2 = dataloader.generate_sequences_from_dataset(**kwargs)
+    obj1 = dataloader.generate_sequences(**kwargs)
+    obj2 = dataloader.generate_sequences(**kwargs)
     assert obj1 == obj2
     kwargs['seed'] = 0
-    assert obj1 != dataloader.generate_sequences_from_dataset(**kwargs)
+    assert obj1 != dataloader.generate_sequences(**kwargs)
 
 
 def test_batcher(dataloader: DataLoader, sequences: SequenceCollection):
-    batcher = Batcher1(dataloader)
+    batcher = Batcher(dataloader)
     for s in sequences.items():
         batcher.append_sequence(s)
 

@@ -1,2 +1,2 @@
-from .batcher1 import Batcher1
+from .batcher1 import Batcher
 from .dataloader import DataLoader

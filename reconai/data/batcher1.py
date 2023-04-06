@@ -49,11 +49,13 @@ def rotate(seq: np.ndarray, *rotate_deg: float):
     return seq
 
 
-class Batcher1:
+class Batcher:
     def __init__(self, dataloader: DataLoader):
         self._dataloader = dataloader
+
         self._processed_sequences = []
         self._indexes = []
+
         self._crop_expand_to = None
         self._norm = None
 
