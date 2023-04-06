@@ -1,4 +1,4 @@
-import json
+import json, copy
 from pathlib import Path
 
 import pytest
@@ -19,7 +19,7 @@ def dataloader():
 
 @pytest.fixture
 def sequences(dataloader: DataLoader):
-    return dataloader.generate_sequences(seed=10, seq_len=15, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
+    return dataloader.generate_sequences_from_dataset(seed=10, seq_len=15, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
 
 
 def test_generate_sequence(sequences: SequenceCollection):
@@ -31,4 +31,6 @@ def test_generate_sequence(sequences: SequenceCollection):
 
 def test_append_sequence(dataloader: DataLoader, sequences: SequenceCollection):
     batcher = Batcher1(dataloader)
-    batcher.append_sequences(sequences)
+    for s in sequences.items():
+        batcher.append_sequence(s)
+    pass

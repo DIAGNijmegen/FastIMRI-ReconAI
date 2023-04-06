@@ -1,30 +1,59 @@
 import logging, re, os
 from pathlib import Path
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 
 import numpy as np
 import SimpleITK as sitk
+from scipy.ndimage.interpolation import rotate as scipy_rotate
 
 from .Volume import Volume
 
-Sequences = List[Dict[str, List[int]]]
+
+class Sequence:
+    def __init__(self, case: str, seq: Dict[str, List[int]]):
+        self._sequence = seq
+        for key in seq.keys():
+            if not re.search('^\\d+_\\d+$', key):
+                raise KeyError(f"{key} in {case} sequence is not of format '\d+_\d+'!")
+        self._case = case
+
+    @property
+    def case(self) -> str:
+        return self._case
+
+    def __len__(self):
+        return sum([len(s) for s in self._sequence.values()])
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, Sequence):
+            return other._sequence == self._sequence
+        elif isinstance(other, dict):
+            return other == self._sequence
+        else:
+            return False
+
+    def items(self) -> Iterable[Tuple[int, List[int]]]:
+        for key in sorted(self._sequence.keys()):
+            yield int(re.search('\\d+$', key).group()), self._sequence[key]
 
 
 class SequenceCollection:
-    def __init__(self, sequences: Dict[str, Sequences]):
-        # {case: a list of {mha: sequences as slice ids}}
+    def __init__(self, sequences: Dict[str, List[Sequence]]):
+        # {case: a list of {i_mha: sequences as slice ids}}
         self._sequences = sequences
 
-    def __eq__(self, other: Dict[str, Sequences]) -> bool:
+    def __len__(self):
+        return len([seq for seqs in self._sequences.values() for seq in seqs])
+
+    def __eq__(self, other: Dict[str, List[Sequence]]) -> bool:
         return other == self._sequences
 
-    def __getitem__(self, item: str) -> Sequences:
-        return deepcopy(self._sequences[item])
-
-    def keys(self):
-        return self._sequences.keys()
+    def items(self) -> Iterable[Sequence]:
+        for case in self._sequences.keys():
+            for seq in self._sequences[case]:
+                yield seq
 
 
 class DataLoader:
@@ -43,7 +72,7 @@ class DataLoader:
         split_regex: str
             first capture group is how to split mhas into cases (eg. '.*_(.*)_')
         filter_regex: str=''
-            result is loaded in the Batcher
+            result is loaded
         as_float32: bool=True
             data is either float32 (True) or float64 (False)
         """
@@ -57,7 +86,7 @@ class DataLoader:
             for file in dirname.iterdir():
                 search = re.search(filter_regex, file.name) if filter_regex else True
                 split = re.search(split_regex, file.name)
-                if search and split.groups() and file.name.endswith('.mha'):
+                if search and split and split.groups() and file.name.endswith('.mha'):
                     mha = self._load_mha(dirname / file.name).astype('float32' if as_float32 else 'float64')
                     key = (dirname / split.group(1)).as_posix()
                     mhas[key] = mhas.get(key, []) + [mha]
@@ -74,8 +103,8 @@ class DataLoader:
         ifr.SetFileName(str(mha.resolve()))
         return sitk.GetArrayFromImage(ifr.Execute())
 
-    def generate_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
-                          max_slices_per_mha: int = 3, q: float = 0.5) -> SequenceCollection:
+    def generate_sequences_from_dataset(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
+                                        max_slices_per_mha: int = 3, q: float = 0.5) -> SequenceCollection:
         """
         Every MHA slice within a case has a 'usefulness' score, calculated as 1/2^x, where is the number of steps away
         from the center slice. For each MHA slice, a sequence takes 1 to (max_slices_per_mha)
@@ -96,10 +125,11 @@ class DataLoader:
         """
         q = np.clip(q, 0, 1) * seq_len
         values_len = lambda a: sum([len(x) for x in a.values()])
+        seeds = {case: seed + s for s, case in enumerate(self._mhas.keys())}
 
-        def _generate_sequences(s_seed: int, images: List[np.ndarray]) -> Sequences:
-            r = np.random.default_rng(s_seed if seed >= 0 else None)
-            sequences = []
+        def _generate_sequences(case: str, images: List[np.ndarray]) -> List[Sequence]:
+            r = np.random.default_rng(seeds[case] if seed >= 0 else None)
+            sequences: List[Sequence] = []
             range_len_images = range(len(images))
             available = {m: list(range(images[m].shape[0])) for m in range_len_images}
             slices = {m: np.array(available[m]) for m in range_len_images}
@@ -147,65 +177,108 @@ class DataLoader:
                         if m == 0:
                             loop += 1
 
-                    # seq[0], [1], [2]
-                    sequence_candidates.append((c_quality, c_sequence, c_available))
+                    assert values_len(c_sequence) == seq_len, SystemError(f'FATAL: length of candidate ({len(c_sequence)}) != seq_len ({seq_len})')
+                    sequence_candidates.append((c_quality, Sequence(case, c_sequence), c_available))
 
                 # select candidate closest to quality preference 'q'
                 sequence_candidates.sort(key=lambda c: np.abs(q - c[0]))
-                seq = sequence_candidates[0]
-                if seq[0] < q:
+                c_quality, c_sequence, c_available = sequence_candidates[0]
+                if c_quality < q:
                     break
                 else:
-                    sequences.append(seq[1])
-                    available = seq[2]
+                    sequences.append(c_sequence)
+                    available = c_available
             return sequences
 
-        sequences: Dict[str, Sequences] = {}
+        sequence_collection: Dict[str, List[Sequence]] = {}
         with ThreadPoolExecutor() as pool:
-            seeds = {key: seed + s for s, key in enumerate(self._mhas.keys())}
-            futures = {pool.submit(_generate_sequences, seeds[key], images): key for key, images in self._mhas.items()}
+            futures = {pool.submit(_generate_sequences, key, images): key for key, images in self._mhas.items()}
             for future in as_completed(futures):
                 key = futures[future]
-                sequences[key] = future.result()
-        return SequenceCollection(sequences)
+                sequence_collection[key] = future.result()
+
+        return SequenceCollection(sequence_collection)
 
 
-def crop_or_expand_to(image: np.ndarray, shape: Tuple[int, int]) -> np.ndarray:
-    z, y, x = image.shape
+def crop_or_expand(seq: np.ndarray, shape: Tuple[int, int]):
+    z, y, x = seq.shape
+    _y, _x = shape
     split_n = lambda a: [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]
-    split_x = split_n(np.abs(x - shape))
-    split_y = split_n(np.abs(y - shape))
+    split_x = split_n(np.abs(x - _x))
+    split_y = split_n(np.abs(y - _y))
 
-    if x > shape:
-        image = image[:, split_x[0]:-split_x[1], :]
-    elif x < shape:
-        image = np.pad(image, ([0, 0], [0, 0], x), mode='edge')
+    if x > _x:
+        seq = seq[:, split_x[0]:-split_x[1], :]
+    elif x < _x:
+        seq = np.pad(seq, ([0, 0], [0, 0], x), mode='edge')
 
-    if y > shape:
-        image = image[:, :, split_y[0]:-split_y[1]]
-    elif y < shape:
-        image = np.pad(image, ([0, 0], y, [0, 0]), mode='edge')
+    if y > _y:
+        seq = seq[:, :, split_y[0]:-split_y[1]]
+    elif y < _y:
+        seq = np.pad(seq, ([0, 0], y, [0, 0]), mode='edge')
+    return seq
 
-    return image
+
+def normalize(seq: np.ndarray, norm: float):
+    z, y, x = seq.shape
+    return np.divide(seq, np.zeros((y, x)) + norm)
+
+
+def flip_ud_lr(seq: np.ndarray, *flips: str):
+    for f in flips:
+        if f == 'ud':
+            seq = np.flipud(seq)
+        elif f == 'lr':
+            seq = np.fliplr(seq)
+    return seq
+
+
+def rotate(seq: np.ndarray, *rotate_deg: float):
+    for s, img in enumerate(seq):
+        # order 0 prefers 'moving' the pixels, order 5 prefers interpolation
+        seq[s, :, :] = scipy_rotate(img, rotate_deg[s], reshape=False, mode='nearest', order=1)
+    return seq
 
 
 class Batcher1:
     def __init__(self, dataloader: DataLoader, n_folds: int = 1):
         self._dataloader = dataloader
-        self._n_folds = n_folds
-        self._numpy_sequences = None
+        self._max_folds = n_folds
+        self._processed_sequences = []
+        self._crop_expand_to = None
 
-    def append_sequences(self, sequence_collection: SequenceCollection, *, norm: float = 1, flip: str = '',
-                         rotate_deg: int = 0, crop_expand_to: Tuple[int, int] = (256, 256)):
-        rotate_deg = rotate_deg % 360
-        for case in sequence_collection.keys():
-            images = self._dataloader[case]
-            sequences = sequence_collection[case]
-            for sequence in sequences:
-                # loop through 0_0 .. 0_n until doesn't exist, then 1_0 .. 1_n until k_0 .. k_n
-                pass
+    def append_sequence(self, sequence: Sequence, *,
+                        crop_expand_to: Tuple[int, int] = (256, 256),
+                        norm: float = 1,
+                        flip: str = '',
+                        rotate_degs: None | List[float] = None):
+        # precalculate some values
+        rotate_degs = [r % 360 for r in rotate_degs] if rotate_degs else [0] * len(sequence)
+        flips: List[str] = [r.group() for r in re.finditer('(ud)|(lr)', flip)]
+        norm = max(norm, np.nextafter(0, 1))
 
-        pass
+        assert len(rotate_degs) == len(sequence), ValueError(f'length of rotate_degs ({len(rotate_degs)}) != length of sequence ({len(sequence)})')
+        assert not self._crop_expand_to or self._crop_expand_to == crop_expand_to, ValueError(f'crop_expand_to ({crop_expand_to}) != previous crop_expand_to ({self._crop_expand_to})')
+        self._crop_expand_to = crop_expand_to
+
+        images: List[np.ndarray] = self._dataloader[sequence.case]
+        sequence_images = np.empty((0,) + crop_expand_to)
+        for img_ids, slice_ids in sequence.items():
+            img_slices = images[img_ids][slice_ids].copy()
+
+            img_slices = crop_or_expand(img_slices, crop_expand_to)
+            img_slices = flip_ud_lr(img_slices, *flips)
+            img_slices = rotate(img_slices, *rotate_degs)
+            img_slices = normalize(img_slices, norm)
+
+            sequence_images = np.vstack((sequence_images, img_slices))
+
+        self._processed_sequences.append(sequence_images)
+
+    def items(self, fold: int):
+        assert fold < self._max_folds, IndexError(f'{fold} >= {self._max_folds}')
+        
+
 
 class Batcher:
     batch_size: int = 1
