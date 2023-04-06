@@ -4,7 +4,6 @@ import collections.abc
 from yaml import dump
 from strictyaml import load as strict_load, dirty_load, CommaSeparated, Str, Int, Float, Map, EmptyDict, FixedSeq
 
-
 volume = Map({
     "key": Str(),
     "shape": FixedSeq([Int()] * 3) | CommaSeparated(Int()),
@@ -69,6 +68,7 @@ def apply_defaults(yaml_input: str):
         return dirty_load(dump(yaml_final), schema, allow_flow_style=True)
     else:
         return yaml_default
+
 
 def load(path: Path):
     with open(path) as f:
