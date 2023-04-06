@@ -1,10 +1,8 @@
-import logging
-from pathlib import Path
-from typing import List
-
-import SimpleITK as sitk
 import numpy as np
+import SimpleITK as sitk
 
+from typing import List
+from pathlib import Path
 
 class Volume:
     key: str = 'sag'
@@ -14,35 +12,29 @@ class Volume:
     sequence_shift: float = 2/3
 
     def __init__(self, study_id: str, files: List[Path]):
+        self.study_id = study_id
+        self.files = files
+        self._ifr = sitk.ImageFileReader()
         if not (self.sequence_length / self.slicing).is_integer():
             raise ValueError(f'{self.sequence_length}÷{self.slicing} is not an integer')
-
-        self.study_id = study_id
-        self.files = list(sorted([file for file in files if self.key in file.name]))
-
-        self._is_valid = len(self.files) * self.slicing < self.sequence_length
-        if not self._is_valid:
-            logging.warning(f'insufficient data in case {self.study_id} to reach a {self.sequence_length} sequence. '
-                            f'({len(self.files)} * {self.slicing} < {self.sequence_length}')
 
     def __repr__(self):
         return f'{self.study_id} ({len(self.files)} files)'
 
-    @staticmethod
-    def load(file: Path) -> np.ndarray:
-        ifr = sitk.ImageFileReader()
-        ifr.SetFileName(str(file))
-        return sitk.GetArrayFromImage(ifr.Execute())
-
-    def to_ndarray(self, norm: float = 1, slicing: List[str] = None) -> np.ndarray:
+    def to_ndarray(self) -> np.ndarray:
+        # key, sh, seq_len, sc, s_shift = self.key, self.shape, self.sequence_length, self.slicing, self.sequence_shift
+        files = list(sorted([file for file in self.files if self.key in file.name]))
+        if len(files) * self.slicing < self.sequence_length:
+            raise ValueError(f'insufficient data in case {self.study_id} to reach a {self.sequence_length} sequence.')
         images = dict()
 
         volumes, t, rev = [], 0, False
-        while t + self.sequence_length <= len(self.files) * self.slicing:
+        while t + self.sequence_length <= len(files) * self.slicing:
             sequence = []
             i = 0
-            for file in self.files[t // self.slicing:(t + self.sequence_length) // self.slicing]:
-                images[file] = images.get(file, self.load(file).astype('float64'))
+            for file in files[t // self.slicing:(t + self.sequence_length) // self.slicing]:
+                self._ifr.SetFileName(str(file))
+                images[file] = images.get(file, sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64'))
                 img = images[file]
                 # do we guarantee to take the center slice? do we take all 5 slices, or less? just one? what order?
                 z = img.shape[0]
@@ -51,18 +43,16 @@ class Volume:
                 img = ensure_correct_image_shape(img, self.shape)
 
                 # randoms, center, randoms
-                slices = self._interpret_slicing(z, slicing)
-                sequence.extend([img[s, :, :] / norm for s in slices])
-                # slices = np.random.choice(list(set(range(z)).difference([z // 2])), size=self.slicing, replace=False)
-                # slices[len(slices) // 2] = z // 2
-                # for s in sorted(slices):
-                #     # s_im = img[s, :, :] / 1961.06
-                #     # s_im[(64 * i):(64 * (i+1)), (64 * i):(64 * (i+1))] = 0
-                #     # sequence.append(s_im)
-                #     # i += 1
-                #     sequence.append(img[s, :, :] / norm)
+                slices = np.random.choice(list(set(range(z)).difference([z // 2])), size=self.slicing, replace=False)
+                slices[len(slices) // 2] = z // 2
+                for s in sorted(slices):
+                    # s_im = img[s, :, :] / 1961.06
+                    # s_im[(64 * i):(64 * (i+1)), (64 * i):(64 * (i+1))] = 1
+                    # sequence.append(s_im)
+                    # i += 1
+                    sequence.append(img[s, :, :] / 1961.06)
 
-            # sequence = list(reversed(sequence)) if rev else sequence
+            sequence = list(reversed(sequence)) if rev else sequence
             volumes.append(sequence)
 
             rev = not rev
@@ -85,13 +75,6 @@ class Volume:
         if not all(len(s) == self.sequence_length for s in volumes):
             raise ValueError(f'not all sequences are equal to {self.sequence_length}')
         return np.stack(volumes)
-
-    def _interpret_slicing(self, z, slicing: List[str]):
-        if len(slicing) != self.slicing:
-            raise ValueError(f'slicing specifier {slicing} is not of length {self.slicing}')
-        #['r', 'c', 'r']
-
-
 
 def split_n(a) -> List[int]:
     return [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]

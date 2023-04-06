@@ -1,7 +1,7 @@
 import logging
-from typing import List
 
 import numpy as np
+from typing import List
 
 from .Volume import Volume
 
