@@ -7,7 +7,7 @@ class Sequence:
         self._sequence = seq
         for key in seq.keys():
             if not re.search('^\\d+_\\d+$', key):
-                raise KeyError(f"{key} in {case} sequence is not of format '\d+_\d+'!")
+                raise KeyError(f"{key} in {case} sequence is not of format '\\d+_\\d+'!")
         self._case = case
 
     @property
