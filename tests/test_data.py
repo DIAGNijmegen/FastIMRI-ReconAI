@@ -4,8 +4,8 @@ from pathlib import Path
 import pytest
 import numpy as np
 
-from reconai.data.Batcher import Batcher1, DataLoader, SequenceCollection
-
+from reconai.data import Batcher1, DataLoader
+from reconai.data.sequence import SequenceCollection
 
 @pytest.fixture
 def dataloader():

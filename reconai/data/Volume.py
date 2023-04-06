@@ -1,10 +1,10 @@
 import logging
-
-import numpy as np
-import SimpleITK as sitk
-
-from typing import List, Dict
 from pathlib import Path
+from typing import List
+
+import SimpleITK as sitk
+import numpy as np
+
 
 class Volume:
     key: str = 'sag'
@@ -34,7 +34,7 @@ class Volume:
         ifr.SetFileName(str(file))
         return sitk.GetArrayFromImage(ifr.Execute())
 
-    def as_sequence(self, norm: float = 1, slicing: List[str] = None) -> np.ndarray:
+    def to_ndarray(self, norm: float = 1, slicing: List[str] = None) -> np.ndarray:
         images = dict()
 
         volumes, t, rev = [], 0, False
