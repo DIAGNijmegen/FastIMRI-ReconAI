@@ -135,7 +135,8 @@ class DataLoader:
                         if m == 0:
                             loop += 1
 
-                    assert values_len(c_sequence) == seq_len, SystemError(f'FATAL: length of candidate ({len(c_sequence)}) != seq_len ({seq_len})')
+                    assert values_len(c_sequence) == seq_len, \
+                        SystemError(f'FATAL: length of candidate ({len(c_sequence)}) != seq_len ({seq_len})')
                     sequence_candidates.append((c_quality, Sequence(case, c_sequence), c_available))
 
                 # select candidate closest to quality preference 'q'

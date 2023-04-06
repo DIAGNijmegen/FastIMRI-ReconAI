@@ -86,9 +86,12 @@ class Batcher1:
         flips: List[str] = [r.group() for r in re.finditer('(ud)|(lr)', flip)]
         norm = max(norm, np.nextafter(0, 1))
 
-        assert len(rotate_degs) == len(sequence), ValueError(f'length of rotate_degs ({len(rotate_degs)}) != length of sequence ({len(sequence)})')
-        assert not self._crop_expand_to or self._crop_expand_to == crop_expand_to, ValueError(f'crop_expand_to ({crop_expand_to}) != previous crop_expand_to ({self._crop_expand_to})')
-        assert not self._norm or self._norm == norm, ValueError(f'norm ({norm}) != previous norm ({self._norm})')
+        assert len(rotate_degs) == len(sequence), \
+            ValueError(f'length of rotate_degs ({len(rotate_degs)}) != length of sequence ({len(sequence)})')
+        assert not self._crop_expand_to or self._crop_expand_to == crop_expand_to, \
+            ValueError(f'crop_expand_to ({crop_expand_to}) != previous crop_expand_to ({self._crop_expand_to})')
+        assert not self._norm or self._norm == norm, \
+            ValueError(f'norm ({norm}) != previous norm ({self._norm})')
         self._crop_expand_to, self._norm = crop_expand_to, norm
 
         images: List[np.ndarray] = self._dataloader[sequence.case]

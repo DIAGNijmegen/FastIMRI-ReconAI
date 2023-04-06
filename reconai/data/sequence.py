@@ -51,3 +51,4 @@ class SequenceCollection:
         for case in self._sequences.keys():
             for seq in self._sequences[case]:
                 yield seq
+                
