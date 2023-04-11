@@ -64,7 +64,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
                 optimizer.zero_grad(set_to_none=True)
-                rec = network(im_u, k_u, mask, gnd)
+                rec, full_iterations = network(im_u, k_u, mask, gnd)
                 loss = criterion(rec, gnd)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=5)
@@ -84,7 +84,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                     logging.debug(f"batch {validate_batches}")
                     im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
-                    pred = network(im_u, k_u, mask, gnd, test=True)
+                    pred, full_iterations = network(im_u, k_u, mask, gnd, test=True)
                     err = criterion(pred, gnd)
 
                     validate_err += err.item()
@@ -94,7 +94,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                         break
             logging.info(f"completed {validate_batches} validate batches")
 
-            vis, base_psnr, test_psnr, test_batches = [], 0, 0, 0
+            vis, iters, base_psnr, test_psnr, test_batches = [], [], 0, 0, 0
             with torch.no_grad():
                 for im in test.generate():
                     logging.debug(f"batch {test_batches}")
@@ -103,7 +103,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                     k_u = Variable(k_und.type(Module.TensorType))
                     mask = Variable(mask.type(Module.TensorType))
 
-                    pred = network(im_u, k_u, mask, im_gnd, test=True)
+                    pred, full_iterations = network(im_u, k_u, mask, im_gnd, test=True)
 
                     for im_i, und_i, pred_i in zip(im,
                                                    from_tensor_format(im_und.numpy()),
@@ -117,6 +117,8 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                                     from_tensor_format(pred.data.cpu().numpy())[0],
                                     from_tensor_format(im_und.numpy())[0],
                                     0))
+                        iters.append((from_tensor_format(im_gnd.numpy())[-1],
+                                      full_iterations))
 
                     test_batches += 1
                     if args.debug and test_batches == 2:
@@ -157,6 +159,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                                                args.sequence_len, args.acceleration_factor)
 
                 print_loss_comparison_graphs(epoch_dir, vis, name)
+                print_iterations(iters[0][0], iters[0][1], epoch_dir, 5)
 
                 torch.save(network.state_dict(), epoch_dir / npz_name)
                 with open(epoch_dir / f'{name}.log', 'w') as log:
