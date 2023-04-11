@@ -175,7 +175,7 @@ class CRNNMRI(Module):
         output: torch.Tensor
             [output_image] with shape (batch_size, 2, width, height, n_seq)
         """
-        net, ti_out = {}, ''
+        net, ti_out, out = {}, '', {}
         logging.debug(f'net init @ {mem_info()}')
         n_batch, n_ch, width, height, n_seq = x.size()
         size_h = [n_seq * n_batch, self.nf, width, height]
@@ -230,7 +230,7 @@ class CRNNMRI(Module):
             x = net[ti_out]
             # print_progress_model(gnd, x, 'post_dc', False)
             logging.debug(f'it {i} @ {mem_info()}')
-
+            out[ti_out] = x
             # clean up o=i-1
             if test:
                 to_delete = [key for key in net if f't{o}' in key]
@@ -240,7 +240,7 @@ class CRNNMRI(Module):
 
                 torch.cuda.empty_cache()
 
-        return net[ti_out]
+        return net[ti_out], out
 
 
 def print_progress_model(gnd, pred, name, shape: bool):
