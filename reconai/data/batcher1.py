@@ -8,7 +8,7 @@ from .sequence import Sequence
 from .dataloader import DataLoader
 
 
-def crop_or_expand(seq: np.ndarray, shape: Tuple[int, int]):
+def crop_or_pad(seq: np.ndarray, shape: Tuple[int, int]):
     z, y, x = seq.shape
     _y, _x = shape
     split_n = lambda a: [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]
@@ -99,9 +99,9 @@ class Batcher:
         images: List[np.ndarray] = self._dataloader[sequence.case]
         sequence_images = np.empty((0,) + crop_expand_to)
         for img_ids, slice_ids in sequence.items():
-            img_slices = images[img_ids][slice_ids].copy()
+            img_slices = images[img_ids][slice_ids]
 
-            img_slices = crop_or_expand(img_slices, crop_expand_to)
+            img_slices = crop_or_pad(img_slices, crop_expand_to)
             img_slices = flip_ud_lr(img_slices, *flips)
             img_slices = rotate(img_slices, *rotate_degs)
             img_slices = normalize(img_slices, norm)
