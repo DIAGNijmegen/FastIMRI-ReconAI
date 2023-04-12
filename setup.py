@@ -23,6 +23,7 @@ if __name__ == '__main__':
         author_email='stan.noordman@radboudumc.nl',
         description='',
         install_requires=[
+            'scipy',
             'numpy~=1.24',
             'SimpleITK~=2.1',
             'click',
