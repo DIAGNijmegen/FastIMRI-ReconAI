@@ -101,8 +101,8 @@ class Batcher:
         sequence_images = np.empty((0,) + crop_expand_to)
         for slices in data:
             for img in slices:
-                img = zoom(img, zoom_factor)
                 img = rotate(img, rotate_deg)
+                img = zoom(img, zoom_factor)
                 img = crop_or_pad(img, crop_expand_to)
                 img = flip_ud_lr(img, *flips)
                 img = normalize(img, norm)
