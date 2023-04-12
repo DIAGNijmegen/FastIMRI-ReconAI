@@ -1,7 +1,9 @@
 __author__ = 'Quintin van Lohuizen'
 
 import logging
-import math, re, sqlite3
+import math
+import re
+import sqlite3
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -202,7 +204,9 @@ def get_acquisition_matrices(
     """
 
     # Define and execute query to find acquisition matrices per patient.
-    query = f"SELECT [0018|1310] FROM {tablename} WHERE ([0008|103e] like '%tra%' or [path] like '%tra%') and ([0008|103e] like '%t2%' or [0008|103e] like '%T2%') and [0010|0020] like '%{patient_id}%';"
+    query = f"SELECT [0018|1310] FROM {tablename} WHERE ([0008|103e] like '%tra%' or " \
+            f"[path] like '%tra%') and ([0008|103e] like '%t2%' or [0008|103e] like '%T2%')" \
+            f" and [0010|0020] like '%{patient_id}%';"
     results = cur.execute(query).fetchall()  # list of tuples
 
     # Make list where parsed acquistion matrices will be stored.
@@ -263,14 +267,16 @@ def get_rand_exp_decay_mask_ac_matrix(
         # Add z-dim to the mask (is expected by the poisson mask 3D function)
         ac_shape = (ac_shape[0], ac_shape[1], 1)
 
-        # Try to fit the first acquistion matrix in the MRI image, otherwise continue with the next one and see if that one fits.
+        # Try to fit the first acquistion matrix in the MRI image,
+        # otherwise continue with the next one and see if that one fits.
         try:
             # Determine where the acquisition matrix should be located in image space.
             xdiff = abs(width - ac_shape[0]) // 2
             ydiff = abs(height - ac_shape[1]) // 2
             mask = np.zeros((width, height))
 
-            # Obtain the k-space mask from .npy files or create them (this is a slow function) It is a advised to pre-create them.
+            # Obtain the k-space mask from .npy files or create them (this is a slow function)
+            # It is advised to pre-create them.
             cropped_mask = get_rand_exp_decay_mask(
                 width=ac_shape[0],
                 height=ac_shape[1],

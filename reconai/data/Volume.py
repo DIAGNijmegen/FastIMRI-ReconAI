@@ -32,7 +32,7 @@ class Volume:
         volumes, t, rev = [], 0, False
         while t + self.sequence_length <= len(files) * self.slicing:
             sequence = []
-            i = 0
+            # i = 0
             for file in files[t // self.slicing:(t + self.sequence_length) // self.slicing]:
                 self._ifr.SetFileName(str(file))
                 images[file] = images.get(file, sitk.GetArrayFromImage(self._ifr.Execute()).astype('float64'))
@@ -48,10 +48,14 @@ class Volume:
                 slices[len(slices) // 2] = z // 2
                 for s in sorted(slices):
                     # s_im = img[s, :, :] / 1961.06
-                    # s_im[(64 * i):(64 * (i+1)), (64 * i):(64 * (i+1))] = 1
+                    #
+                    # squarewidth = self.shape // self.sequence_length
+                    #
+                    # s_im[(squarewidth * i):(squarewidth * (i+1)), (squarewidth * i):(squarewidth * (i+1))] = 1
                     # sequence.append(s_im)
                     # i += 1
-                    sequence.append(img[s, :, :] / 1961.06)
+
+                    sequence.append(img[s, :, :] / 1961.06)  # change number to config variable
 
             sequence = list(reversed(sequence)) if rev else sequence
             volumes.append(sequence)
@@ -76,6 +80,7 @@ class Volume:
         if not all(len(s) == self.sequence_length for s in volumes):
             raise ValueError(f'not all sequences are equal to {self.sequence_length}')
         return np.stack(volumes)
+
 
 def split_n(a) -> List[int]:
     return [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]

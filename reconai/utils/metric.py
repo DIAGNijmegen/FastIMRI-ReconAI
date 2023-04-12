@@ -39,16 +39,17 @@ def complex_psnr(x, y, peak='normalized'):
     image (taking from reconstruction yields a different value).
 
     """
-    mse = np.mean(np.abs(x - y)**2)
+    mse_val = np.mean(np.abs(x - y)**2)
     if peak == 'max':
-        return 10*np.log10(np.max(np.abs(x))**2/mse)
+        return 10*np.log10(np.max(np.abs(x))**2/mse_val)
     else:
-        return 10*np.log10(1./mse)
+        return 10*np.log10(1./mse_val)
+
 
 def ssim(img1, img2):
     def calc_ssim(imga, imgb):
-        C1 = (0.01 * 255) ** 2
-        C2 = (0.03 * 255) ** 2
+        c1 = (0.01 * 255) ** 2
+        c2 = (0.03 * 255) ** 2
         imga = np.abs(imga).astype(np.float64)
         imgb = np.abs(imgb).astype(np.float64)
         kernel = cv2.getGaussianKernel(11, 1.5)
@@ -63,8 +64,9 @@ def ssim(img1, img2):
         sigma2_sq = cv2.filter2D(imgb ** 2, -1, window)[5:-5, 5:-5] - mu2_sq
         sigma12 = cv2.filter2D(imga * imgb, -1, window)[5:-5, 5:-5] - mu1_mu2
 
-        ssim_map = ((2 * mu1_mu2 + C1) * (2 * sigma12 + C2)) / ((mu1_sq + mu2_sq + C1) *
-                                                                (sigma1_sq + sigma2_sq + C2))
+        nom = (2 * mu1_mu2 + c1) * (2 * sigma12 + c2)
+        denom = (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2)
+        ssim_map = nom / denom
         return ssim_map.mean()
 
     if not img1.shape == img2.shape:
@@ -81,4 +83,3 @@ def ssim(img1, img2):
             return ssim(np.squeeze(img1), np.squeeze(img2))
     else:
         raise ValueError('Wrong input image dimensions.')
-
