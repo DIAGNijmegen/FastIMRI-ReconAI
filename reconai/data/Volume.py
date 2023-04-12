@@ -4,6 +4,7 @@ import SimpleITK as sitk
 from typing import List
 from pathlib import Path
 
+
 class Volume:
     key: str = 'sag'
     shape: int = 256  # intended shape of image (w x h)
