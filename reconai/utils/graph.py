@@ -141,7 +141,7 @@ def print_acceleration_validation_loss(results, num_epochs: int, loss: str, out_
 
 def print_iterations(gnd, results, out_dir: Path, n_iters: int):
     fig = plt.figure(figsize=(20, 8))
-    axes = [plt.subplot(2, math.ceil(n_iters / 2), j + 1) for j in range(n_iters + 2)]
+    axes = [plt.subplot(2, math.ceil(n_iters / 2), j + 1) for j in range(n_iters + 1)]
     axes, ax = set_ax(axes, 0, f"gnd", gnd[-1])
     for iteration in range(n_iters):
         key = list(results.keys())[iteration]

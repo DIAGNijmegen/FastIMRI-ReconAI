@@ -8,7 +8,7 @@ from .sequence import Sequence
 from .dataloader import DataLoader
 
 
-def crop_or_expand(seq: np.ndarray, shape: Tuple[int, int]):
+def crop_or_pad(seq: np.ndarray, shape: Tuple[int, int]):
     z, y, x = seq.shape
     _y, _x = shape
     split_n = lambda a: [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]
@@ -101,7 +101,8 @@ class Batcher:
         for img_ids, slice_ids in sequence.items():
             img_slices = images[img_ids][slice_ids].copy()
 
-            img_slices = crop_or_expand(img_slices, crop_expand_to)
+            img_slices = crop_or_pad(img_slices, crop_expand_to)
+            # TODO: add zooming
             img_slices = flip_ud_lr(img_slices, *flips)
             img_slices = rotate(img_slices, *rotate_degs)
             img_slices = normalize(img_slices, norm)
@@ -126,6 +127,16 @@ class Batcher:
         for i in self._indexes:
             yield self._processed_sequences[i]
 
+    def minibatches(self) -> np.ndarray:
+        """
+        Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
+        As minibatch
+
+        FIX TO MAKE THIS NICER, BUT HAD TO DO TO GET WORKING
+        """
+        for i in self._indexes:
+            yield np.stack([self._processed_sequences[i]])
+
     def items_fold(self, fold: int, max_folds: int = 1, validation: bool = False) -> np.ndarray:
         """
         Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
@@ -146,4 +157,4 @@ class Batcher:
         training_ids = validation_ids.symmetric_difference(self._indexes)
 
         for i in validation_ids if validation else training_ids:
-            yield self._processed_sequences[i]
+            yield np.stack([self._processed_sequences[i]])
