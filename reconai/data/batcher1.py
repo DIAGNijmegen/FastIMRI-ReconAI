@@ -126,7 +126,7 @@ class Batcher:
         for i in self._indexes:
             yield self._processed_sequences[i]
 
-    def items_fold(self, fold: int, max_folds: int = 1, validation: bool = False) -> np.ndarray:
+    def items_fold(self, fold: int, max_folds: int = 5, validation: bool = False) -> np.ndarray:
         """
         Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
 
@@ -139,7 +139,7 @@ class Batcher:
         validation: bool=False
             Return the validation set or the training set
         """
-        assert max_folds >= 0, ValueError('max_folds must be at least 0')
+        assert max_folds > 2, ValueError('max_folds must be at least 2, use items() instead')
         assert fold < max_folds, IndexError(f'fold ({fold}) >= max folds ({max_folds})')
 
         validation_ids = set(self._indexes[fold::max_folds])
