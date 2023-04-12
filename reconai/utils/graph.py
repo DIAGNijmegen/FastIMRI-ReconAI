@@ -131,6 +131,18 @@ def print_acceleration_validation_loss(results, num_epochs: int, loss: str, out_
     plt.savefig(out_dir / "validation_loss.png")
     plt.close(fig)
 
+def print_iterations(gnd, results, out_dir: Path, n_iters: int):
+    fig = plt.figure(figsize=(20, 8))
+    axes = [plt.subplot(2, math.ceil(n_iters / 2), j + 1) for j in range(n_iters + 2)]
+    axes, ax = set_ax(axes, 0, f"gnd", gnd[-1])
+    for iteration in range(n_iters):
+        key = list(results.keys())[iteration]
+        im = results[key].permute(4, 0, 1, 2, 3)[-1].squeeze()
+        axes, ax = set_ax(axes, ax, f"iteration {iteration}", im.detach().cpu())
+    plt.savefig(out_dir / 'iterations.png', pad_inches=0)
+    plt.close(fig)
+
+
 def set_ax(axes, ax: int, title: str, image, cmap="Greys_r"):
     axes[ax].set_title(title)
     axes[ax].imshow(np.abs(image), cmap=cmap, interpolation="nearest", aspect='auto')
