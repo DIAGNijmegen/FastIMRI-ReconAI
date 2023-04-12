@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from reconai.data.data import gather_data
-# from reconai.data.Batcher import Batcher
+from reconai.data.Batcher import Batcher as OldBatcher
 
 import pytest
 import numpy as np
@@ -10,6 +10,7 @@ import numpy as np
 from reconai.data.batcher1 import Batcher
 from reconai.data.dataloader import DataLoader
 from reconai.data.sequence import SequenceCollection
+from reconai.data.sequencer import Sequencer
 
 
 @pytest.fixture
@@ -19,22 +20,23 @@ def dataloader():
     return dl
 
 
-# def test_volume():
-#     data = gather_data(Path('input'))
-#     data_error = Batcher(data).get_blacklist()
-#     data = list(filter(lambda a: a.study_id not in data_error, data))
-#     # data_n = len(data)
-#
-#     batcher = Batcher(data)
-#     for item in batcher.generate():
-#         # TODO: check this with input yaml config file rather than constant val
-#         assert item.shape == (1, 15, 256, 256)
-#     pass
+def test_volume():
+    data = gather_data(Path('input'))
+    data_error = OldBatcher(data).get_blacklist()
+    data = list(filter(lambda a: a.study_id not in data_error, data))
+    # data_n = len(data)
+
+    batcher = OldBatcher(data)
+    for item in batcher.generate():
+        # TODO: check this with input yaml config file rather than constant val
+        assert item.shape == (1, 15, 256, 256)
+    pass
 
 
 @pytest.fixture
 def sequences(dataloader: DataLoader):
-    obj = dataloader.generate_sequences(seed=10, seq_len=5, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
+    seq = Sequencer(dataloader)
+    obj = seq.generate_sequences(seed=10, seq_len=5, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
     assert len(obj) == 12, 'input data has changed'
     return obj
 
@@ -45,12 +47,13 @@ def test_generate_sequence(dataloader: DataLoader, sequences: SequenceCollection
     with open('./output/test_data_expected_sequences.json') as f:
         assert json.load(f) == repr(sequences)
 
+    seq = Sequencer(dataloader)
     kwargs = {'seed': 11, 'seq_len': 5, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
-    obj1 = dataloader.generate_sequences(**kwargs)
-    obj2 = dataloader.generate_sequences(**kwargs)
+    obj1 = seq.generate_sequences(**kwargs)
+    obj2 = seq.generate_sequences(**kwargs)
     assert obj1 == obj2
     kwargs['seed'] = 0
-    assert obj1 != dataloader.generate_sequences(**kwargs)
+    assert obj1 != seq.generate_sequences(**kwargs)
 
 
 def test_batcher(dataloader: DataLoader, sequences: SequenceCollection):

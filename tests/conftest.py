@@ -5,4 +5,4 @@
 
 
 # flake8: noqa
-from test_network import data_batcher
+from .test_network import data_batcher

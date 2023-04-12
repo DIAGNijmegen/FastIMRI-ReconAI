@@ -99,7 +99,7 @@ class Batcher:
         images: List[np.ndarray] = self._dataloader[sequence.case]
         sequence_images = np.empty((0,) + crop_expand_to)
         for img_ids, slice_ids in sequence.items():
-            img_slices = images[img_ids][slice_ids].copy()
+            img_slices = images[img_ids][slice_ids]
 
             img_slices = crop_or_pad(img_slices, crop_expand_to)
             # TODO: add zooming
