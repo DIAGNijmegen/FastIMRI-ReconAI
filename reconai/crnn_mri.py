@@ -13,15 +13,12 @@ import logging
 from os.path import join
 
 from .data.data import get_data_volumes, get_dataset_batchers, prepare_input, prepare_input_as_variable,\
-    from_tensor_format, append_to_file
+    from_tensor_format, append_to_file, get_new_dataset_batchers
 from .utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
     print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations
 from .utils.metric import complex_psnr
 from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
 from reconai.cascadenet_pytorch.module import Module
-
-from .data.dataloader import DataLoader
-from .data.batcher1 import Batcher
 
 
 def test_accelerations(args: Box):
@@ -61,21 +58,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
     criterion = torch.nn.MSELoss().cuda()
 
     # data = get_data_volumes(args)
-    dl_tr_val = DataLoader(args.in_dir / 'train')
-    dl_tr_val.load('.*_(.*)_')
-    kwargs = {'seed': 11, 'seq_len': 3, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
-    train_val_sequences = dl_tr_val.generate_sequences(**kwargs)
-    dl_test = DataLoader(args.in_dir / 'test')
-    dl_test.load('.*_(.*)_')
-    test_sequences = dl_test.generate_sequences(**kwargs)
-
-    tra_val_batcher = Batcher(dl_tr_val)
-    for s in train_val_sequences.items():
-        tra_val_batcher.append_sequence(s, norm=1961.06)
-
-    test_batcher = Batcher(dl_test)
-    for s in test_sequences.items():
-        test_batcher.append_sequence(s, norm=1961.06)
+    train_val_batcher, test_batcher = get_new_dataset_batchers(args)
 
     results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
@@ -88,7 +71,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
 
             # train, validate, test = get_dataset_batchers(args, data, n_folds, fold)
             train_err, train_batches = 0, 0
-            for im in tra_val_batcher.items_fold(fold, 5, validation=False):
+            for im in train_val_batcher.items_fold(fold, 5, validation=False):
                 logging.debug(f"batch {train_batches}")
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
@@ -109,7 +92,7 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
             validate_err, validate_batches = 0, 0
             network.eval()
             with torch.no_grad():
-                for im in tra_val_batcher.items_fold(fold, 5, validation=True):
+                for im in train_val_batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
                     im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
