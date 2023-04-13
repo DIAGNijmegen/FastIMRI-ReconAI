@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 from scipy.ndimage import rotate as scipy_rotate
@@ -66,7 +66,7 @@ class Batcher:
                         crop_expand_to: Tuple[int, int] = (256, 256),
                         norm: float = 1,
                         flip: str = '',
-                        rotate_degs: None | List[float] = None):
+                        rotate_degs: Optional[List[float]] = None):
         """
         Append sequence to this batcher. Apply different norm/flip/rotate_deg in a for loop to multiply the dataset.
 
