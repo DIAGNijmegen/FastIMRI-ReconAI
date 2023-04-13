@@ -1,17 +1,25 @@
 from pathlib import Path
 import collections.abc
+from importlib import resources
+from box import Box
 
 from yaml import dump
-from strictyaml import load as strict_load, dirty_load, CommaSeparated, Str, Int, Float, Map, EmptyDict, FixedSeq
+from strictyaml import load as strict_load, dirty_load, CommaSeparated, Str, Int, Float, Map, EmptyDict, FixedSeq, YAML
 
-volume = Map({
-    "key": Str(),
+
+class Config(Box):
+    pass
+
+
+data = Map({
+    "split_regex": Str(),
     "shape": FixedSeq([Int()] * 3) | CommaSeparated(Int()),
     "slices": Int()
 })
 
 train = Map({
     "epochs": Int(),
+    "folds": Int(),
     "loss": Map({
         "mse": Float(),
         "ssim": Float(),
@@ -27,7 +35,7 @@ experiment = EmptyDict() | Map({
 })
 
 schema = Map({
-    "volume": volume,
+    "data": data,
     "train": train,
     "experiment": experiment
 })
@@ -44,24 +52,7 @@ def deep_update(d, u):
 
 def apply_defaults(yaml_input: str):
     yaml_input = strict_load(yaml_input)
-    yaml_default = strict_load("""
-    volume:
-      key: sag
-      # x, y, sequence length
-      shape: 256,256,15
-      # files * slices <= sequence length, else the case is skipped
-      slices: 3
-    train:
-      epochs: 75
-      loss:
-        mse: 1
-        ssim: 0
-        dice: 0
-      lr: 0.001
-      undersampling: 8
-      seed: -1
-    experiment:
-    """, schema)
+    yaml_default = strict_load(resources.read_text(f'{__package__}.resources', 'config_default.yaml'), schema)
 
     if yaml_input.data:
         yaml_final = deep_update(yaml_default.data, yaml_input.data)
@@ -70,10 +61,10 @@ def apply_defaults(yaml_input: str):
         return yaml_default
 
 
-def load(path: Path):
+def load(path: Path) -> YAML:
     with open(path) as f:
         return apply_defaults(f.read())
 
 
-def load_str(yaml: str):
+def load_str(yaml: str = '') -> YAML:
     return apply_defaults(yaml)

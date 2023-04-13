@@ -1,13 +1,14 @@
 from pathlib import Path
+from importlib import resources
 
-from reconai.yaml import load, load_str
+from reconai.config import load, load_str
 
 
 def test_config():
-    load(Path('input/test_config.yaml'))
+    load(Path(str(resources.path('reconai.resources', 'config_default.yaml'))))
 
 
-def test_arbitrary_yaml():
+def test_arbitrary_valid_yaml():
     load_str('')
     load_str('experiment:')
-    load_str('volume:\n shape:')
+    load_str('data:\n shape:')

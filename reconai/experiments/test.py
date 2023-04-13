@@ -1,10 +1,10 @@
 from reconai.data.data import get_data_volumes, get_dataset_batchers, prepare_input_as_variable
 import torch
-from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
+from reconai.models.bcrnn.model_pytorch import CRNNMRI
 import SimpleITK as sitk
 import numpy as np
 import matplotlib.pyplot as plt
-from reconai.cascadenet_pytorch.dnn_io import from_tensor_format
+from reconai.models.bcrnn.dnn_io import from_tensor_format
 from sklearn.preprocessing import StandardScaler, MinMaxScaler
 from reconai.utils.kspace import kspace_to_image, image_to_kspace
 from reconai.data.Volume import Volume

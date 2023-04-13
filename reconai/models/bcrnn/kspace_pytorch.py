@@ -1,7 +1,7 @@
 import torch
 import torch.fft as fourier
 
-from reconai.cascadenet_pytorch.module import Module
+from reconai.models.bcrnn.module import Module
 
 
 class DataConsistencyInKspace(Module):

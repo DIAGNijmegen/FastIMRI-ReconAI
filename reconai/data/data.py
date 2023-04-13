@@ -10,8 +10,8 @@ import logging
 
 from reconai.utils.kspace import get_rand_exp_decay_mask
 import reconai.utils.compressed_sensing as cs
-from reconai.cascadenet_pytorch.dnn_io import to_tensor_format, from_tensor_format
-from reconai.cascadenet_pytorch.module import Module
+from reconai.models.bcrnn.dnn_io import to_tensor_format, from_tensor_format
+from reconai.models.bcrnn.module import Module
 import matplotlib.pyplot as plt
 
 from .Batcher import Batcher

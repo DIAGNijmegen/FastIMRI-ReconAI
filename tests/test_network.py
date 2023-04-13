@@ -3,7 +3,7 @@ import torch
 from pathlib import Path
 import numpy as np
 
-from reconai.cascadenet_pytorch.kspace_pytorch import DataConsistencyInKspace
+from reconai.models.bcrnn.kspace_pytorch import DataConsistencyInKspace
 from reconai.data.data import gather_data, prepare_input
 from reconai.data.Batcher import Batcher
 

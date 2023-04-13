@@ -11,13 +11,15 @@ from typing import List
 from pathlib import Path
 import logging
 
-from .data.data import get_data_volumes, get_dataset_batchers, prepare_input, prepare_input_as_variable,\
+from reconai.config import Config
+from reconai.parameters import Parameters
+from reconai.data.data import get_data_volumes, get_dataset_batchers, prepare_input, prepare_input_as_variable,\
     from_tensor_format, append_to_file
-from .utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
+from reconai.utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
     print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs
-from .utils.metric import complex_psnr
-from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
-from reconai.cascadenet_pytorch.module import Module
+from reconai.utils.metric import complex_psnr
+from reconai.models.bcrnn.model_pytorch import CRNNMRI
+from reconai.models.bcrnn.module import Module
 
 
 def test_accelerations(args: Box):
@@ -27,7 +29,7 @@ def test_accelerations(args: Box):
     results = []
     for acceleration in accelerations:
         args['acceleration_factor'] = acceleration
-        train_results = train_network(args, True)
+        train_results = train(args, True)
         fold0, train_err, val_err = train_results[0]
         results.append((acceleration, train_err, val_err))
 
@@ -36,26 +38,24 @@ def test_accelerations(args: Box):
     print_acceleration_validation_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
 
 
-def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int], List[int]]]:
-    if not torch.cuda.is_available():
+def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
+    if not torch.cuda.is_available() and not params.debug:
         raise Exception('Can only run in Cuda')
 
-    model_name = 'crnn_mri_debug' if args.debug else 'crnn_mri'
-    num_epoch = 3 if args.debug else args.num_epoch
-    n_folds = args.folds if args.folds > 2 else 1
+    num_epoch = 3 if params.debug else params.config.train.epochs
+    n_folds = params.config.train.folds if params.config.train.folds > 2 else 1
 
     # Configure directory info
-    save_dir: Path = \
-        args.out_dir / f'acceleration_{args.date}' / f'{model_name}_acceleration_{args.acceleration_factor}' \
-        if test_acc else args.out_dir / f'{model_name}_{args.date}'
+    save_dir: Path = params.out_dir / params.name_date
     save_dir.mkdir(parents=True)
     logging.info(f"saving model to {save_dir.absolute()}")
 
     # Specify network
-    network = CRNNMRI(n_ch=1, nc=2 if args.debug else 5).cuda()
-    optimizer = optim.Adam(network.parameters(), lr=float(args.lr), betas=(0.5, 0.999))
+    network = CRNNMRI(n_ch=1, nc=2 if params.debug else 5).cuda()
+    optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
     criterion = torch.nn.MSELoss().cuda()
 
+    ##### fix from here
     data = get_data_volumes(args)
 
     results = []
