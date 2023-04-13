@@ -14,9 +14,10 @@ from reconai.cascadenet_pytorch.dnn_io import to_tensor_format, from_tensor_form
 from reconai.cascadenet_pytorch.module import Module
 import matplotlib.pyplot as plt
 
-from .Batcher import Batcher
+from .Batcher import Batcher as OldBatcher
 from .Volume import Volume
-
+from .dataloader import DataLoader
+from .batcher1 import Batcher
 
 def prepare_input_as_variable(image: np.ndarray, acceleration: float = 4.0) \
         -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
@@ -77,11 +78,11 @@ def gather_data(data_dir: Path, debug: bool = False):
 
 
 def get_data_volumes(args: Box) -> List[Volume]:
-    Batcher.batch_size = args.batch_size
+    OldBatcher.batch_size = args.batch_size
     Volume.sequence_length = args.sequence_len
 
     data = gather_data(args.in_dir, args.debug)
-    data_error = Batcher(data).get_blacklist()
+    data_error = OldBatcher(data).get_blacklist()
     data = list(filter(lambda a: a.study_id not in data_error, data))
     data_n = len(data)
     logging.info(f"{data_n} volumes found, {len(data_error)} dropped out")
@@ -91,7 +92,7 @@ def get_data_volumes(args: Box) -> List[Volume]:
     return data
 
 
-def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fold: int) -> (Batcher, Batcher, Batcher):
+def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fold: int) -> (OldBatcher, OldBatcher, OldBatcher):
     data_n = list(range(len(data_volumes)))
     # random.seed(args.seed)
     random.seed(5)
@@ -102,11 +103,30 @@ def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fo
     k_training = set(range(1, len(data_split))).difference(k_validation)
     # k_test is 0
 
-    train = Batcher([data_volumes[i] for i in np.concatenate([data_split[i] for i in k_training])])
-    validate = Batcher([data_volumes[i] for i in np.concatenate([data_split[i] for i in k_validation])])
-    test = Batcher([data_volumes[i] for i in data_split[0]])
+    train = OldBatcher([data_volumes[i] for i in np.concatenate([data_split[i] for i in k_training])])
+    validate = OldBatcher([data_volumes[i] for i in np.concatenate([data_split[i] for i in k_validation])])
+    test = OldBatcher([data_volumes[i] for i in data_split[0]])
 
     return train, validate, test
+
+def get_new_dataset_batchers(args: Box):
+    dl_tr_val = DataLoader(args.in_dir / 'train')
+    dl_tr_val.load('.*_(.*)_')
+    kwargs = {'seed': 11, 'seq_len': 3, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
+    train_val_sequences = dl_tr_val.generate_sequences(**kwargs)
+    dl_test = DataLoader(args.in_dir / 'test')
+    dl_test.load('.*_(.*)_')
+    test_sequences = dl_test.generate_sequences(**kwargs)
+
+    tra_val_batcher = Batcher(dl_tr_val)
+    for s in train_val_sequences.items():
+        tra_val_batcher.append_sequence(s, norm=1961.06)
+
+    test_batcher = Batcher(dl_test)
+    for s in test_sequences.items():
+        test_batcher.append_sequence(s, norm=1961.06)
+
+    return tra_val_batcher, test_batcher
 
 
 def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
