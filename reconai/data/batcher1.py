@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 from scipy.ndimage import rotate as scipy_rotate, zoom as scipy_zoom
@@ -124,9 +124,9 @@ class Batcher:
         Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
         """
         for i in self._indexes:
-            yield self._processed_sequences[i]
+            yield np.stack([self._processed_sequences[i]])
 
-    def items_fold(self, fold: int, max_folds: int = 5, validation: bool = False) -> np.ndarray:
+    def items_fold(self, fold: int, max_folds: int = 1, validation: bool = False) -> np.ndarray:
         """
         Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
 
@@ -146,4 +146,4 @@ class Batcher:
         training_ids = validation_ids.symmetric_difference(self._indexes)
 
         for i in validation_ids if validation else training_ids:
-            yield self._processed_sequences[i]
+            yield np.stack([self._processed_sequences[i]])

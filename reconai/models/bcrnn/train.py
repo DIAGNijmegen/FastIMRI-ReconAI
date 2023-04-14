@@ -10,6 +10,7 @@ from box import Box
 from typing import List
 from pathlib import Path
 import logging
+from os.path import join
 
 from reconai.config import Config
 from reconai.parameters import Parameters
@@ -56,7 +57,11 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     criterion = torch.nn.MSELoss().cuda()
 
     ##### fix from here
-    data = get_data_volumes(args)
+    #data = get_data_volumes(args)
+
+
+    # data = get_data_volumes(args)
+    train_val_batcher, test_batcher = get_dataset_batchers(args)
 
     results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
@@ -67,9 +72,9 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
         for epoch in range(num_epoch):
             t_start = time.time()
 
-            train, validate, test = get_dataset_batchers(args, data, n_folds, fold)
+            # train, validate, test = get_dataset_batchers(args, data, n_folds, fold)
             train_err, train_batches = 0, 0
-            for im in train.generate():
+            for im in train_val_batcher.items_fold(fold, 5, validation=False):
                 logging.debug(f"batch {train_batches}")
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
@@ -90,7 +95,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             validate_err, validate_batches = 0, 0
             network.eval()
             with torch.no_grad():
-                for im in validate.generate():
+                for im in train_val_batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
                     im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
 
@@ -106,7 +111,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
             vis, iters, base_psnr, test_psnr, test_batches = [], [], 0, 0, 0
             with torch.no_grad():
-                for im in test.generate():
+                for im in test_batcher.minibatches():
                     logging.debug(f"batch {test_batches}")
                     im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
                     im_u = Variable(im_und.type(Module.TensorType))
