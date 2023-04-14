@@ -63,17 +63,17 @@ def prepare_input(image: np.ndarray, acceleration: float = 4.0) \
     return im_und_l, k_und_l, mask_l, im_gnd_l
 
 
-def get_dataset_batchers(args: Box):
-    dl_tra_val = DataLoader(args.in_dir / 'train')
+def get_dataset_batchers(in_dir: Path, sequence_len: int):
+    dl_tra_val = DataLoader(in_dir / 'train')
     dl_tra_val.load(split_regex='.*_(.*)_', filter_regex='sag')
-    dl_test = DataLoader(args.in_dir / 'test')
+    dl_test = DataLoader(in_dir / 'test')
     dl_test.load(split_regex='.*_(.*)_', filter_regex='sag')
 
     logging.info("data loaded")
     sequencer_tr_val = Sequencer(dl_tra_val)
     sequencer_test = Sequencer(dl_test)
 
-    kwargs = {'seed': 11, 'seq_len': args.sequence_len, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
+    kwargs = {'seed': 11, 'seq_len': sequence_len, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
     train_val_sequences = sequencer_tr_val.generate_sequences(**kwargs)
     test_sequences = sequencer_test.generate_sequences(**kwargs)
 

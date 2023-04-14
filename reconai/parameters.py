@@ -15,6 +15,7 @@ class Parameters:
     model: str
     _config: InitVar[Path]
     debug: bool = False
+    batch_size: int = 1
 
     def __post_init__(self, _config: Path):
         self.date = datetime.now().strftime("%Y%m%d_%H%M")

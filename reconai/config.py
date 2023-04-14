@@ -21,7 +21,7 @@ train = Map({
     "epochs": Int(),
     "folds": Int(),
     "loss": Map({
-        "mse": Float(),
+        "mse": Float(),  # TODO: Dit moeten strings zijn lijkt me?
         "ssim": Float(),
         "dice": Float(),
     }),
