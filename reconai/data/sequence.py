@@ -47,7 +47,7 @@ class SequenceCollection:
     def __repr__(self):
         return repr(self._sequences)
 
-    def items(self) -> Iterable[Sequence]:
+    def items(self):
         for case in self._sequences.keys():
             for seq in self._sequences[case]:
                 yield seq
