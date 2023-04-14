@@ -53,13 +53,15 @@ class DataLoader:
                     mhas[key] = mhas.get(key, []) + [mha]
             return mhas
 
-        with ThreadPoolExecutor() as pool:
-            futures = {pool.submit(gather_mhas, d): d for d in all_dirs}
-            for future in as_completed(futures):
-                self._mhas.update(future.result())
+        # with ThreadPoolExecutor(max_workers=4) as pool:
+        #     futures = {pool.submit(gather_mhas, d): d for d in all_dirs}
+        #     for future in as_completed(futures):
+        #         self._mhas.update(future.result())
+        for d in all_dirs:
+            self._mhas.update(gather_mhas(d))
 
     @staticmethod
-    def _load_mha(mha: Path):
+    def _load_mha(mha: Path) -> np.ndarray:
         ifr = sitk.ImageFileReader()
         ifr.SetFileName(str(mha.resolve()))
         return sitk.GetArrayFromImage(ifr.Execute())

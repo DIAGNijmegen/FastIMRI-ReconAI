@@ -12,10 +12,10 @@ from pathlib import Path
 import logging
 from os.path import join
 
-from .data.data import get_data_volumes, get_dataset_batchers, prepare_input, prepare_input_as_variable,\
-    from_tensor_format, append_to_file, get_new_dataset_batchers
+from .data.data import get_dataset_batchers, prepare_input, prepare_input_as_variable, append_to_file
 from .utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
     print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations
+from reconai.cascadenet_pytorch.dnn_io import from_tensor_format
 from .utils.metric import complex_psnr
 from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
 from reconai.cascadenet_pytorch.module import Module
@@ -53,12 +53,12 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
     logging.info(f"saving model to {save_dir.absolute()}")
 
     # Specify network
-    network = CRNNMRI(n_ch=1, nc=2 if args.debug else 5).cuda()
+    network = CRNNMRI(n_ch=1, nf=64, nc=2 if args.debug else 5).cuda()
     optimizer = optim.Adam(network.parameters(), lr=float(args.lr), betas=(0.5, 0.999))
     criterion = torch.nn.MSELoss().cuda()
 
     # data = get_data_volumes(args)
-    train_val_batcher, test_batcher = get_new_dataset_batchers(args)
+    train_val_batcher, test_batcher = get_dataset_batchers(args)
 
     results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
