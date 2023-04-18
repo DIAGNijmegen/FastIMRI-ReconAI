@@ -37,10 +37,10 @@ class ImageDataset(Dataset):
         # load or generate sampling mask
         if not self.random_sampling:
             if self.mask_name == None:
-                mask = sio.loadmat('../../Data/SamplingMask/mask_%.2f_%d_%d/mask%d.mat' % 
+                mask = sio.loadmat('../../Data/kiki/mask_%.2f_%d_%d/mask%d.mat' %
                                   (self.acc_rate, self.acs_num, h, self.mask_index))['mask']
             else:
-                mask = sio.loadmat('../../Data/SamplingMask/%s.mat' % self.mask_name)['mask']
+                mask = sio.loadmat('../../Data/kiki/%s.mat' % self.mask_name)['mask']
         else:
             mask = CartesianMask((h, w), self.acc_rate, self.acs_num)
         

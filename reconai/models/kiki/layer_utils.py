@@ -16,22 +16,22 @@ def roll(x, shift, dim=-1):
         return torch.cat([gap, x.index_select(dim, torch.arange(shift).cuda())], dim=dim)
 
 def ifft2(input_):
-    return torch.ifft(input_.permute(0,2,3,1),2).permute(0,3,1,2)
+    return torch.fft.ifft(input_.permute(0,2,3,1),2).permute(0,3,1,2)
 
 def fft2(input_):
-    return torch.fft(input_.permute(0,2,3,1),2).permute(0,3,1,2)
+    return torch.fft.fft(input_.permute(0,2,3,1),2).permute(0,3,1,2)
 
 def ifft1(input_, axis):
     if   axis == 1:
-        return torch.ifft(input_.permute(0,2,3,1),1).permute(0,3,1,2)
+        return torch.fft.ifft(input_.permute(0,2,3,1),1).permute(0,3,1,2)
     elif axis == 0:
-        return torch.ifft(input_.permute(0,3,2,1),1).permute(0,3,2,1)
+        return torch.fft.ifft(input_.permute(0,3,2,1),1).permute(0,3,2,1)
 
 def fft1(input_, axis):
     if   axis == 1:
-        return torch.fft(input_.permute(0,2,3,1),1).permute(0,3,1,2)
+        return torch.fft.fft(input_.permute(0,2,3,1),1).permute(0,3,1,2)
     elif axis == 0:
-        return torch.fft(input_.permute(0,3,2,1),1).permute(0,3,2,1)
+        return torch.fft.fft(input_.permute(0,3,2,1),1).permute(0,3,2,1)
 
 def weights_init_normal(m):
     classname = m.__class__.__name__
@@ -46,15 +46,18 @@ def fftshift(x, dim):
     return roll(x, shift, dim)
 
 def fftshift2(x):
-    return fftshift(fftshift(x, -1),-2)
+    return fftshift(fftshift(x, -1), -2)
 
 def GenConvBlock(n_conv_layers, in_chan, out_chan, feature_maps):
-    conv_block = [nn.Conv2d(in_chan, feature_maps, 3, 1, 1),
-                  nn.LeakyReLU(negative_slope=0.1, inplace=True)]
+    conv_block1 = [nn.Conv2d(in_chan, feature_maps, 3, 1, 1, dtype=torch.complex64),
+                  nn.Tanh()]
+                  # nn.LeakyReLU(negative_slope=0.1, inplace=True)]1
+    conv_block = []
     for _ in range(n_conv_layers - 2):
-        conv_block += [nn.Conv2d(feature_maps, feature_maps, 3, 1, 1),
-                       nn.LeakyReLU(negative_slope=0.1, inplace=True)]
-    return nn.Sequential(*conv_block, nn.Conv2d(feature_maps, out_chan, 3, 1, 1))
+        conv_block += [nn.Conv2d(feature_maps, feature_maps, 3, 1, 1, dtype=torch.complex64),
+                       nn.Tanh()]
+                       # nn.LeakyReLU(negative_slope=0.1, inplace=True)]
+    return nn.Sequential(conv_block1, *conv_block, nn.Conv2d(feature_maps, out_chan, 3, 1, 1, dtype=torch.complex64))
 
 def GenUnet():
     return 
@@ -73,4 +76,4 @@ def DataConsist(input_, k, m, is_k=False):
         return input_ * m + k * (1 - m)
     else:
         input_p = input_.permute(0,2,3,1); k_p = k.permute(0,2,3,1); m_p = m.permute(0,2,3,1)
-        return torch.ifft(torch.fft(input_p, 2) * m_p + k_p * (1 - m_p), 2).permute(0,3,1,2)
+        return torch.fft.ifft(torch.fft(input_p, 2) * m_p + k_p * (1 - m_p), 2).permute(0,3,1,2)
