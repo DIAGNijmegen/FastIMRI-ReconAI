@@ -55,6 +55,15 @@ def print_loss_progress(train_err, val_err, fold_dir: Path, loss: str):
     plt.savefig(fold_dir / "progress.png")
     plt.close(fig)
 
+def print_end_of_epoch(epoch_dir: Path, vis, name: str, validate_err: float, ssim_val: float, sequence_len: int,
+                       acceleration_factor: int, gnd, results, n_iters: int):
+    print_prediction_error(epoch_dir, vis, name, validate_err)
+
+    print_full_prediction_sequence(epoch_dir, vis, name, validate_err, ssim_val, sequence_len, acceleration_factor)
+
+    # print_loss_comparison_graphs(epoch_dir, vis, name)
+    print_iterations(gnd, results, epoch_dir, n_iters, name)
+
 
 def print_prediction_error(epoch_dir: Path, vis, name: str, validate_err: float):
     for i, (gnd, pred, und, seg) in enumerate(vis):
@@ -77,11 +86,11 @@ def print_prediction_error(epoch_dir: Path, vis, name: str, validate_err: float)
         plt.close(fig)
 
 
-def print_full_prediction_sequence(epoch_dir: Path, vis, name: str, validate_err: float,
+def print_full_prediction_sequence(epoch_dir: Path, vis, name: str, validate_err: float, ssim_val: float,
                                    sequence_len: int, acceleration_factor: int):
     for i, (gnd, pred, und, seg) in enumerate(vis):
         fig = plt.figure(figsize=(20, 8))
-        fig.suptitle(f'{name} (val loss: {validate_err})')
+        fig.suptitle(f'{name} (val loss: {validate_err} -- ssim: {ssim_val})')
         axes = [plt.subplot(2, math.ceil(sequence_len / 2) + 1, j + 1) for j in range(sequence_len + 2)]
 
         axes, ax = set_ax(axes, 0, "ground truth", gnd[0])
@@ -139,7 +148,7 @@ def print_acceleration_validation_loss(results, num_epochs: int, loss: str, out_
     plt.close(fig)
 
 
-def print_iterations(gnd, results, out_dir: Path, n_iters: int):
+def print_iterations(gnd, results, out_dir: Path, n_iters: int, name: str):
     fig = plt.figure(figsize=(20, 8))
     axes = [plt.subplot(2, math.ceil(n_iters / 2), j + 1) for j in range(n_iters + 1)]
     axes, ax = set_ax(axes, 0, f"gnd", gnd[-1])
@@ -147,7 +156,7 @@ def print_iterations(gnd, results, out_dir: Path, n_iters: int):
         key = list(results.keys())[iteration]
         im = results[key].permute(4, 0, 1, 2, 3)[-1].squeeze()
         axes, ax = set_ax(axes, ax, f"iteration {iteration}", im.detach().cpu())
-    plt.savefig(out_dir / 'iterations.png', pad_inches=0)
+    plt.savefig(out_dir / f'{name}_iters.png', pad_inches=0)
     plt.close(fig)
 
 

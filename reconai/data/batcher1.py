@@ -66,7 +66,8 @@ class Batcher:
                         norm: float = 1,
                         flip: str = '',
                         zoom_factor: float = 1,
-                        rotate_deg: float = 0):
+                        rotate_deg: float = 0,
+                        equal_images: bool = False):
         """
         Append sequence to this batcher. Apply different norm/flip/rotate_deg in a for loop to multiply the dataset.
 
@@ -84,6 +85,8 @@ class Batcher:
             Zoom the images by 'zoom_factor'.
         rotate_deg: float
             Rotate the images by 'rotate_deg's'.
+        equal_images: bool
+            If set to true, then repeat first image all the time
         """
         # precalculate some values
         flips: List[str] = [r.group() for r in re.finditer('(ud)|(lr)', flip)]
@@ -107,6 +110,10 @@ class Batcher:
                 img = flip_ud_lr(img, *flips)
                 img = normalize(img, norm)
                 sequence_images = np.vstack((sequence_images, img[np.newaxis, ...]))
+
+        if equal_images:
+            for i in range(1, len(sequence_images)):
+                sequence_images[i] = sequence_images[0]
 
         self._indexes.append(len(self._processed_sequences))
         self._processed_sequences.append(sequence_images)

@@ -18,10 +18,11 @@ from .Batcher import Batcher as OldBatcher
 from .Volume import Volume
 from .dataloader import DataLoader
 from .batcher1 import Batcher
+from .sequencer import Sequencer
 
-def prepare_input_as_variable(image: np.ndarray, acceleration: float = 4.0) \
+def prepare_input_as_variable(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
         -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
-    im_und, k_und, mask, im_gnd = prepare_input(image, acceleration)
+    im_und, k_und, mask, im_gnd = prepare_input(image, seed, acceleration, equal_mask)
     im_u = Variable(im_und.type(Module.TensorType))
     k_u = Variable(k_und.type(Module.TensorType))
     mask = Variable(mask.type(Module.TensorType))
@@ -30,14 +31,16 @@ def prepare_input_as_variable(image: np.ndarray, acceleration: float = 4.0) \
     return im_u, k_u, mask, gnd
 
 
-def prepare_input(image: np.ndarray, acceleration: float = 4.0) \
+def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
         -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
     """Undersample the batch, then reformat them into what the network accepts.
 
     Parameters
     ----------
     image: ndarray - input image of shape (batch_size, n_channels, width, height)
+    seed: int - the seed to use for the randomization in the mask
     acceleration: float - controls the undersampling rate. higher the value, more undersampling
+    equal_mask: bool - If true then all sequences receive the same undersampling mask
 
     Returns
     ------
@@ -50,7 +53,7 @@ def prepare_input(image: np.ndarray, acceleration: float = 4.0) \
     mask = np.zeros(image.shape)
     for b_ in range(b):
         for s_ in range(s):
-            mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3)
+            mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3, seed if equal_mask else seed + s_)
 
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
     im_gnd_l = torch.from_numpy(to_tensor_format(image))
@@ -111,20 +114,31 @@ def get_dataset_batchers(args: Box, data_volumes: List[Volume], n_folds: int, fo
 
 def get_new_dataset_batchers(args: Box):
     dl_tr_val = DataLoader(args.in_dir / 'train')
-    dl_tr_val.load('.*_(.*)_')
-    kwargs = {'seed': 11, 'seq_len': 3, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
-    train_val_sequences = dl_tr_val.generate_sequences(**kwargs)
+    dl_tr_val.load('.*_(.*)_', filter_regex='sag')
+    kwargs = {'seed': args.seed, 'seq_len': args.sequence_len, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
+    se_tr_val = Sequencer(dl_tr_val)
+    train_val_sequences = se_tr_val.generate_sequences(**kwargs)
+
     dl_test = DataLoader(args.in_dir / 'test')
-    dl_test.load('.*_(.*)_')
-    test_sequences = dl_test.generate_sequences(**kwargs)
+    dl_test.load('.*_(.*)_', filter_regex='sag')
+    se_test = Sequencer(dl_test)
+    test_sequences = se_test.generate_sequences(**kwargs)
 
     tra_val_batcher = Batcher(dl_tr_val)
+    i = 0
     for s in train_val_sequences.items():
-        tra_val_batcher.append_sequence(s, norm=1961.06)
+        tra_val_batcher.append_sequence(s, norm=1961.06, equal_images=args.equal_images)
+        i += 1
+        if i > 110:
+            break
 
     test_batcher = Batcher(dl_test)
+    j = 0
     for s in test_sequences.items():
-        test_batcher.append_sequence(s, norm=1961.06)
+        test_batcher.append_sequence(s, norm=1961.06, equal_images=args.equal_images)
+        j += 1
+        if j > 15:
+            break
 
     return tra_val_batcher, test_batcher
 

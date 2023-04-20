@@ -11,11 +11,14 @@ from typing import List
 from pathlib import Path
 import logging
 from os.path import join
+import numpy as np
 
+import reconai.utils.metric
 from .data.data import get_data_volumes, get_dataset_batchers, prepare_input, prepare_input_as_variable,\
     from_tensor_format, append_to_file, get_new_dataset_batchers
 from .utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
-    print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations
+    print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations,\
+    print_end_of_epoch
 from .utils.metric import complex_psnr
 from reconai.cascadenet_pytorch.model_pytorch import CRNNMRI
 from reconai.cascadenet_pytorch.module import Module
@@ -73,13 +76,14 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
             train_err, train_batches = 0, 0
             for im in train_val_batcher.items_fold(fold, 5, validation=False):
                 logging.debug(f"batch {train_batches}")
-                im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
+                im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.seed,
+                                                                 args.acceleration_factor, args.equal_images)
 
                 optimizer.zero_grad(set_to_none=True)
                 rec, full_iterations = network(im_u, k_u, mask, gnd)
                 loss = criterion(rec, gnd)
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=5)
+                torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
                 optimizer.step()
 
                 train_err += loss.item()
@@ -94,7 +98,8 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
             with torch.no_grad():
                 for im in train_val_batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
-                    im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.acceleration_factor)
+                    im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.seed,
+                                                                     args.acceleration_factor, args.equal_images)
 
                     pred, full_iterations = network(im_u, k_u, mask, gnd, test=True)
                     err = criterion(pred, gnd)
@@ -108,9 +113,10 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
 
             vis, iters, base_psnr, test_psnr, test_batches = [], [], 0, 0, 0
             with torch.no_grad():
-                for im in test_batcher.minibatches():
+                for im in test_batcher.items():
                     logging.debug(f"batch {test_batches}")
-                    im_und, k_und, mask, im_gnd = prepare_input(im, args.acceleration_factor)
+                    im_und, k_und, mask, im_gnd = prepare_input(im, args.seed,
+                                                                args.acceleration_factor, args.equal_images)
                     im_u = Variable(im_und.type(Module.TensorType))
                     k_u = Variable(k_und.type(Module.TensorType))
                     mask = Variable(mask.type(Module.TensorType))
@@ -123,14 +129,12 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                         base_psnr += complex_psnr(im_i, und_i, peak='max')
                         test_psnr += complex_psnr(im_i, pred_i, peak='max')
 
-                    # TODO: change to take all n
-                    if test_batches == 0:  # save n samples
-                        vis.append((from_tensor_format(im_gnd.numpy())[0],
-                                    from_tensor_format(pred.data.cpu().numpy())[0],
-                                    from_tensor_format(im_und.numpy())[0],
-                                    0))
-                        iters.append((from_tensor_format(im_gnd.numpy())[-1],
-                                      full_iterations))
+                    vis.append((from_tensor_format(im_gnd.numpy())[0],
+                                from_tensor_format(pred.data.cpu().numpy())[0],
+                                from_tensor_format(im_und.numpy())[0],
+                                0))
+                    iters.append((from_tensor_format(im_gnd.numpy())[-1],
+                                  full_iterations))
 
                     test_batches += 1
                     if args.debug and test_batches == 2:
@@ -165,13 +169,23 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                 epoch_dir = fold_dir / name
                 epoch_dir.mkdir(parents=True, exist_ok=True)
 
-                print_prediction_error(epoch_dir, vis, name, validate_err)
+                # Loop through vis and gather mean, min and max
+                result_ssim = []
+                for i, (gnd, pred, und, seg) in enumerate(vis):
+                    result_ssim.append(reconai.utils.metric.ssim(gnd[-1], pred[-1]))
 
-                print_full_prediction_sequence(epoch_dir, vis, name, validate_err,
-                                               args.sequence_len, args.acceleration_factor)
+                arr = np.asarray(result_ssim)
 
-                print_loss_comparison_graphs(epoch_dir, vis, name)
-                print_iterations(iters[0][0], iters[0][1], epoch_dir, 5)
+                idx_min = arr.argmin()
+                idx_mean = (np.abs(arr - np.mean(arr))).argmin()
+                idx_max = arr.argmax()
+
+                print_end_of_epoch(epoch_dir, [vis[idx_min]], f'{name}_worst', validate_err, args.sequence_len,
+                                   args.acceleration_factor, iters[idx_min][0], iters[idx_min][1], 5)
+                print_end_of_epoch(epoch_dir, [vis[idx_mean]], f'{name}_average', validate_err, args.sequence_len,
+                                   args.acceleration_factor, iters[idx_mean][0], iters[idx_mean][1], 5)
+                print_end_of_epoch(epoch_dir, [vis[idx_max]], f'{name}_best', validate_err, args.sequence_len,
+                                   args.acceleration_factor, iters[idx_max][0], iters[idx_max][1], 5)
 
                 torch.save(network.state_dict(), epoch_dir / npz_name)
                 with open(epoch_dir / f'{name}.log', 'w') as log:

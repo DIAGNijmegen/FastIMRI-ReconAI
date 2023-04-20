@@ -1,7 +1,6 @@
-__author__ = 'Jo Schlemper'
-
 import numpy as np
 import cv2
+from skimage.metrics import structural_similarity as compare_ssim
 
 
 def mse(x, y):
@@ -45,41 +44,50 @@ def complex_psnr(x, y, peak='normalized'):
     else:
         return 10*np.log10(1./mse_val)
 
-
-def ssim(img1, img2):
-    def calc_ssim(imga, imgb):
-        c1 = (0.01 * 255) ** 2
-        c2 = (0.03 * 255) ** 2
-        imga = np.abs(imga).astype(np.float64)
-        imgb = np.abs(imgb).astype(np.float64)
-        kernel = cv2.getGaussianKernel(11, 1.5)
-        window = np.outer(kernel, kernel.transpose())
-
-        mu1 = cv2.filter2D(imga, -1, window)[5:-5, 5:-5]  # valid
-        mu2 = cv2.filter2D(imgb, -1, window)[5:-5, 5:-5]
-        mu1_sq = mu1 ** 2
-        mu2_sq = mu2 ** 2
-        mu1_mu2 = mu1 * mu2
-        sigma1_sq = cv2.filter2D(imga ** 2, -1, window)[5:-5, 5:-5] - mu1_sq
-        sigma2_sq = cv2.filter2D(imgb ** 2, -1, window)[5:-5, 5:-5] - mu2_sq
-        sigma12 = cv2.filter2D(imga * imgb, -1, window)[5:-5, 5:-5] - mu1_mu2
-
-        nom = (2 * mu1_mu2 + c1) * (2 * sigma12 + c2)
-        denom = (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2)
-        ssim_map = nom / denom
-        return ssim_map.mean()
-
-    if not img1.shape == img2.shape:
-        raise ValueError('Input images must have the same dimensions.')
-    if img1.ndim == 2:
-        return calc_ssim(img1, img2)
-    elif img1.ndim == 3:
-        if img1.shape[2] == 3:
-            ssims = []
-            for i in range(3):
-                ssims.append(calc_ssim(img1, img2))
-            return np.array(ssims).mean()
-        elif img1.shape[2] == 1:
-            return ssim(np.squeeze(img1), np.squeeze(img2))
+def ssim(gt, pred):
+    """ Compute Structural Similarity Index Metric (SSIM). """
+    if len(gt.shape) == 2:
+        return compare_ssim(gt, pred, data_range=gt.max() - gt.min())
+    elif len(gt.shape) == 3:
+        return compare_ssim(gt.transpose(1, 2, 0), pred.transpose(1, 2, 0),
+                            multichannel=True, data_range=gt.max() - gt.min())
     else:
-        raise ValueError('Wrong input image dimensions.')
+        raise NotImplementedError("Only for 2D and 3D data")
+
+# def ssim(img1, img2):
+#     def calc_ssim(imga, imgb):
+#         c1 = (0.01 * 255) ** 2
+#         c2 = (0.03 * 255) ** 2
+#         imga = np.abs(imga).astype(np.float64)
+#         imgb = np.abs(imgb).astype(np.float64)
+#         kernel = cv2.getGaussianKernel(11, 1.5)
+#         window = np.outer(kernel, kernel.transpose())
+#
+#         mu1 = cv2.filter2D(imga, -1, window)[5:-5, 5:-5]  # valid
+#         mu2 = cv2.filter2D(imgb, -1, window)[5:-5, 5:-5]
+#         mu1_sq = mu1 ** 2
+#         mu2_sq = mu2 ** 2
+#         mu1_mu2 = mu1 * mu2
+#         sigma1_sq = cv2.filter2D(imga ** 2, -1, window)[5:-5, 5:-5] - mu1_sq
+#         sigma2_sq = cv2.filter2D(imgb ** 2, -1, window)[5:-5, 5:-5] - mu2_sq
+#         sigma12 = cv2.filter2D(imga * imgb, -1, window)[5:-5, 5:-5] - mu1_mu2
+#
+#         nom = (2 * mu1_mu2 + c1) * (2 * sigma12 + c2)
+#         denom = (mu1_sq + mu2_sq + c1) * (sigma1_sq + sigma2_sq + c2)
+#         ssim_map = nom / denom
+#         return ssim_map.mean()
+#
+#     if not img1.shape == img2.shape:
+#         raise ValueError('Input images must have the same dimensions.')
+#     if img1.ndim == 2:
+#         return calc_ssim(img1, img2)
+#     elif img1.ndim == 3:
+#         if img1.shape[2] == 3:
+#             ssims = []
+#             for i in range(3):
+#                 ssims.append(calc_ssim(img1, img2))
+#             return np.array(ssims).mean()
+#         elif img1.shape[2] == 1:
+#             return ssim(np.squeeze(img1), np.squeeze(img2))
+#     else:
+#         raise ValueError('Wrong input image dimensions.')

@@ -29,6 +29,7 @@ def cli():
 @click.option('--acceleration_factor', type=float, default=8.0, help='acceleration factor for k-space sampling')
 @click.option('--complex', is_flag=True, type=bool, default=False)
 @click.option('--seed', type=int, default=None, help='train/test shuffling seed')
+@click.option('--equal_images', is_flag=True, type=bool, default=False)
 @click.option('--test_accelerations', is_flag=True, type=bool, default=False)
 def train_recon(**kwargs):
     setup_logging('train_recon', kwargs, test=kwargs['debug'])
