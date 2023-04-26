@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Optional
+from typing import List, Tuple
 
 import numpy as np
 from scipy.ndimage import rotate as scipy_rotate, zoom as scipy_zoom

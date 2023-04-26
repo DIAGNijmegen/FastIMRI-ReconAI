@@ -12,13 +12,14 @@ from pathlib import Path
 import logging
 
 from reconai.parameters import Parameters
-from reconai.data.data import get_dataset_batchers, prepare_input, prepare_input_as_variable, append_to_file
+from reconai.data.data import get_dataset_batchers, prepare_input, prepare_input_as_variable, append_to_file, get_new_dataset_batchers
 from reconai.model.dnn_io import from_tensor_format
 from reconai.utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
     print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations
 from reconai.utils.metric import complex_psnr
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.model.module import Module
+
 
 
 def test_accelerations(args: Box):
@@ -55,6 +56,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     criterion = torch.nn.MSELoss().cuda()
 
     train_val_batcher, test_batcher = get_dataset_batchers(params.in_dir, params.config.data.slices)
+
 
     results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
