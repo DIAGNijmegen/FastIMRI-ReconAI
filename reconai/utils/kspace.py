@@ -321,6 +321,7 @@ def get_rand_exp_decay_mask(
         height: int,
         sampling: float,
         centre_sampling: float,
+        seed: int,
         exp_scale: float = 0.4,  # determined empirically
         verbatim=False
 ):
@@ -333,9 +334,11 @@ def get_rand_exp_decay_mask(
     right_idx = math.ceil(width // 2 + width // 2 * central_region_perc)
     vec[left_idx: right_idx] = 1.0
 
+    rng = np.random.default_rng(seed)
     # Add a k-space line until sampling percentage is reached
     while sum(vec) / width < sampling:
-        idx = np.random.exponential(exp_scale, 1)
+
+        idx = rng.exponential(exp_scale, 1)
         idx = int(idx * left_idx)
 
         if np.random.random() > 0.5:
