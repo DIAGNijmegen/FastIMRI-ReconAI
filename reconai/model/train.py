@@ -15,10 +15,16 @@ from reconai.parameters import Parameters
 from reconai.data.data import get_dataset_batchers, prepare_input, prepare_input_as_variable, append_to_file
 from reconai.model.dnn_io import from_tensor_format
 from reconai.utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
-    print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations
+    print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations, print_end_of_epoch
 from reconai.utils.metric import complex_psnr
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.model.module import Module
+
+from os.path import join
+import numpy as np
+
+import reconai.utils.metric
+
 
 
 def test_accelerations(args: Box):
@@ -52,7 +58,9 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     # Specify network
     network = CRNNMRI(n_ch=1, nc=2 if params.debug else 5).cuda()
     optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
+
     criterion = torch.nn.MSELoss().cuda()
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
     train_val_batcher, test_batcher = get_dataset_batchers(params.in_dir, params.config.data.slices)
 
@@ -69,13 +77,14 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             train_err, train_batches = 0, 0
             for im in train_val_batcher.items_fold(fold, 5, validation=False):
                 logging.debug(f"batch {train_batches}")
-                im_u, k_u, mask, gnd = prepare_input_as_variable(im, params.config.train.undersampling)
+                im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.seed, params.config.train.undersampling, args.equal_images) # TODO: Fix with params
+
 
                 optimizer.zero_grad(set_to_none=True)
                 rec, full_iterations = network(im_u, k_u, mask, gnd)
                 loss = criterion(rec, gnd)
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=5)
+                torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
                 optimizer.step()
 
                 train_err += loss.item()
@@ -90,7 +99,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             with torch.no_grad():
                 for im in train_val_batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
-                    im_u, k_u, mask, gnd = prepare_input_as_variable(im, params.config.train.undersampling)
+                    im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.seed, params.config.train.undersampling, args.equal_images) # TODO: Fix with params
 
                     pred, full_iterations = network(im_u, k_u, mask, gnd, test=True)
                     err = criterion(pred, gnd)
@@ -106,7 +115,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             with torch.no_grad():
                 for im in test_batcher.items():
                     logging.debug(f"batch {test_batches}")
-                    im_und, k_und, mask, im_gnd = prepare_input(im, params.config.train.undersampling)
+                    im_und, k_und, mask, im_gnd = prepare_input(im, args.seed, params.config.train.undersampling, args.equal_images) # TODO: Fix with params
                     im_u = Variable(im_und.type(Module.TensorType))
                     k_u = Variable(k_und.type(Module.TensorType))
                     mask = Variable(mask.type(Module.TensorType))
@@ -119,14 +128,12 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                         base_psnr += complex_psnr(im_i, und_i, peak='max')
                         test_psnr += complex_psnr(im_i, pred_i, peak='max')
 
-                    # TODO: change to take all n
-                    if test_batches == 0:  # save n samples
-                        vis.append((from_tensor_format(im_gnd.numpy())[0],
-                                    from_tensor_format(pred.data.cpu().numpy())[0],
-                                    from_tensor_format(im_und.numpy())[0],
-                                    0))
-                        iters.append((from_tensor_format(im_gnd.numpy())[-1],
-                                      full_iterations))
+                    vis.append((from_tensor_format(im_gnd.numpy())[0],
+                                from_tensor_format(pred.data.cpu().numpy())[0],
+                                from_tensor_format(im_und.numpy())[0],
+                                0))
+                    iters.append((from_tensor_format(im_gnd.numpy())[-1],
+                                  full_iterations))
 
                     test_batches += 1
                     if params.debug and test_batches == 2:
@@ -161,13 +168,27 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 epoch_dir = fold_dir / name
                 epoch_dir.mkdir(parents=True, exist_ok=True)
 
-                print_prediction_error(epoch_dir, vis, name, validate_err)
+                # Loop through vis and gather mean, min and max
+                result_ssim = []
+                for i, (gnd, pred, und, seg) in enumerate(vis):
+                    result_ssim.append(reconai.utils.metric.ssim(gnd[-1], pred[-1]))
 
-                print_full_prediction_sequence(epoch_dir, vis, name, validate_err,
-                                               params.config.data.slices, params.config.train.undersampling)
+                # print_full_prediction_sequence(epoch_dir, vis, name, validate_err,
+                #                                params.config.data.slices, params.config.train.undersampling)
+                arr = np.asarray(result_ssim)
 
-                print_loss_comparison_graphs(epoch_dir, vis, name)
-                print_iterations(iters[0][0], iters[0][1], epoch_dir, 5)
+                idx_min = arr.argmin()
+                idx_mean = (np.abs(arr - np.mean(arr))).argmin()
+                idx_max = arr.argmax()
+
+                print_end_of_epoch(epoch_dir, [vis[idx_min]], f'{name}_worst', validate_err, result_ssim[idx_min],
+                                   args.sequence_len, args.acceleration_factor, iters[idx_min][0], iters[idx_min][1], 10)
+                print_end_of_epoch(epoch_dir, [vis[idx_mean]], f'{name}_average', validate_err,
+                                   result_ssim[idx_mean], args.sequence_len, args.acceleration_factor,
+                                   iters[idx_mean][0], iters[idx_mean][1], 10)
+                print_end_of_epoch(epoch_dir, [vis[idx_max]], f'{name}_best', validate_err,
+                                   result_ssim[idx_max], args.sequence_len, args.acceleration_factor,
+                                   iters[idx_max][0], iters[idx_max][1], 10)
 
                 torch.save(network.state_dict(), epoch_dir / npz_name)
                 with open(epoch_dir / f'{name}.log', 'w') as log:
@@ -175,6 +196,10 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
                 logging.info(f'fold {fold} model parameters saved at {epoch_dir.absolute()}\n')
             append_to_file(fold_dir, params.config.train.undersampling, fold, epoch, train_err, validate_err)
+
+            if epoch < 45:
+                scheduler.step()
+
         results.append((fold, graph_train_err, graph_val_err))
     logging.info(f'completed training at {datetime.datetime.now()}')
 
