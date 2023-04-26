@@ -120,7 +120,7 @@ class CRNNMRI(Module):
 
     """
 
-    def __init__(self, n_ch: int = 2, nf: int = 64, ks: int = 3, nc: int = 5, nd: int = 5):
+    def __init__(self, n_ch: int = 1, nf: int = 64, ks: int = 3, nc: int = 5, nd: int = 5):
         """
         Parameters
         ----------

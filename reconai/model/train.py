@@ -6,41 +6,37 @@ import time
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
-from box import Box
 from typing import List
 from pathlib import Path
 import logging
+import numpy as np
 
 from reconai.parameters import Parameters
 from reconai.data.data import get_dataset_batchers, prepare_input, prepare_input_as_variable, append_to_file
 from reconai.model.dnn_io import from_tensor_format
 from reconai.utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
-    print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations, print_end_of_epoch
+    print_end_of_epoch
 from reconai.utils.metric import complex_psnr
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.model.module import Module
 
-from os.path import join
-import numpy as np
-
 import reconai.utils.metric
 
-
-
-def test_accelerations(args: Box):
-    accelerations = [1, 2, 4, 8, 12, 16, 32]
-    # accelerations = [32, 64]
-
-    results = []
-    for acceleration in accelerations:
-        args['acceleration_factor'] = acceleration
-        train_results = train(args)
-        fold0, train_err, val_err = train_results[0]
-        results.append((acceleration, train_err, val_err))
-
-    print_acceleration_train_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
-
-    print_acceleration_validation_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
+# TODO: herschrijven zodat het werkt met parameters uit yaml
+# def test_accelerations(args: Box):
+#     accelerations = [1, 2, 4, 8, 12, 16, 32]
+#     # accelerations = [32, 64]
+#
+#     results = []
+#     for acceleration in accelerations:
+#         args['acceleration_factor'] = acceleration
+#         train_results = train(args)
+#         fold0, train_err, val_err = train_results[0]
+#         results.append((acceleration, train_err, val_err))
+#
+#     print_acceleration_train_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
+#
+#     print_acceleration_validation_loss(results, args.num_epoch, args.loss, args.out_dir / f'acceleration_{args.date}')
 
 
 def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
@@ -51,23 +47,22 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     n_folds = params.config.train.folds if params.config.train.folds > 2 else 1
 
     # Configure directory info
-    save_dir: Path = params.out_dir / params.date_name
-    save_dir.mkdir(parents=True)
-    logging.info(f"saving model to {save_dir.absolute()}")
+    logging.info(f"saving model to {params.out_dir.absolute()}")
 
     # Specify network
-    network = CRNNMRI(n_ch=1, nc=2 if params.debug else 5).cuda()
+    network = CRNNMRI(nc=2 if params.debug else params.config.model.iterations,
+                      nf=params.config.model.filters).cuda()
     optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
 
     criterion = torch.nn.MSELoss().cuda()
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.config.train.lr_gamma)
 
-    train_val_batcher, test_batcher = get_dataset_batchers(params.in_dir, params.config.data.slices)
+    train_val_batcher, test_batcher = get_dataset_batchers(params)
 
     results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
     for fold in range(n_folds):
-        fold_dir = save_dir / f'fold_{fold}'
+        fold_dir = params.out_dir / f'fold_{fold}'
 
         graph_train_err, graph_val_err = [], []
         for epoch in range(num_epoch):
@@ -77,8 +72,10 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             train_err, train_batches = 0, 0
             for im in train_val_batcher.items_fold(fold, 5, validation=False):
                 logging.debug(f"batch {train_batches}")
-                im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.seed, params.config.train.undersampling, args.equal_images) # TODO: Fix with params
-
+                im_u, k_u, mask, gnd = prepare_input_as_variable(im,
+                                                                 params.config.train.mask_seed,
+                                                                 params.config.train.undersampling,
+                                                                 params.config.train.equal_masks)
 
                 optimizer.zero_grad(set_to_none=True)
                 rec, full_iterations = network(im_u, k_u, mask, gnd)
@@ -99,7 +96,10 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             with torch.no_grad():
                 for im in train_val_batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
-                    im_u, k_u, mask, gnd = prepare_input_as_variable(im, args.seed, params.config.train.undersampling, args.equal_images) # TODO: Fix with params
+                    im_u, k_u, mask, gnd = prepare_input_as_variable(im,
+                                                                     params.config.train.mask_seed,
+                                                                     params.config.train.undersampling,
+                                                                     params.config.train.equal_masks)
 
                     pred, full_iterations = network(im_u, k_u, mask, gnd, test=True)
                     err = criterion(pred, gnd)
@@ -113,9 +113,13 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
             vis, iters, base_psnr, test_psnr, test_batches = [], [], 0, 0, 0
             with torch.no_grad():
+                # TODO: Loop test set twice, once with equal images and once without
                 for im in test_batcher.items():
                     logging.debug(f"batch {test_batches}")
-                    im_und, k_und, mask, im_gnd = prepare_input(im, args.seed, params.config.train.undersampling, args.equal_images) # TODO: Fix with params
+                    im_und, k_und, mask, im_gnd = prepare_input(im,
+                                                                params.config.train.mask_seed,
+                                                                params.config.train.undersampling,
+                                                                params.config.train.equal_masks)
                     im_u = Variable(im_und.type(Module.TensorType))
                     k_u = Variable(k_und.type(Module.TensorType))
                     mask = Variable(mask.type(Module.TensorType))
@@ -181,14 +185,18 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 idx_mean = (np.abs(arr - np.mean(arr))).argmin()
                 idx_max = arr.argmax()
 
+                # TODO: params.config.data to local vars
                 print_end_of_epoch(epoch_dir, [vis[idx_min]], f'{name}_worst', validate_err, result_ssim[idx_min],
-                                   args.sequence_len, args.acceleration_factor, iters[idx_min][0], iters[idx_min][1], 10)
+                                   params.config.data.sequence_length, params.config.train.undersampling,
+                                   iters[idx_min][0], iters[idx_min][1], params.config.model.iterations)
                 print_end_of_epoch(epoch_dir, [vis[idx_mean]], f'{name}_average', validate_err,
-                                   result_ssim[idx_mean], args.sequence_len, args.acceleration_factor,
-                                   iters[idx_mean][0], iters[idx_mean][1], 10)
+                                   result_ssim[idx_mean], params.config.train.undersampling,
+                                   params.config.data.sequence_length, iters[idx_mean][0], iters[idx_mean][1],
+                                   params.config.model.iterations)
                 print_end_of_epoch(epoch_dir, [vis[idx_max]], f'{name}_best', validate_err,
-                                   result_ssim[idx_max], args.sequence_len, args.acceleration_factor,
-                                   iters[idx_max][0], iters[idx_max][1], 10)
+                                   result_ssim[idx_max], params.config.train.undersampling,
+                                   params.config.data.sequence_length, iters[idx_max][0], iters[idx_max][1],
+                                   params.config.model.iterations)
 
                 torch.save(network.state_dict(), epoch_dir / npz_name)
                 with open(epoch_dir / f'{name}.log', 'w') as log:
@@ -197,7 +205,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 logging.info(f'fold {fold} model parameters saved at {epoch_dir.absolute()}\n')
             append_to_file(fold_dir, params.config.train.undersampling, fold, epoch, train_err, validate_err)
 
-            if epoch < 45:
+            if params.config.train.stop_lr_decay == -1 or epoch < params.config.train.stop_lr_decay:
                 scheduler.step()
 
         results.append((fold, graph_train_err, graph_val_err))

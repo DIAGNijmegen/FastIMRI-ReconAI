@@ -61,7 +61,7 @@ class Batcher:
     def __len__(self):
         return len(self._processed_sequences)
 
-    def append_sequence(self, sequence: Sequence, *,
+    def append_sequence(self, sequence: Sequence,
                         crop_expand_to: Tuple[int, int] = (256, 256),
                         norm: float = 1,
                         flip: str = '',

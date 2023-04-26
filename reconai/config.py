@@ -4,7 +4,8 @@ from importlib import resources
 from box import Box
 
 from yaml import dump
-from strictyaml import load as strict_load, dirty_load, CommaSeparated, Str, Int, Float, Map, EmptyDict, FixedSeq, YAML
+from strictyaml import load as strict_load, dirty_load, CommaSeparated, Str, Int, Float, Map, \
+    EmptyDict, FixedSeq, YAML, Bool
 
 
 class Config(Box):
@@ -13,21 +14,36 @@ class Config(Box):
 
 data = Map({
     "split_regex": Str(),
-    "shape": FixedSeq([Int()] * 3) | CommaSeparated(Int()),
-    "slices": Int()
+    "filter_regex": Str(),
+    "shape": FixedSeq([Int()] * 2) | CommaSeparated(Int()),
+    "sequence_length": Int(),
+    "mean_slices_per_mha": Int(),
+    "max_slices_per_mha": Int(),
+    "q": Float(),
+    "nomalize": Float(),
+    "equal_images": Bool(),
+    "sequence_seed": Int(),
+})
+
+model = Map({
+    "iterations": Int(),
+    "filters": Int()
 })
 
 train = Map({
     "epochs": Int(),
     "folds": Int(),
     "loss": Map({
-        "mse": Float(),  # TODO: Dit moeten strings zijn lijkt me?
+        "mse": Float(),
         "ssim": Float(),
         "dice": Float(),
     }),
     "lr": Float(),
+    "lr_gamma": Float(),
+    "stop_lr_decay": Int(),
     "undersampling": Int(),
-    "seed": Int()
+    "equal_masks": Bool(),
+    "mask_seed": Int()
 })
 
 experiment = EmptyDict() | Map({
@@ -37,6 +53,7 @@ experiment = EmptyDict() | Map({
 schema = Map({
     "data": data,
     "train": train,
+    "model": model,
     "experiment": experiment
 })
 
