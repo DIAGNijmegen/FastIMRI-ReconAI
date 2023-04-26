@@ -1,4 +1,5 @@
-from reconai.data.data import get_data_volumes, get_dataset_batchers, prepare_input_as_variable
+from reconai.data.deprecated.data import get_data_volumes, get_dataset_batchers
+from reconai.data.data import prepare_input_as_variable
 import torch
 from reconai.model.model_pytorch import CRNNMRI
 import SimpleITK as sitk
