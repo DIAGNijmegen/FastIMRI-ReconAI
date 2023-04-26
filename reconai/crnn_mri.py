@@ -56,9 +56,10 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
     logging.info(f"saving model to {save_dir.absolute()}")
 
     # Specify network
-    network = CRNNMRI(n_ch=1, nc=2 if args.debug else 5).cuda()
+    network = CRNNMRI(n_ch=1, nc=2 if args.debug else 10).cuda()
     optimizer = optim.Adam(network.parameters(), lr=float(args.lr), betas=(0.5, 0.999))
     criterion = torch.nn.MSELoss().cuda()
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.95)
 
     # data = get_data_volumes(args)
     train_val_batcher, test_batcher = get_new_dataset_batchers(args)
@@ -180,12 +181,14 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
                 idx_mean = (np.abs(arr - np.mean(arr))).argmin()
                 idx_max = arr.argmax()
 
-                print_end_of_epoch(epoch_dir, [vis[idx_min]], f'{name}_worst', validate_err, args.sequence_len,
-                                   args.acceleration_factor, iters[idx_min][0], iters[idx_min][1], 5)
-                print_end_of_epoch(epoch_dir, [vis[idx_mean]], f'{name}_average', validate_err, args.sequence_len,
-                                   args.acceleration_factor, iters[idx_mean][0], iters[idx_mean][1], 5)
-                print_end_of_epoch(epoch_dir, [vis[idx_max]], f'{name}_best', validate_err, args.sequence_len,
-                                   args.acceleration_factor, iters[idx_max][0], iters[idx_max][1], 5)
+                print_end_of_epoch(epoch_dir, [vis[idx_min]], f'{name}_worst', validate_err, result_ssim[idx_min],
+                                   args.sequence_len, args.acceleration_factor, iters[idx_min][0], iters[idx_min][1], 10)
+                print_end_of_epoch(epoch_dir, [vis[idx_mean]], f'{name}_average', validate_err,
+                                   result_ssim[idx_mean], args.sequence_len, args.acceleration_factor,
+                                   iters[idx_mean][0], iters[idx_mean][1], 10)
+                print_end_of_epoch(epoch_dir, [vis[idx_max]], f'{name}_best', validate_err,
+                                   result_ssim[idx_max], args.sequence_len, args.acceleration_factor,
+                                   iters[idx_max][0], iters[idx_max][1], 10)
 
                 torch.save(network.state_dict(), epoch_dir / npz_name)
                 with open(epoch_dir / f'{name}.log', 'w') as log:
@@ -193,6 +196,8 @@ def train_network(args: Box, test_acc: bool = False) -> List[tuple[int, List[int
 
                 logging.info(f'fold {fold} model parameters saved at {epoch_dir.absolute()}\n')
             append_to_file(fold_dir, args.acceleration_factor, fold, epoch, train_err, validate_err)
+            if epoch < 45:
+                scheduler.step()
         results.append((fold, graph_train_err, graph_val_err))
     logging.info(f'completed training at {datetime.datetime.now()}')
 
