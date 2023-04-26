@@ -10,17 +10,15 @@ from box import Box
 from typing import List
 from pathlib import Path
 import logging
-from os.path import join
 
-from reconai.config import Config
 from reconai.parameters import Parameters
-from reconai.data.data import get_dataset_batchers, prepare_input, prepare_input_as_variable,\
-    from_tensor_format, append_to_file
+from reconai.data.data import get_dataset_batchers, prepare_input, prepare_input_as_variable, append_to_file
+from reconai.model.dnn_io import from_tensor_format
 from reconai.utils.graph import print_acceleration_train_loss, print_acceleration_validation_loss, print_loss_progress,\
     print_prediction_error, print_full_prediction_sequence, print_loss_comparison_graphs, print_iterations
 from reconai.utils.metric import complex_psnr
-from reconai.models.bcrnn.model_pytorch import CRNNMRI
-from reconai.models.bcrnn.module import Module
+from reconai.model.model_pytorch import CRNNMRI
+from reconai.model.module import Module
 
 
 def test_accelerations(args: Box):

@@ -5,8 +5,8 @@ import torch
 import numpy as np
 import torch.nn as nn
 
-from reconai.models.bcrnn.kspace_pytorch import DataConsistencyInKspace
-from reconai.models.bcrnn.module import Module
+from reconai.model.kspace_pytorch import DataConsistencyInKspace
+from reconai.model.module import Module
 import matplotlib.pyplot as plt
 
 
@@ -264,7 +264,7 @@ def print_progress_model(gnd, pred, name, shape: bool):
             axes, ax = set_ax(axes, ax, f"pred {k}", k_pred[k, 0, 0])
 
     fig.tight_layout()
-    plt.savefig(pathlib.Path('../../data') / f'{name}_seq.png', pad_inches=0)
+    plt.savefig(pathlib.Path('../data') / f'{name}_seq.png', pad_inches=0)
     plt.close(fig)
 
 

@@ -1,6 +1,5 @@
 import numpy as np
 
-from box import Box
 from pathlib import Path
 
 import torch
@@ -9,17 +8,14 @@ import logging
 
 from reconai.utils.kspace import get_rand_exp_decay_mask
 import reconai.utils.compressed_sensing as cs
-from reconai.models.bcrnn.dnn_io import to_tensor_format, from_tensor_format
-from reconai.models.bcrnn.module import Module
-import matplotlib.pyplot as plt
+from reconai.model.dnn_io import to_tensor_format
+from reconai.model.module import Module
 
-from .Batcher import Batcher
-from .Volume import Volume
-
+from reconai.data.deprecated.Batcher import Batcher
 
 from .dataloader import DataLoader
-from .batcher1 import Batcher
-from .sequencer import Sequencer
+from .batcher import Batcher
+from .sequencebuilder import SequenceBuilder
 
 def prepare_input_as_variable(image: np.ndarray, acceleration: float = 4.0) \
         -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
@@ -70,8 +66,8 @@ def get_dataset_batchers(in_dir: Path, sequence_len: int):
     dl_test.load(split_regex='.*_(.*)_', filter_regex='sag')
 
     logging.info("data loaded")
-    sequencer_tr_val = Sequencer(dl_tra_val)
-    sequencer_test = Sequencer(dl_test)
+    sequencer_tr_val = SequenceBuilder(dl_tra_val)
+    sequencer_test = SequenceBuilder(dl_test)
 
     kwargs = {'seed': 11, 'seq_len': sequence_len, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
     train_val_sequences = sequencer_tr_val.generate_sequences(**kwargs)

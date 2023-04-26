@@ -1,13 +1,11 @@
 from pathlib import Path
 import logging
-from typing import List
 
 import click
 from os.path import join
 
 from .parameters import Parameters
-from .models.bcrnn import __package__ as bcrnn, train as bcrnn_train
-from .models.kiki import __package__ as kiki, train as kiki_train
+from .model import train
 from .__version__ import __version__
 
 
@@ -19,27 +17,12 @@ def cli():
 @cli.command(name='train')
 @click.option('--in_dir', type=Path, required=True)
 @click.option('--out_dir', type=Path, required=True)
-@click.option('--model', type=click.Choice(Parameters.model_names(bcrnn, kiki), case_sensitive=False), required=True)
 @click.option('--config', type=Path, required=False)
 @click.option('--debug', is_flag=True, default=False, help="light weight process for debugging")
-def train_recon(in_dir: Path, out_dir: Path, model: str, config: Path, debug: bool):
-    params = Parameters(in_dir, out_dir, model, config, debug)
-
+def train_recon(in_dir: Path, out_dir: Path, config: Path, debug: bool):
+    params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
-
-    if params.model == bcrnn:
-        bcrnn_train(params)
-    elif params.model == kiki:
-        kiki_train(params)
-    raise ValueError(f'unknown --model: {model}')
-
-    # try:
-    #     if kwargs['test_accelerations']:
-    #         test_accelerations(Box(kwargs))
-    #     else:
-    #         train_network(Box(kwargs))
-    # except Exception as e:
-    #     logging.exception(e)
+    train(params)
 
 
 def setup_logging(params: Parameters):

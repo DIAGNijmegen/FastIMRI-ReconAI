@@ -1,11 +1,13 @@
-from reconai.data.Batcher import Batcher
-from reconai.data.Volume import Volume
-import random
-from typing import List
 import logging
-from box import Box
+import random
 from pathlib import Path
+from typing import List
+
 import numpy as np
+from box import Box
+
+from reconai.data.deprecated.Batcher import Batcher
+from reconai.data.deprecated.Volume import Volume
 
 
 def gather_data(data_dir: Path, debug: bool = False):
