@@ -5,13 +5,13 @@ import matplotlib.pyplot as plt
 import pytest
 import numpy as np
 
-from reconai.data.batcher1 import Batcher, zoom, rotate, crop_or_pad, flip_ud_lr, normalize
+from reconai.data.batcher import Batcher, zoom, rotate, crop_or_pad, flip_ud_lr, normalize
 from reconai.data.dataloader import DataLoader
 from reconai.data.sequence import SequenceCollection
-from reconai.data.sequencer import Sequencer
+from reconai.data.sequencebuilder import SequenceBuilder
 
 from reconai.data.data import gather_data
-from reconai.data.Batcher import Batcher as OldBatcher
+from reconai.data.deprecated.Batcher import Batcher as OldBatcher
 
 
 @pytest.fixture
@@ -36,7 +36,7 @@ def test_volume():
 
 @pytest.fixture
 def sequences(dataloader: DataLoader):
-    seq = Sequencer(dataloader)
+    seq = SequenceBuilder(dataloader)
     obj = seq.generate_sequences(seed=10, seq_len=5, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
     assert len(obj) == 12, 'input data has changed'
     return obj
@@ -48,7 +48,7 @@ def test_generate_sequence(dataloader: DataLoader, sequences: SequenceCollection
     with open('./output/test_data_expected_sequences.json') as f:
         assert json.load(f) == repr(sequences)
 
-    seq = Sequencer(dataloader)
+    seq = SequenceBuilder(dataloader)
     kwargs = {'seed': 11, 'seq_len': 5, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
     obj1 = seq.generate_sequences(**kwargs)
     obj2 = seq.generate_sequences(**kwargs)

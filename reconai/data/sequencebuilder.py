@@ -8,7 +8,7 @@ from .dataloader import DataLoader
 from .sequence import Sequence, SequenceCollection
 
 
-class Sequencer:
+class SequenceBuilder:
     def __init__(self, dataloader: DataLoader):
         self._dataloader = dataloader
 

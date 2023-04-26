@@ -5,8 +5,8 @@ import torch
 import numpy as np
 import torch.nn as nn
 
-from reconai.cascadenet_pytorch.kspace_pytorch import DataConsistencyInKspace
-from reconai.cascadenet_pytorch.module import Module
+from reconai.model.kspace_pytorch import DataConsistencyInKspace
+from reconai.model.module import Module
 import matplotlib.pyplot as plt
 
 
