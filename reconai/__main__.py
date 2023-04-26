@@ -27,7 +27,7 @@ def train_recon(in_dir: Path, out_dir: Path, config: Path, debug: bool):
 
 def setup_logging(params: Parameters):
     logging.basicConfig(
-        filename=join(params.out_dir.as_posix(), f'{params.name_date}.log'),
+        filename=join(params.out_dir.as_posix(), f'{params.date_name}.log'),
         level=logging.DEBUG if params.debug else logging.INFO,
         format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s >> %(message)s',
         datefmt='%H:%M:%S'

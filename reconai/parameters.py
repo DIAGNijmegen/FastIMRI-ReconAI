@@ -29,8 +29,8 @@ class Parameters:
         return self._yaml.as_yaml()
 
     @property
-    def name_date(self) -> str:
-        return f'{self.name}_{self.date}'
+    def date_name(self) -> str:
+        return f'{self.date}_{self.name}'
 
     @staticmethod
     def model_names(*args: str) -> List[str]:

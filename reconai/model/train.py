@@ -45,7 +45,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     n_folds = params.config.train.folds if params.config.train.folds > 2 else 1
 
     # Configure directory info
-    save_dir: Path = params.out_dir / params.name_date
+    save_dir: Path = params.out_dir / params.date_name
     save_dir.mkdir(parents=True)
     logging.info(f"saving model to {save_dir.absolute()}")
 
