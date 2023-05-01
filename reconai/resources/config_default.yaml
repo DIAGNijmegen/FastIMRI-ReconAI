@@ -2,12 +2,14 @@ data:
   split_regex: '.*_(.*)_'
   filter_regex: 'sag'
   # x, y, sequence length
-  shape: 256,256
+  shape_y: 256
+  shape_x: 256
   # files * slices <= sequence length, else the case is skipped
   sequence_length: 15
   mean_slices_per_mha: 2
   max_slices_per_mha: 3
-  q: 0.5 # Quality preference
+  q: 0.5
+  # Quality preference
   normalize: 1961.06
   equal_images: True
   sequence_seed: 11
@@ -24,8 +26,10 @@ train:
     ssim: 0
     dice: 0
   lr: 0.001
-  lr_gamma: 0.95 # 1 voor geen decay
-  stop_lr_decay: 45 # Stop na 45 epochs met LR decay, -1 voor nooit
+  lr_gamma: 0.95
+  # 1 voor geen decay
+  stop_lr_decay: 45
+  # Stop na 45 epochs met LR decay, -1 voor nooit
   undersampling: 8
   equal_masks: True
   mask_seed: 11

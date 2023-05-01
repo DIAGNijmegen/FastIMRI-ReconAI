@@ -10,9 +10,9 @@ import reconai.utils.compressed_sensing as cs
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
 
+from .sequencebuilder import SequenceBuilder
 from .dataloader import DataLoader
 from .batcher import Batcher
-from .sequencebuilder import SequenceBuilder
 from reconai.parameters import Parameters
 
 
@@ -71,7 +71,7 @@ def get_dataset_batchers(params: Parameters):
     sequencer_test = SequenceBuilder(dl_test)
 
     kwargs = {'seed': params.config.data.sequence_seed,
-              'seq_len': params.config.data.slices,
+              'seq_len': params.config.data.sequence_length,
               'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
               'max_slices_per_mha': params.config.data.max_slices_per_mha,
               'q': params.config.data.q}
@@ -84,14 +84,14 @@ def get_dataset_batchers(params: Parameters):
 
     for s in train_val_sequences.items():
         tra_val_batcher.append_sequence(sequence=s,
-                                        crop_expand_to=params.config.data.shape,
+                                        crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
                                         norm=params.config.data.normalize,
                                         equal_images=params.config.data.equal_images)
 
     test_batcher = Batcher(dl_test)
     for s in test_sequences.items():
         test_batcher.append_sequence(sequence=s,
-                                     crop_expand_to=params.config.data.shape,
+                                     crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
                                      norm=params.config.data.normalize,
                                      equal_images=params.config.data.equal_images)
 

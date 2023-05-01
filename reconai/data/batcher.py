@@ -8,46 +8,6 @@ from .sequence import Sequence
 from .dataloader import DataLoader
 
 
-def crop_or_pad(img: np.ndarray, target_shape: Tuple[int, int]):
-    y, x = img.shape
-    _y, _x = target_shape
-    split_n = lambda a: [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]
-    split_x = split_n(np.abs(x - _x))
-    split_y = split_n(np.abs(y - _y))
-
-    if x > _x:
-        img = img[:, split_x[0]:-split_x[1]]
-    elif x < _x:
-        img = np.pad(img, [(0, 0), split_x], 'edge')
-
-    if y > _y:
-        img = img[split_y[0]:-split_y[1], :]
-    elif y < _y:
-        img = np.pad(img, [split_y, (0, 0)], 'edge')
-    return img
-
-
-def normalize(img: np.ndarray, norm: float):
-    return np.divide(img, np.zeros(img.shape) + norm)
-
-
-def flip_ud_lr(img: np.ndarray, *flips: str):
-    for f in flips:
-        if f == 'ud':
-            img = np.flipud(img)
-        elif f == 'lr':
-            img = np.fliplr(img)
-    return img
-
-
-def zoom(img: np.ndarray, zoom: float):
-    return scipy_zoom(img, zoom, order=1)
-
-
-def rotate(img: np.ndarray, rotate_deg: float):
-    return scipy_rotate(img, rotate_deg % 360, reshape=False, mode='nearest', order=1)
-
-
 class Batcher:
     def __init__(self, dataloader: DataLoader):
         self._dataloader = dataloader
@@ -154,3 +114,43 @@ class Batcher:
 
         for i in validation_ids if validation else training_ids:
             yield np.stack([self._processed_sequences[i]])
+
+def crop_or_pad(img: np.ndarray, target_shape: Tuple[int, int]):
+    y, x = img.shape
+    _y, _x = target_shape
+    split_n = lambda a: [a // 2 + (1 if a < a % 2 else 0) for _ in range(2)]
+    split_x = split_n(np.abs(x - _x))
+    split_y = split_n(np.abs(y - _y))
+
+    if x > _x:
+        img = img[:, split_x[0]:-split_x[1]]
+    elif x < _x:
+        img = np.pad(img, [(0, 0), split_x], 'edge')
+
+    if y > _y:
+        img = img[split_y[0]:-split_y[1], :]
+    elif y < _y:
+        img = np.pad(img, [split_y, (0, 0)], 'edge')
+    return img
+
+
+def normalize(img: np.ndarray, norm: float):
+    return np.divide(img, np.zeros(img.shape) + norm)
+
+
+def flip_ud_lr(img: np.ndarray, *flips: str):
+    for f in flips:
+        if f == 'ud':
+            img = np.flipud(img)
+        elif f == 'lr':
+            img = np.fliplr(img)
+    return img
+
+
+def zoom(img: np.ndarray, zoom: float):
+    return scipy_zoom(img, zoom, order=1)
+
+
+def rotate(img: np.ndarray, rotate_deg: float):
+    return scipy_rotate(img, rotate_deg % 360, reshape=False, mode='nearest', order=1)
+

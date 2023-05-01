@@ -15,12 +15,13 @@ class Config(Box):
 data = Map({
     "split_regex": Str(),
     "filter_regex": Str(),
-    "shape": FixedSeq([Int()] * 2) | CommaSeparated(Int()),
+    "shape_y": Int(),
+    "shape_x": Int(),
     "sequence_length": Int(),
     "mean_slices_per_mha": Int(),
     "max_slices_per_mha": Int(),
     "q": Float(),
-    "nomalize": Float(),
+    "normalize": Float(),
     "equal_images": Bool(),
     "sequence_seed": Int(),
 })

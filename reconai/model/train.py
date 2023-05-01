@@ -190,12 +190,12 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                                    params.config.data.sequence_length, params.config.train.undersampling,
                                    iters[idx_min][0], iters[idx_min][1], params.config.model.iterations)
                 print_end_of_epoch(epoch_dir, [vis[idx_mean]], f'{name}_average', validate_err,
-                                   result_ssim[idx_mean], params.config.train.undersampling,
-                                   params.config.data.sequence_length, iters[idx_mean][0], iters[idx_mean][1],
+                                   result_ssim[idx_mean], params.config.data.sequence_length,
+                                   params.config.train.undersampling, iters[idx_mean][0], iters[idx_mean][1],
                                    params.config.model.iterations)
                 print_end_of_epoch(epoch_dir, [vis[idx_max]], f'{name}_best', validate_err,
-                                   result_ssim[idx_max], params.config.train.undersampling,
-                                   params.config.data.sequence_length, iters[idx_max][0], iters[idx_max][1],
+                                   result_ssim[idx_max], params.config.data.sequence_length,
+                                   params.config.train.undersampling, iters[idx_max][0], iters[idx_max][1],
                                    params.config.model.iterations)
 
                 torch.save(network.state_dict(), epoch_dir / npz_name)

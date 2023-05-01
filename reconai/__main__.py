@@ -2,6 +2,7 @@ from pathlib import Path
 import logging
 
 import click
+import shutil
 from os.path import join
 
 from .parameters import Parameters
@@ -23,6 +24,7 @@ def train_recon(in_dir: Path, out_dir: Path, config: Path, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
     save_dir: Path = params.out_dir / params.date_name
     save_dir.mkdir(parents=True)
+    shutil.copy(config, save_dir / 'config.yaml')
     params.out_dir = save_dir
     setup_logging(params)
     train(params)
