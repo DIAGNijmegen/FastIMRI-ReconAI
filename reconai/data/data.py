@@ -88,14 +88,19 @@ def get_dataset_batchers(params: Parameters):
                                         norm=params.config.data.normalize,
                                         equal_images=params.config.data.equal_images)
 
-    test_batcher = Batcher(dl_test)
+    test_batcher_equal = Batcher(dl_test)
+    test_batcher_non_equal = Batcher(dl_test)
     for s in test_sequences.items():
-        test_batcher.append_sequence(sequence=s,
-                                     crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                     norm=params.config.data.normalize,
-                                     equal_images=params.config.data.equal_images)
+        test_batcher_equal.append_sequence(sequence=s,
+                                           crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
+                                           norm=params.config.data.normalize,
+                                           equal_images=True)
+        test_batcher_non_equal.append_sequence(sequence=s,
+                                               crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
+                                               norm=params.config.data.normalize,
+                                               equal_images=False)
 
-    return tra_val_batcher, test_batcher
+    return tra_val_batcher, test_batcher_equal, test_batcher_non_equal
 
 
 def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):

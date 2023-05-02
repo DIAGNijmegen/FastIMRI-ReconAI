@@ -1,3 +1,4 @@
+import random
 import re
 from typing import List, Tuple
 
@@ -72,8 +73,9 @@ class Batcher:
                 sequence_images = np.vstack((sequence_images, img[np.newaxis, ...]))
 
         if equal_images:
-            for i in range(1, len(sequence_images)):
-                sequence_images[i] = sequence_images[0]
+            for i in range(0, len(sequence_images)):
+                randint = random.randint(0, len(sequence_images)-1)
+                sequence_images[i] = sequence_images[randint]
 
         self._indexes.append(len(self._processed_sequences))
         self._processed_sequences.append(sequence_images)
