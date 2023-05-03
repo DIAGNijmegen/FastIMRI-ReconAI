@@ -231,6 +231,7 @@ class CRNNMRI(Module):
             net[ti_out] = net[ti_out].permute(1, 2, 3, 4, 0)
             net[ti_out].contiguous()
             net[ti_out] = self.dcs[i - 1].perform(net[ti_out], k, m)
+            net[ti_out] = torch.clip(net[ti_out], 0, 1)
             x = net[ti_out]
             # print_progress_model(gnd, x, 'post_dc', False)
             logging.debug(f'it {i} @ {mem_info()}')

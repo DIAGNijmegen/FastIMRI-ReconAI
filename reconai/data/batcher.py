@@ -136,7 +136,9 @@ def crop_or_pad(img: np.ndarray, target_shape: Tuple[int, int]):
     return img
 
 
-def normalize(img: np.ndarray, norm: float):
+def normalize(img: np.ndarray, norm: float, maximum1: bool = True):
+    if maximum1:
+        return np.clip(np.divide(img, np.zeros(img.shape) + norm), 0, 1)
     return np.divide(img, np.zeros(img.shape) + norm)
 
 

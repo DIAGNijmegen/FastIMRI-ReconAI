@@ -22,8 +22,8 @@ train:
   epochs: 75
   folds: 1
   loss:
-    mse: 1
-    ssim: 0
+    mse: 0
+    ssim: 1
     dice: 0
   lr: 0.001
   lr_gamma: 0.95

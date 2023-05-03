@@ -21,9 +21,10 @@ from reconai.utils.graph import print_acceleration_train_loss, print_acceleratio
 from reconai.utils.metric import complex_psnr
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.model.module import Module
+from piqa import SSIM
 
 import reconai.utils.metric
-logging.getLogger("ignite.engine.engine.Engine").setLevel(logging.WARNING)
+# logging.getLogger("ignite.engine.engine.Engine").setLevel(logging.WARNING)
 
 # TODO: herschrijven zodat het werkt met parameters uit yaml
 # def test_accelerations(args: Box):
@@ -63,7 +64,8 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     if params.config.train.loss.mse == 1:
         criterion = torch.nn.MSELoss().cuda()
     elif params.config.train.loss.ssim == 1:
-        criterion = SSIMLoss().cuda()
+        # criterion = SSIMLoss().cuda()
+        criterion = SSIM(n_channels=sequence_length).cuda()
     else:
         raise NotImplementedError("Only MSE or SSIM loss implemented")
 
@@ -92,7 +94,12 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 optimizer.zero_grad(set_to_none=True)
                 rec, full_iterations = network(im_u, k_u, mask, gnd)
                 # loss = criterion(rec.permute(0,1,4,2,3), gnd.permute(0,1,4,2,3))
-                loss = criterion(rec, gnd)
+                if params.config.train.loss.mse == 1:
+                    loss = criterion(rec, gnd)
+                elif params.config.train.loss.ssim == 1:
+                    loss = 1 - criterion(rec.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])
+                    # crit2 = SSIMLoss().cuda()
+                    # loss2 = crit2(rec, gnd)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
                 optimizer.step()
@@ -115,7 +122,10 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                                                                      params.config.train.equal_masks)
 
                     pred, full_iterations = network(im_u, k_u, mask, gnd, test=True)
-                    err = criterion(pred, gnd)
+                    if params.config.train.loss.mse == 1:
+                        err = criterion(pred, gnd)
+                    elif params.config.train.loss.ssim == 1:
+                        err = 1 - criterion(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])
 
                     validate_err += err.item()
                     validate_batches += 1
