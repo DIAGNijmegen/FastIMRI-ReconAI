@@ -10,36 +10,32 @@ from reconai.data.dataloader import DataLoader
 from reconai.data.sequence import SequenceCollection
 from reconai.data.sequencebuilder import SequenceBuilder
 
-from reconai.data.data import gather_data
-from reconai.data.deprecated.Batcher import Batcher as OldBatcher
-
 
 @pytest.fixture
-def dataloader():
+def dataloader() -> DataLoader:
     dl = DataLoader(Path('./input'))
     dl.load('.*_(.*)_')
     return dl
 
 
-def test_volume():
-    data = gather_data(Path('input'))
-    data_error = OldBatcher(data).get_blacklist()
-    data = list(filter(lambda a: a.study_id not in data_error, data))
-    # data_n = len(data)
-
-    batcher = OldBatcher(data)
-    for item in batcher.generate():
-        # TODO: check this with input yaml config file rather than constant val
-        assert item.shape == (1, 15, 256, 256)
-    pass
-
-
 @pytest.fixture
-def sequences(dataloader: DataLoader):
+def sequences(dataloader: DataLoader) -> SequenceCollection:
     seq = SequenceBuilder(dataloader)
     obj = seq.generate_sequences(seed=10, seq_len=5, mean_slices_per_mha=2, max_slices_per_mha=3, q=0.5)
     assert len(obj) == 12, 'input data has changed'
     return obj
+
+
+@pytest.fixture
+def batcher(dataloader, sequences):
+    a_batcher = Batcher(dataloader)
+
+    for sequence in sequences.items():
+        a_batcher.append_sequence(sequence=sequence,
+                                  crop_expand_to=(256, 256),
+                                  norm=1961.06,
+                                  equal_images=False)
+    return a_batcher
 
 
 def test_generate_sequence(dataloader: DataLoader, sequences: SequenceCollection):
@@ -73,7 +69,7 @@ def test_batcher_append_sequence(dataloader: DataLoader, sequences: SequenceColl
         if show:
             fig.show()
 
-    sequence_images = next(batcher.items())[3]
+    sequence_images = next(batcher.items())[0][3]
     mean = sequence_images.mean()
     imshow(sequence_images, "original", show=show)
 

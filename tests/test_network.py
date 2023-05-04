@@ -4,27 +4,26 @@ from pathlib import Path
 import numpy as np
 
 from reconai.model.kspace_pytorch import DataConsistencyInKspace
-from reconai.data.deprecated.data import gather_data
-from reconai.data.deprecated.Batcher import Batcher
+from reconai.data.data import prepare_input
 
 
-@pytest.fixture
-def data_batcher() -> Batcher:
-    data = gather_data(Path('input'))
-    data_error = Batcher(data).get_blacklist()
-    data = list(filter(lambda a: a.study_id not in data_error, data))
-    return Batcher(data)
+# @pytest.fixture
+# def data_batcher() -> Batcher:
+#     data = gather_data(Path('input'))
+#     data_error = Batcher(data).get_blacklist()
+#     data = list(filter(lambda a: a.study_id not in data_error, data))
+#     return Batcher(data)
 
-
-def test_dc_image_shifting(data_batcher):
+@pytest.mark.usefixtures("batcher")
+def test_dc_image_shifting(batcher):
     """
     Tests whether the images remain in the correct order after applying data consistency,
     when undersampling rate 1 is used. It compares mean and std of both images.
     """
     dc_layer = DataConsistencyInKspace()
 
-    for im in data_batcher.generate():
-        im_und, k_und, mask, im_gnd = prepare_input(im, 1)
+    for im in batcher.items():
+        im_und, k_und, mask, im_gnd = prepare_input(im, 1, 1)
         k_und = torch.complex(k_und[:, 0, ...], k_und[:, 1, ...]).unsqueeze(0)
 
         im_dc = dc_layer(im_und, k_und, mask).cpu()
@@ -40,9 +39,9 @@ def test_dc_image_shifting(data_batcher):
             assert np.isclose(np.std(im_dc_i), np.std(im_und_i))
 
 
-def test_crnncell(data_batcher):
-    a = 1
-
-
-def test_bcrnn(data_batcher):
-    a = 1
+# def test_crnncell(data_batcher):
+#     a = 1
+#
+#
+# def test_bcrnn(data_batcher):
+#     a = 1

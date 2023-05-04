@@ -11,4 +11,4 @@ def test_config():
 def test_arbitrary_valid_yaml():
     load_str('')
     load_str('experiment:')
-    load_str('data:\n shape:')
+    load_str('data:\n shape_x: 256')
