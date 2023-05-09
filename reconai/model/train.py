@@ -4,7 +4,6 @@ from __future__ import print_function, division
 import datetime
 import time
 
-import ignite
 import torch
 import torch.optim as optim
 from torch.autograd import Variable
@@ -24,7 +23,6 @@ from reconai.model.module import Module
 from piqa import SSIM
 
 import reconai.utils.metric
-# logging.getLogger("ignite.engine.engine.Engine").setLevel(logging.WARNING)
 
 # TODO: herschrijven zodat het werkt met parameters uit yaml
 # def test_accelerations(args: Box):
@@ -274,33 +272,3 @@ def print_eoe(vis, epoch_dir, name, validate_err, sequence_length, undersampling
                        result_ssim[idx_max], sequence_length, undersampling, iters[idx_max][0],
                        iters[idx_max][1], iterations)
     return arr, result_ssim[idx_min], result_ssim[idx_mean], result_ssim[idx_max]
-
-def eval_step(engine, batch):
-    return batch
-default_evaluator = ignite.engine.Engine(eval_step)
-
-class SSIMLoss(torch.nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.requires_grad_()
-
-    def forward(self, x, y):
-        # a = torchmetrics.functional.structural_similarity_index_measure(np.transpose(x.cpu(), (0, 1, 4, 2, 3)), np.transpose(y.cpu(), (0, 1, 4, 2, 3)))
-        # ssim2 = kornia.metrics.ssim()
-        # ssim = reconai.utils.metric.ssim(x[0][0].cpu().detach().numpy(), y[0][0].cpu().detach().numpy(), transpose=False)
-        # t_start = time.time()
-        # ssim2 = reconai.utils.metric.ssim_2(x[0][0].cpu().detach().numpy(), y[0][0].cpu().detach().numpy())
-        # t_end = time.time()
-        # logging.info(f'Time SSIM CPU {t_end - t_start}')
-        # ssim3 = reconai.utils.metric.ssim_3(x.permute(0,1,4,2,3)[0], y.permute(0,1,4,2,3)[0])
-
-        # t_start = time.time()
-        metric = ignite.metrics.SSIM(data_range=1.0, device='cuda')
-        metric.attach(default_evaluator, 'ssim')
-        state = default_evaluator.run([[x.permute(0,1,4,2,3)[0], y.permute(0,1,4,2,3)[0]]])
-        diff = torch.abs(torch.sub(state.metrics['ssim'], 1))
-        diff.requires_grad = True
-        # t_end = time.time()
-        # logging.info(f'Time SSIM GPU {t_end - t_start}')
-        return diff
-

@@ -73,8 +73,8 @@ class Batcher:
                 sequence_images = np.vstack((sequence_images, img[np.newaxis, ...]))
 
         if equal_images:
+            randint = random.randint(0, len(sequence_images) - 1)
             for i in range(0, len(sequence_images)):
-                randint = random.randint(0, len(sequence_images)-1)
                 sequence_images[i] = sequence_images[randint]
 
         self._indexes.append(len(self._processed_sequences))
