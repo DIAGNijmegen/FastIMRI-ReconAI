@@ -210,7 +210,7 @@ def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal,
                                                          iters_nenm, iterations)
 
     def ft(in_float: float) -> str:
-        return format(in_float, '.4f')
+        return format(in_float, '.4f').replace('.', ',')
 
     with open(epoch_dir / f'{name}.log', 'w') as log:
         log.write(stats)
