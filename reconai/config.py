@@ -24,6 +24,7 @@ data = Map({
     "normalize": Float(),
     "equal_images": Bool(),
     "sequence_seed": Int(),
+    "expand_to_n": Bool(),
 })
 
 model = Map({

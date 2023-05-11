@@ -28,7 +28,8 @@ class Batcher:
                         flip: str = '',
                         zoom_factor: float = 1,
                         rotate_deg: float = 0,
-                        equal_images: bool = False):
+                        equal_images: bool = False,
+                        expand_to_n: bool = False):
         """
         Append sequence to this batcher. Apply different norm/flip/rotate_deg in a for loop to multiply the dataset.
 
@@ -48,6 +49,8 @@ class Batcher:
             Rotate the images by 'rotate_deg's'.
         equal_images: bool
             If set to true, then repeat first image all the time
+        expand_to_n: bool
+            If true and equal_images is also true, then it will expand the sequence n times.
         """
         # precalculate some values
         flips: List[str] = [r.group() for r in re.finditer('(ud)|(lr)', flip)]
@@ -73,12 +76,22 @@ class Batcher:
                 sequence_images = np.vstack((sequence_images, img[np.newaxis, ...]))
 
         if equal_images:
-            randint = random.randint(0, len(sequence_images) - 1)
-            for i in range(0, len(sequence_images)):
-                sequence_images[i] = sequence_images[randint]
-
-        self._indexes.append(len(self._processed_sequences))
-        self._processed_sequences.append(sequence_images)
+            if expand_to_n:
+                sequence = sequence_images.copy()
+                for i in range(0, len(sequence_images)):
+                    for j in range(0, len(sequence_images)):
+                        sequence[j] = sequence_images[i]
+                    self._indexes.append(len(self._processed_sequences))
+                    self._processed_sequences.append(sequence)
+            else:
+                randint = random.randint(0, len(sequence_images) - 1)
+                for i in range(0, len(sequence_images)):
+                    sequence_images[i] = sequence_images[randint]
+                self._indexes.append(len(self._processed_sequences))
+                self._processed_sequences.append(sequence_images)
+        else:
+            self._indexes.append(len(self._processed_sequences))
+            self._processed_sequences.append(sequence_images)
 
     def shuffle(self, seed: int = -1):
         self.sort()

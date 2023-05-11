@@ -13,6 +13,7 @@ data:
   normalize: 1961.06
   equal_images: True
   sequence_seed: 11
+  expand_to_n: True
   # data transformations
 model:
   iterations: 5

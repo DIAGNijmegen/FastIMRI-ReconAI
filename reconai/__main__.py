@@ -7,6 +7,7 @@ from os.path import join
 
 from .parameters import Parameters
 from .model import train
+from .evaluation import evaluation
 from .__version__ import __version__
 
 
@@ -28,6 +29,16 @@ def train_recon(in_dir: Path, out_dir: Path, config: Path, debug: bool):
     params.out_dir = save_dir
     setup_logging(params)
     train(params)
+
+
+@cli.command(name='eval')
+@click.option('--in_dir', type=Path, required=True)
+@click.option('--out_dir', type=Path, required=True)
+@click.option('--config', type=Path, required=True)
+def evaluate_models(in_dir: Path, out_dir: Path, config: Path):
+    params = Parameters(in_dir, out_dir, config, False)
+    setup_logging(params)
+    evaluation(params)
 
 
 def setup_logging(params: Parameters):

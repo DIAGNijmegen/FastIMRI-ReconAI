@@ -86,7 +86,8 @@ def get_dataset_batchers(params: Parameters):
         tra_val_batcher.append_sequence(sequence=s,
                                         crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
                                         norm=params.config.data.normalize,
-                                        equal_images=params.config.data.equal_images)
+                                        equal_images=params.config.data.equal_images,
+                                        expand_to_n=params.config.data.expand_to_n)
 
     test_batcher_equal = Batcher(dl_test)
     test_batcher_non_equal = Batcher(dl_test)
