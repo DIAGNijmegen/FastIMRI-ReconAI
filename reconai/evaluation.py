@@ -29,7 +29,7 @@ def evaluation(params: Parameters):
                   'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
                   'max_slices_per_mha': params.config.data.max_slices_per_mha,
                   'q': params.config.data.q}
-        test_sequences = sequencer_test.generate_sequences(**kwargs)
+        test_sequences = sequencer_test.generate_multislice_sequences(**kwargs)
         test_batcher_equal = Batcher(dl_test)
         test_batcher_non_equal = Batcher(dl_test)
 

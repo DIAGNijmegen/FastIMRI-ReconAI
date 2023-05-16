@@ -75,8 +75,8 @@ def get_dataset_batchers(params: Parameters):
               'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
               'max_slices_per_mha': params.config.data.max_slices_per_mha,
               'q': params.config.data.q}
-    train_val_sequences = sequencer_tr_val.generate_sequences(**kwargs)
-    test_sequences = sequencer_test.generate_sequences(**kwargs)
+    train_val_sequences = sequencer_tr_val.generate_multislice_sequences(**kwargs)
+    test_sequences = sequencer_test.generate_multislice_sequences(**kwargs)
 
     logging.info("sequences created")
 

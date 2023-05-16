@@ -130,6 +130,7 @@ class Batcher:
         for i in validation_ids if validation else training_ids:
             yield np.stack([self._processed_sequences[i]])
 
+
 def crop_or_pad(img: np.ndarray, target_shape: Tuple[int, int]):
     y, x = img.shape
     _y, _x = target_shape
