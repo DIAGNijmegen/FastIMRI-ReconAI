@@ -7,7 +7,7 @@ from os.path import join
 
 from .parameters import Parameters
 from .model import train
-from .evaluation import evaluation
+from .model.evaluate import evaluate
 from .__version__ import __version__
 
 
@@ -38,7 +38,7 @@ def train_recon(in_dir: Path, out_dir: Path, config: Path, debug: bool):
 def evaluate_models(in_dir: Path, out_dir: Path, config: Path):
     params = Parameters(in_dir, out_dir, config, False)
     setup_logging(params)
-    evaluation(params)
+    evaluate(params)
 
 
 def setup_logging(params: Parameters):

@@ -29,7 +29,10 @@ data = Map({
 
 model = Map({
     "iterations": Int(),
-    "filters": Int()
+    "filters": Int(),
+    "kernelsize": Int(),
+    "channels": Int(),
+    "layers": Int()
 })
 
 train = Map({

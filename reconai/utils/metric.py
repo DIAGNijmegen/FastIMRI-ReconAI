@@ -56,6 +56,8 @@ def ssim(gt, pred, transpose=True):
     else:
         raise NotImplementedError("Only for 2D and 3D data")
 
+# Deprecated SSIM function, left here because we might want to look at it sometime
+# func ssim uses 'skimage' package to compute SSIM
 def ssim_2(img1, img2):
     def calc_ssim(imga, imgb):
         c1 = (0.01 * 1) ** 2

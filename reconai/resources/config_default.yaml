@@ -18,6 +18,9 @@ data:
 model:
   iterations: 5
   filters: 64
+  kernelsize: 3
+  channels: 1
+  layers: 5
 
 train:
   epochs: 75

@@ -1,16 +1,17 @@
+#!/usr/bin/env python
 import logging
 
-from .model.train import run_and_print_full_test
+from .train import run_and_print_full_test
 from os import listdir
 from os.path import isfile, join
-from .model.model_pytorch import CRNNMRI
+from .model_pytorch import CRNNMRI
 import torch
-from .parameters import Parameters
-from .data.sequencebuilder import SequenceBuilder
-from .data.dataloader import DataLoader
-from .data.batcher import Batcher
+from reconai.parameters import Parameters
+from reconai.data.sequencebuilder import SequenceBuilder
+from reconai.data.dataloader import DataLoader
+from reconai.data.batcher import Batcher
 
-def evaluation(params: Parameters):
+def evaluate(params: Parameters):
     path = params.out_dir
     model_checkpoints = [f for f in listdir(path) if isfile(join(path, f)) and f.split('.')[-1] == 'npz']
 
@@ -45,7 +46,7 @@ def evaluation(params: Parameters):
                                                    equal_images=False)
         logging.info('Finished creating test batchers')
 
-        network = CRNNMRI(n_ch=1, nc=5).cuda()
+        network = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5).cuda()
         state_dict = torch.load(path / checkpoint)
         network.load_state_dict(state_dict)
         network.eval()

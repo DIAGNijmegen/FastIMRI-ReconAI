@@ -10,7 +10,7 @@ import reconai.utils.compressed_sensing as cs
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
 
-from .sequencebuilder import SequenceBuilder
+from .sequencebuilder import SequenceBuilder, SequenceCollection
 from .dataloader import DataLoader
 from .batcher import Batcher
 from reconai.parameters import Parameters
@@ -59,53 +59,50 @@ def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
 
+def get_dataloader(params: Parameters, path_suffix: str) -> DataLoader:
+    dl = DataLoader(params.in_dir / path_suffix)
+    dl.load(split_regex=params.config.data.split_regex, filter_regex=params.config.data.filter_regex)
+    return dl
+
+def generate_sequences(params: Parameters, dl: DataLoader, multislice: bool = True) -> SequenceCollection:
+    kwargs = {
+        'seed': params.config.data.sequence_seed,
+        'seq_len': params.config.data.sequence_length,
+        'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
+        'max_slices_per_mha': params.config.data.max_slices_per_mha,
+        'q': params.config.data.q
+    }
+    sequencer = SequenceBuilder(dl)
+    if multislice:
+        sequencer.generate_multislice_sequences(**kwargs)
+    else:
+        sequencer.generate_singleslice_sequences(**kwargs)
+
+def get_batcher(params: Parameters, dl: DataLoader, sequences: SequenceCollection,
+                equal_images: bool = False, expand_to_n: bool = False):
+    batcher = Batcher(dl)
+    for s in sequences.items():
+        batcher.append_sequence(sequence=s,
+                                crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
+                                norm=params.config.data.normalize,
+                                equal_images=equal_images,
+                                expand_to_n=expand_to_n)
+    return batcher
 
 def get_dataset_batchers(params: Parameters):
-    dl_tra_val = DataLoader(params.in_dir / 'train')
-    dl_tra_val.load(split_regex=params.config.data.split_regex, filter_regex=params.config.data.filter_regex)
-    dl_test = DataLoader(params.in_dir / 'test')
-    dl_test.load(split_regex=params.config.data.split_regex, filter_regex=params.config.data.filter_regex)
-
+    dl_tra_val = get_dataloader(params, 'train')
+    dl_test = get_dataloader(params, 'test')
     logging.info("data loaded")
-    sequencer_tr_val = SequenceBuilder(dl_tra_val)
-    sequencer_test = SequenceBuilder(dl_test)
 
-    kwargs = {'seed': params.config.data.sequence_seed,
-              'seq_len': params.config.data.sequence_length,
-              'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
-              'max_slices_per_mha': params.config.data.max_slices_per_mha,
-              'q': params.config.data.q}
-    train_val_sequences = sequencer_tr_val.generate_multislice_sequences(**kwargs)
-    test_sequences = sequencer_test.generate_multislice_sequences(**kwargs)
-
+    train_val_sequences = generate_sequences(params, dl_tra_val, multislice=True)
+    test_sequences = generate_sequences(params, dl_test, multislice=True)
     logging.info("sequences created")
 
-    tra_val_batcher = Batcher(dl_tra_val)
+    tra_val_batcher = get_batcher(params, dl_tra_val, train_val_sequences,
+                                  equal_images=params.config.data.equal_images,
+                                  expand_to_n=params.config.data.expand_to_n)
 
-    for s in train_val_sequences.items():
-        tra_val_batcher.append_sequence(sequence=s,
-                                        crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                        norm=params.config.data.normalize,
-                                        equal_images=params.config.data.equal_images,
-                                        expand_to_n=params.config.data.expand_to_n)
-
-    test_batcher_equal = Batcher(dl_test)
-    test_batcher_non_equal = Batcher(dl_test)
-    for s in test_sequences.items():
-        test_batcher_equal.append_sequence(sequence=s,
-                                           crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                           norm=params.config.data.normalize,
-                                           equal_images=True)
-        test_batcher_non_equal.append_sequence(sequence=s,
-                                               crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                               norm=params.config.data.normalize,
-                                               equal_images=False)
+    test_batcher_equal = get_batcher(params, dl_test, test_sequences, equal_images=True)
+    test_batcher_non_equal = get_batcher(params, dl_test, test_sequences, equal_images=False)
 
     return tra_val_batcher, test_batcher_equal, test_batcher_non_equal
-
-
-def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
-    with open(fold_dir / 'progress.csv', 'a+') as file:
-        if epoch == 0:
-            file.write('Acceleration, Fold, Epoch, Train error, Validation error \n')
-        file.write(f'{acceleration}, {fold}, {epoch}, {train_err}, {val_err} \n')

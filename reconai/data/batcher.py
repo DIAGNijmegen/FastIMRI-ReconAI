@@ -75,23 +75,22 @@ class Batcher:
                 img = normalize(img, norm)
                 sequence_images = np.vstack((sequence_images, img[np.newaxis, ...]))
 
-        if equal_images:
-            if expand_to_n:
-                sequence = sequence_images.copy()
-                for i in range(0, len(sequence_images)):
-                    for j in range(0, len(sequence_images)):
-                        sequence[j] = sequence_images[i]
-                    self._indexes.append(len(self._processed_sequences))
-                    self._processed_sequences.append(sequence)
-            else:
+        if equal_images and expand_to_n:
+            new_sequence = sequence_images.copy()
+            for i in range(0, len(sequence_images)):
+                for j in range(0, len(sequence_images)):
+                    new_sequence[j] = sequence_images[i]
+                self.add_processed_sequence(new_sequence)
+        else:
+            if equal_images:
                 randint = random.randint(0, len(sequence_images) - 1)
                 for i in range(0, len(sequence_images)):
                     sequence_images[i] = sequence_images[randint]
-                self._indexes.append(len(self._processed_sequences))
-                self._processed_sequences.append(sequence_images)
-        else:
-            self._indexes.append(len(self._processed_sequences))
-            self._processed_sequences.append(sequence_images)
+            self.add_processed_sequence(sequence_images)
+
+    def add_processed_sequence(self, processed_sequence: np.ndarray):
+        self._indexes.append(len(self._processed_sequences))
+        self._processed_sequences.append(processed_sequence)
 
     def shuffle(self, seed: int = -1):
         self.sort()
