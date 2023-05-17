@@ -28,7 +28,8 @@ class SequenceBuilder:
 
         return SequenceCollection(sequence_collection)
 
-    def generate_singleslice_sequences(self, *, seed: int = -1, seq_len: int = 5, random_order: bool = False) -> SequenceCollection:
+    def generate_singleslice_sequences(self, *, seed: int = -1, seq_len: int = 5, random_order: bool = False) \
+            -> SequenceCollection:
         """
         For each MHA slice, a sequence is created. If seq_len < len(MHA slice), the center slices are preferred.
         If seq_len > len(MHA slice), we perform a wrap around. The result is always equal to the number of MHA files.

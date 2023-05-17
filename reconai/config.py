@@ -25,6 +25,7 @@ data = Map({
     "equal_images": Bool(),
     "sequence_seed": Int(),
     "expand_to_n": Bool(),
+    "multislice": Bool()
 })
 
 model = Map({

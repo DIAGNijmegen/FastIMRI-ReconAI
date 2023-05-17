@@ -65,18 +65,23 @@ def get_dataloader(params: Parameters, path_suffix: str) -> DataLoader:
     return dl
 
 def generate_sequences(params: Parameters, dl: DataLoader, multislice: bool = True) -> SequenceCollection:
-    kwargs = {
-        'seed': params.config.data.sequence_seed,
-        'seq_len': params.config.data.sequence_length,
-        'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
-        'max_slices_per_mha': params.config.data.max_slices_per_mha,
-        'q': params.config.data.q
-    }
     sequencer = SequenceBuilder(dl)
     if multislice:
-        sequencer.generate_multislice_sequences(**kwargs)
+        kwargs = {
+            'seed': params.config.data.sequence_seed,
+            'seq_len': params.config.data.sequence_length,
+            'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
+            'max_slices_per_mha': params.config.data.max_slices_per_mha,
+            'q': params.config.data.q
+        }
+        return sequencer.generate_multislice_sequences(**kwargs)
     else:
-        sequencer.generate_singleslice_sequences(**kwargs)
+        kwargs = {
+            'seed': params.config.data.sequence_seed,
+            'seq_len': params.config.data.sequence_length,
+            'random_order': False
+        }
+        return sequencer.generate_singleslice_sequences(**kwargs)
 
 def get_batcher(params: Parameters, dl: DataLoader, sequences: SequenceCollection,
                 equal_images: bool = False, expand_to_n: bool = False):
@@ -94,9 +99,10 @@ def get_dataset_batchers(params: Parameters):
     dl_test = get_dataloader(params, 'test')
     logging.info("data loaded")
 
-    train_val_sequences = generate_sequences(params, dl_tra_val, multislice=True)
-    test_sequences = generate_sequences(params, dl_test, multislice=True)
-    logging.info("sequences created")
+    train_val_sequences = generate_sequences(params, dl_tra_val, multislice=params.config.data.multislice)
+    test_sequences = generate_sequences(params, dl_test, multislice=params.config.data.multislice)
+    logging.info(f"{len(train_val_sequences)} train/val sequences created")
+    logging.info(f"{len(test_sequences)} test sequences created")
 
     tra_val_batcher = get_batcher(params, dl_tra_val, train_val_sequences,
                                   equal_images=params.config.data.equal_images,

@@ -12,8 +12,9 @@ import logging
 
 from reconai.parameters import Parameters
 from reconai.data.data import get_dataset_batchers, prepare_input_as_variable
+from reconai.model.test import run_and_print_full_test
 
-from reconai.utils.graph import print_acceleration_train_loss, update_loss_progress, print_end_of_epoch
+from reconai.utils.graph import update_loss_progress
 from reconai.model.model_pytorch import CRNNMRI
 from piqa import SSIM
 
