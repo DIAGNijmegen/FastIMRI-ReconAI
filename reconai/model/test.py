@@ -13,19 +13,19 @@ from reconai.utils.graph import print_end_of_epoch
 
 # TODO: Opschonen en herschrijven, evt proberen wat minder duplicate code
 def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params,
-                            epoch_dir, name, train_err, validate_err, stats: str = ''):
+                            epoch_dir, name, train_err, validate_err, seed_offset, stats: str = ''):
     sequence_length = params.config.data.sequence_length
     undersampling = params.config.train.undersampling
     iterations = params.config.model.iterations
 
     vis_e, iters_e, base_psnr_e, test_psnr_e, test_batches_e = \
-        run_testset(network, test_batcher_equal, params, equal_mask=True)
+        run_testset(network, test_batcher_equal, params, seed_offset, equal_mask=True)
     vis_enm, iters_enm, base_psnr_enm, test_psnr_enm, test_batches_enm = \
-        run_testset(network, test_batcher_equal, params, equal_mask=False)
+        run_testset(network, test_batcher_equal, params, seed_offset, equal_mask=False)
     vis_ne, iters_ne, base_psnr_ne, test_psnr_ne, test_batches_ne = \
-        run_testset(network, test_batcher_non_equal, params, equal_mask=True)
+        run_testset(network, test_batcher_non_equal, params, seed_offset, equal_mask=True)
     vis_nenm, iters_nenm, base_psnr_nenm, test_psnr_nenm, test_batches_nenm = \
-        run_testset(network, test_batcher_non_equal, params, equal_mask=False)
+        run_testset(network, test_batcher_non_equal, params, seed_offset, equal_mask=False)
     logging.info(f"completed {test_batches_e} test batches")
 
     base_psnr_e /= (test_batches_e * params.batch_size)
@@ -86,14 +86,17 @@ def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal,
                   f"\t {ft(min_nenm)}\t {ft(mean_nenm)}\t{ft(max_nenm)}")
 
 
-def run_testset(network, batcher, params, equal_mask: bool):
+def run_testset(network, batcher, params, seed_offset, equal_mask: bool):
     vis_e, iters_e, base_psnr_e, test_psnr_e, test_batches_e = [], [], 0, 0, 0
+
+    mask_seed = params.config.train.mask_seed + seed_offset
+    mask_i = 0
 
     with torch.no_grad():
         for im in batcher.items():
             logging.debug(f"batch {test_batches_e}")
             im_und, k_und, mask, im_gnd = prepare_input(im,
-                                                        params.config.train.mask_seed,
+                                                        mask_seed + mask_i,
                                                         params.config.train.undersampling,
                                                         equal_mask=equal_mask)
             im_u = Variable(im_und.type(Module.TensorType))
@@ -116,6 +119,7 @@ def run_testset(network, batcher, params, equal_mask: bool):
                             full_iterations))
 
             test_batches_e += 1
+            mask_i += params.config.data.sequence_length
             if params.debug and test_batches_e == 2:
                 break
     return vis_e, iters_e, base_psnr_e, test_psnr_e, test_batches_e

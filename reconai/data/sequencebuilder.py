@@ -1,3 +1,4 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
 from typing import List, Dict, Callable
@@ -62,6 +63,9 @@ class SequenceBuilder:
                 if seq_len > len(sl):
                     seq_quotient = (seq_len - len(sl)) // 2
                     sl = np.pad(sl, (seq_quotient, seq_quotient + seq_len % 2), mode='reflect')
+                    if seq_len != len(sl):
+                        logging.info(f'case with seq_len > len(sl) wrong pad. {case}')
+                        break
 
                 sequences.append(Sequence(case, {f'0_{i}': sl}))
 

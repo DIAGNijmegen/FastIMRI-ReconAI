@@ -5,7 +5,7 @@ data:
   shape_y: 256
   shape_x: 256
   # files * slices <= sequence length, else the case is skipped
-  sequence_length: 3
+  sequence_length: 5
   mean_slices_per_mha: 2
   max_slices_per_mha: 3
   q: 0.5
@@ -14,7 +14,7 @@ data:
   equal_images: True
   sequence_seed: 11
   expand_to_n: True
-  multislice: True
+  multislice: False
   # data transformations
 model:
   iterations: 5

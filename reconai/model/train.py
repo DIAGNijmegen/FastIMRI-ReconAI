@@ -52,7 +52,9 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
         fold_dir = params.out_dir / f'fold_{fold}'
 
         graph_train_err, graph_val_err = [], []
+        mask_i = 0
         for epoch in range(num_epochs):
+            logging.info(f'starting epoch {epoch}')
             t_start = time.time()
 
             network.train()
@@ -60,7 +62,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             for im in train_val_batcher.items_fold(fold, 5, validation=False):
                 logging.debug(f"batch {train_batches}")
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im,
-                                                                 params.config.train.mask_seed,
+                                                                 params.config.train.mask_seed + mask_i,
                                                                  params.config.train.undersampling,
                                                                  params.config.train.equal_masks)
 
@@ -73,6 +75,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
                 train_err += loss.item()
                 train_batches += 1
+                mask_i += params.config.data.sequence_length
 
                 if params.debug and train_batches == 2:
                     break
@@ -84,7 +87,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 for im in train_val_batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
                     im_u, k_u, mask, gnd = prepare_input_as_variable(im,
-                                                                     params.config.train.mask_seed,
+                                                                     params.config.train.mask_seed + mask_i,
                                                                      params.config.train.undersampling,
                                                                      params.config.train.equal_masks)
 
@@ -93,6 +96,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                     validate_err += err.item()
                     validate_batches += 1
 
+                    mask_i += params.config.data.sequence_length
                     if params.debug and validate_batches == 2:
                         break
             logging.info(f"completed {validate_batches} validate batches")
@@ -115,9 +119,9 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 torch.save(network.state_dict(), epoch_dir / npz_name)
                 logging.info(f'fold {fold} model parameters saved at {epoch_dir.absolute()}\n')
 
-                if epoch % 10 == 0 or epoch > num_epochs - 5:
+                if epoch % 5 == 0 or epoch > num_epochs - 5:
                     run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params, epoch_dir,
-                                            name, train_err, validate_err, stats)
+                                            name, train_err, validate_err, mask_i, stats)
 
             graph_train_err.append(train_err)
             graph_val_err.append(validate_err)
@@ -150,7 +154,6 @@ def calculate_loss(params: Parameters, criterion, pred, gnd) -> float:
     elif params.config.train.loss.ssim == 1:
         err = 1 - criterion(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])
     return err
-
 
 
 def log_epoch_stats_to_csv(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
