@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import logging
-
+import time
 from .train import run_and_print_full_test
 from os import listdir
 from os.path import isfile, join
@@ -10,6 +10,7 @@ from reconai.parameters import Parameters
 from reconai.data.sequencebuilder import SequenceBuilder
 from reconai.data.dataloader import DataLoader
 from reconai.data.batcher import Batcher
+from reconai.data.data import prepare_input_as_variable
 
 def evaluate(params: Parameters):
     path = params.out_dir
@@ -32,18 +33,24 @@ def evaluate(params: Parameters):
                   'q': params.config.data.q}
         test_sequences = sequencer_test.generate_multislice_sequences(**kwargs)
         test_batcher_equal = Batcher(dl_test)
-        test_batcher_non_equal = Batcher(dl_test)
+        # test_batcher_non_equal = Batcher(dl_test)
 
-        for s in test_sequences.items():
-            test_batcher_equal.append_sequence(sequence=s,
-                                               crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                               norm=params.config.data.normalize,
-                                               equal_images=True)
-            test_batcher_non_equal.append_sequence(sequence=s,
-                                                   crop_expand_to=(
-                                                   params.config.data.shape_y, params.config.data.shape_x),
-                                                   norm=params.config.data.normalize,
-                                                   equal_images=False)
+        # for s in test_sequences.items():
+        #     test_batcher_equal.append_sequence(sequence=s,
+        #                                        crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
+        #                                        norm=params.config.data.normalize,
+        #                                        equal_images=True)
+        #     test_batcher_non_equal.append_sequence(sequence=s,
+        #                                            crop_expand_to=(
+        #                                             params.config.data.shape_y,
+        #                                             params.config.data.shape_x),
+        #                                            norm=params.config.data.normalize,
+        #                                            equal_images=False)
+        seq = next(test_sequences.items())
+        test_batcher_equal.append_sequence(sequence=seq,
+                                           crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
+                                           norm=params.config.data.normalize,
+                                           equal_images=True)
         logging.info('Finished creating test batchers')
 
         network = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5).cuda()
@@ -56,5 +63,16 @@ def evaluate(params: Parameters):
         dirname.mkdir(parents=True, exist_ok=True)
 
         logging.info('model loaded. Start eval')
-        run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params, dirname, name, 0, 0, '')
+
+        img = next(test_batcher_equal.items())
+        im_und, k_und, mask, im_gnd = prepare_input_as_variable(img,
+                                                                11,
+                                                                params.config.train.undersampling,
+                                                                equal_mask=True)
+        t_start = time.time()
+        pred, full_iterations = network(im_und, k_und, mask, im_gnd, test=True)
+        t_end = time.time()
+
+        logging.info(f'total time: {t_end - t_start}')
+        # run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params, dirname, name, 0, 0, 0, '')
         # exit(1)
