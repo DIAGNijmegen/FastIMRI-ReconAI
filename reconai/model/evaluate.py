@@ -54,7 +54,7 @@ def evaluate(params: Parameters):
                                            equal_images=True)
         logging.info('Finished creating test batchers')
 
-        network = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5).cuda()
+        network = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5, equal='nonequal' not in checkpoint).cuda()
         state_dict = torch.load(path / checkpoint)
         network.load_state_dict(state_dict)
         network.eval()

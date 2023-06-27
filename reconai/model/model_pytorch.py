@@ -103,7 +103,46 @@ class BCRNNlayer(Module):
 
         output = output_f + output_b
 
-        # output = torch.cat(output_f)
+        if nb == 1:
+            output = output.view(nt, 1, self.hidden_size, nx, ny)
+
+        return output
+
+class CRNNlayer(Module):
+    """
+    Convolutional RNN layer
+    """
+
+    def __init__(self, input_size, hidden_size, kernel_size):
+        super(CRNNlayer, self).__init__()
+        self.hidden_size = hidden_size
+        self.kernel_size = kernel_size
+        self.input_size = input_size
+        self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
+
+    def forward(self, input, input_iteration):
+        """
+        Parameters
+        ----------
+        input: torch.Tensor
+            5d tensor, [input_image] with shape (num_seqs, batch_size, channel, width, height)
+        input_iteration: torch.Tensor
+            5d tensor, [hidden states from previous iteration] with shape (n_seq, n_batch, hidden_size, width, height)
+
+        Returns
+        -------
+        output: torch.Tensor
+            5d tensor, shape (n_seq, n_batch, hidden_size, width, height)
+        """
+        nt, nb, nc, nx, ny = input.shape
+        size_h = [nb, self.hidden_size, nx, ny]
+        hid_init = self.init_hidden(size_h)
+
+        hidden = hid_init
+        input = input.permute(1, 0, 2, 3, 4)[0]  # remove the batch dimension, since CRNN needs 4D input
+        input_iteration = input_iteration.permute(1, 0, 2, 3, 4)[0]
+        output = self.CRNN_model(input, input_iteration, hidden)
+
         if nb == 1:
             output = output.view(nt, 1, self.hidden_size, nx, ny)
 
@@ -119,7 +158,7 @@ class CRNNMRI(Module):
 
     """
 
-    def __init__(self, n_ch: int, nf: int, ks: int, nc: int, nd: int):
+    def __init__(self, n_ch: int, nf: int, ks: int, nc: int, nd: int, equal: bool = False):
         """
         Parameters
         ----------
@@ -145,7 +184,13 @@ class CRNNMRI(Module):
         def conv2d():
             return nn.Conv2d(nf, nf, ks, padding=ks // 2).type(self.TensorType)
 
-        self.bcrnn = BCRNNlayer(n_ch, nf, ks)
+        if equal:
+            self.bcrnn = CRNNlayer(n_ch, nf, ks)
+            logging.info('using single CRNN layer')
+        else:
+            self.bcrnn = BCRNNlayer(n_ch, nf, ks)
+            logging.info('using BCRNN layer')
+
         self.conv_layers = {}
         for layer in range(1, self.nd - 1):
             self.conv_layers[f'conv{layer}_x'] = conv2d()
@@ -203,6 +248,7 @@ class CRNNMRI(Module):
             net[to_x0] = net[to_x0].view(n_seq, n_batch, self.nf, width, height)
             net[ti_x0] = self.bcrnn(x, net[to_x0])  # 0.055 s
             net[ti_x0] = net[ti_x0].view(-1, self.nf, width, height)
+
             # t_end = time.time()
             # logging.info(f'bcrnn: {t_end - t_start}')
 
