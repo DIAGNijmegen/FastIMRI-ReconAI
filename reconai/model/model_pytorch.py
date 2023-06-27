@@ -65,7 +65,7 @@ class BCRNNlayer(Module):
         self.input_size = input_size
         self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
 
-    def forward(self, input, input_iteration):
+    def forward(self, input, input_iteration):  #, hid_init):
         """
         Parameters
         ----------
@@ -81,23 +81,22 @@ class BCRNNlayer(Module):
         """
         nt, nb, nc, nx, ny = input.shape
         size_h = [nb, self.hidden_size, nx, ny]
-        hid_init = self.init_hidden(size_h)
+        hid_init = self.init_hidden(size_h)  # 0.0246 s
 
         output_f = []
         output_b = []
         # forward pass
-        hidden = hid_init
+        hidden = hid_init  #[0]
         for i in range(nt):
-            hidden = self.CRNN_model(input[i], input_iteration[i], hidden)
+            hidden = self.CRNN_model(input[i], input_iteration[i], hidden)  # 0.0002 s
             output_f.append(hidden)
 
         output_f = torch.cat(output_f)
 
         # backward pass
-        hidden = hid_init
+        hidden = hid_init  #[0]
         for i in range(nt):
             hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
-
             output_b.append(hidden)
         output_b = torch.cat(output_b[::-1])
 
@@ -120,7 +119,7 @@ class CRNNlayer(Module):
         self.input_size = input_size
         self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
 
-    def forward(self, input, input_iteration):
+    def forward(self, input, input_iteration):  #, hid_init):
         """
         Parameters
         ----------
@@ -138,10 +137,10 @@ class CRNNlayer(Module):
         size_h = [nb, self.hidden_size, nx, ny]
         hid_init = self.init_hidden(size_h)
 
-        hidden = hid_init
+        hidden = hid_init #[0]
         input = input.permute(1, 0, 2, 3, 4)[0]  # remove the batch dimension, since CRNN needs 4D input
         input_iteration = input_iteration.permute(1, 0, 2, 3, 4)[0]
-        output = self.CRNN_model(input, input_iteration, hidden)
+        output = self.CRNN_model(input, input_iteration, hidden)  # 0.00023 s
 
         if nb == 1:
             output = output.view(nt, 1, self.hidden_size, nx, ny)
@@ -191,18 +190,22 @@ class CRNNMRI(Module):
             self.bcrnn = BCRNNlayer(n_ch, nf, ks)
             logging.info('using BCRNN layer')
 
-        self.conv_layers = {}
-        for layer in range(1, self.nd - 1):
-            self.conv_layers[f'conv{layer}_x'] = conv2d()
-            self.conv_layers[f'conv{layer}_h'] = conv2d()
+        self.conv1_x = conv2d()
+        self.conv1_h = conv2d()
+        self.conv2_x = conv2d()
+        self.conv2_h = conv2d()
+        self.conv3_x = conv2d()
+        self.conv3_h = conv2d()
 
-        self.conv_last_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2).type(self.TensorType)
+        self.conv4_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2).type(self.TensorType)
         self.relu = nn.LeakyReLU(inplace=True)
 
         dcs = []
         for i in range(nc):
             dcs.append(DataConsistencyInKspace(norm='ortho'))
         self.dcs = dcs
+
+        self.hid_in_test = self.init_hidden([5, nf, 256, 256])
 
     def forward(self, x, k, m, test=False):
         """
@@ -230,6 +233,7 @@ class CRNNMRI(Module):
         size_h = [n_seq * n_batch, self.nf, width, height]
 
         hid_init = self.init_hidden(size_h)  # 0.0267 s
+        # hid_init = self.hid_in_test
 
         for j in range(self.nd - 1):
             net['t0_x%d' % j] = hid_init
@@ -246,31 +250,36 @@ class CRNNMRI(Module):
             # t_start = time.time()
             ti_x0, to_x0 = f't{i}_x0', f't{o}_x0'
             net[to_x0] = net[to_x0].view(n_seq, n_batch, self.nf, width, height)
-            net[ti_x0] = self.bcrnn(x, net[to_x0])  # 0.055 s
+            net[ti_x0] = self.bcrnn(x, net[to_x0])  # 0.055 s bcrnn, 0.016 single crnn
             net[ti_x0] = net[ti_x0].view(-1, self.nf, width, height)
 
             # t_end = time.time()
             # logging.info(f'bcrnn: {t_end - t_start}')
 
             # CRNN layers
-            for layer in range(1, self.nd - 1):  # 0.0006 s per loop
-                to_x_prev = f't{o}_x{layer}'
-                ti_x_prev = f't{i}_x{layer - 1}'
-                ti_x_cur = f't{i}_x{layer}'
-                ti_h_cur = f't{i}_h{layer}'
+            ti_x1, ti_h1, to_x1 = f't{i}_x1', f't{i}_h1', f't{o}_x1'
+            net[ti_x1] = self.conv1_x(net[ti_x0])
+            net[ti_h1] = self.conv1_h(net[to_x1])
+            net[ti_x1] = self.relu(net[ti_h1] + net[ti_x1])
 
-                net[ti_x_cur] = self.conv_layers[f'conv{layer}_x'](net[ti_x_prev])
-                net[ti_h_cur] = self.conv_layers[f'conv{layer}_h'](net[to_x_prev])
-                net[ti_x_cur] = self.relu(net[ti_h_cur] + net[ti_x_cur])
+            # print_progress_model(gnd, net[ti_x1], 'post_crnn1', True)
+            ti_x2, ti_h2, to_x2 = f't{i}_x2', f't{i}_h2', f't{o}_x2'
+            net[ti_x2] = self.conv2_x(net[ti_x1])
+            net[ti_h2] = self.conv2_h(net[to_x2])
+            net[ti_x2] = self.relu(net[ti_h2] + net[ti_x2])
 
-            # CNN layer
-            ti_x_2ndlast = f't{i}_x{self.nd - 2}'
-            ti_x_last = f't{i}_x{self.nd - 1}'
-            net[ti_x_last] = self.conv_last_x(net[ti_x_2ndlast])  # 0,0000681
+            # print_progress_model(gnd, net[ti_x2], 'post_crnn2', True)
+            ti_x3, ti_h3, to_x3 = f't{i}_x3', f't{i}_h3', f't{o}_x3'
+            net[ti_x3] = self.conv3_x(net[ti_x2])
+            net[ti_h3] = self.conv3_h(net[to_x3])
+            net[ti_x3] = self.relu(net[ti_h3] + net[ti_x3])
+
+            ti_x4 = f't{i}_x4'
+            net[ti_x4] = self.conv4_x(net[ti_x3])
 
             x = x.view(-1, n_ch, width, height)
             ti_out = f't{i}_out'
-            net[ti_out] = x + net[ti_x_last]
+            net[ti_out] = x + net[ti_x4]
 
             net[ti_out] = net[ti_out].view(-1, n_batch, n_ch, width, height)
             net[ti_out] = net[ti_out].permute(1, 2, 3, 4, 0)
