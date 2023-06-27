@@ -11,6 +11,7 @@ from reconai.data.sequencebuilder import SequenceBuilder
 from reconai.data.dataloader import DataLoader
 from reconai.data.batcher import Batcher
 from reconai.data.data import prepare_input_as_variable
+import numpy as np
 
 def evaluate(params: Parameters):
     path = params.out_dir
@@ -63,16 +64,20 @@ def evaluate(params: Parameters):
         dirname.mkdir(parents=True, exist_ok=True)
 
         logging.info('model loaded. Start eval')
+        times = []
+        for i in range(3):
+            with torch.no_grad():
+                img = next(test_batcher_equal.items())
+                im_und, k_und, mask, im_gnd = prepare_input_as_variable(img,
+                                                                        11,
+                                                                        params.config.train.undersampling,
+                                                                        equal_mask=True)
+                t_start = time.time()
+                _, _ = network(im_und, k_und, mask, test=False)
+                t_end = time.time()
+                times.append(t_end - t_start)
+                logging.info(f'actual inference speed; total time: {t_end - t_start}')
+        logging.info(f'average actual inference speed {np.average(times)}')
 
-        img = next(test_batcher_equal.items())
-        im_und, k_und, mask, im_gnd = prepare_input_as_variable(img,
-                                                                11,
-                                                                params.config.train.undersampling,
-                                                                equal_mask=True)
-        t_start = time.time()
-        pred, full_iterations = network(im_und, k_und, mask, im_gnd, test=True)
-        t_end = time.time()
-
-        logging.info(f'total time: {t_end - t_start}')
         # run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params, dirname, name, 0, 0, 0, '')
         # exit(1)

@@ -38,7 +38,7 @@ def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal,
     test_psnr_nenm /= (test_batches_nenm * params.batch_size)
 
     stats_psnr = '\n'.join([
-        f'\tbase PSNR equal images:\t\t\t{base_psnr_e}',
+        f'\n \tbase PSNR equal images:\t\t\t{base_psnr_e}',
         f'\tbase PSNR equal images n-masks:\t\t\t{base_psnr_enm}',
         f'\tbase PSNR non-equal images:\t\t\t{base_psnr_ne}',
         f'\tbase PSNR non-equal images n-masks:\t\t\t{base_psnr_nenm}',
@@ -103,7 +103,7 @@ def run_testset(network, batcher, params, seed_offset, equal_mask: bool):
             k_u = Variable(k_und.type(Module.TensorType))
             mask = Variable(mask.type(Module.TensorType))
 
-            pred, full_iterations = network(im_u, k_u, mask, im_gnd, test=True)
+            pred, full_iterations = network(im_u, k_u, mask, test=True)
 
             for im_i, und_i, pred_i in zip(im,
                                            from_tensor_format(im_und.numpy()),

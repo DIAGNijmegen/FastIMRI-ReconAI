@@ -146,13 +146,12 @@ class CRNNMRI(Module):
             return nn.Conv2d(nf, nf, ks, padding=ks // 2).type(self.TensorType)
 
         self.bcrnn = BCRNNlayer(n_ch, nf, ks)
-        self.conv1_x = conv2d()
-        self.conv1_h = conv2d()
-        self.conv2_x = conv2d()
-        self.conv2_h = conv2d()
-        self.conv3_x = conv2d()
-        self.conv3_h = conv2d()
-        self.conv4_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2).type(self.TensorType)
+        self.conv_layers = {}
+        for layer in range(1, self.nd - 1):
+            self.conv_layers[f'conv{layer}_x'] = conv2d()
+            self.conv_layers[f'conv{layer}_h'] = conv2d()
+
+        self.conv_last_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2).type(self.TensorType)
         self.relu = nn.LeakyReLU(inplace=True)
 
         dcs = []
@@ -160,7 +159,7 @@ class CRNNMRI(Module):
             dcs.append(DataConsistencyInKspace(norm='ortho'))
         self.dcs = dcs
 
-    def forward(self, x, k, m, gnd, test=False):
+    def forward(self, x, k, m, test=False):
         """
         Parameters
         ----------
@@ -185,53 +184,43 @@ class CRNNMRI(Module):
         n_batch, n_ch, width, height, n_seq = x.size()
         size_h = [n_seq * n_batch, self.nf, width, height]
 
-        # t_start = time.time()
-        hid_init = self.init_hidden(size_h)
-        # t_end = time.time()
-        # logging.info(f'hid_init: {t_end - t_start}')
+        hid_init = self.init_hidden(size_h)  # 0.0267 s
 
         for j in range(self.nd - 1):
             net['t0_x%d' % j] = hid_init
 
-        # t_start = time.time()
-        k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)
-        # t_end = time.time()
-        # logging.info(f'torch complex: {t_end - t_start}')
+        k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)  # 0.00013 s
 
         for i in range(1, self.nc + 1):
             o = i - 1
 
+            # t_start_loop = time.time()
             x = x.permute(4, 0, 1, 2, 3)
             x = x.contiguous()
 
             # t_start = time.time()
             ti_x0, to_x0 = f't{i}_x0', f't{o}_x0'
             net[to_x0] = net[to_x0].view(n_seq, n_batch, self.nf, width, height)
-            net[ti_x0] = self.bcrnn(x, net[to_x0])
+            net[ti_x0] = self.bcrnn(x, net[to_x0])  # 0.055 s
             net[ti_x0] = net[ti_x0].view(-1, self.nf, width, height)
             # t_end = time.time()
             # logging.info(f'bcrnn: {t_end - t_start}')
 
             # CRNN layers
-            for layer in range(1, self.nd - 1):
-                # t_start = time.time()
+            for layer in range(1, self.nd - 1):  # 0.0006 s per loop
                 to_x_prev = f't{o}_x{layer}'
                 ti_x_prev = f't{i}_x{layer - 1}'
                 ti_x_cur = f't{i}_x{layer}'
                 ti_h_cur = f't{i}_h{layer}'
 
-                net[ti_x_cur] = self.conv1_x(net[ti_x_prev])
-                net[ti_h_cur] = self.conv1_h(net[to_x_prev])
+                net[ti_x_cur] = self.conv_layers[f'conv{layer}_x'](net[ti_x_prev])
+                net[ti_h_cur] = self.conv_layers[f'conv{layer}_h'](net[to_x_prev])
                 net[ti_x_cur] = self.relu(net[ti_h_cur] + net[ti_x_cur])
-                # t_end = time.time()
-                # logging.info(f'CRNN layer: {t_end - t_start}')
 
-            # t_start = time.time()
+            # CNN layer
             ti_x_2ndlast = f't{i}_x{self.nd - 2}'
             ti_x_last = f't{i}_x{self.nd - 1}'
-            net[ti_x_last] = self.conv4_x(net[ti_x_2ndlast])
-            # t_end = time.time()
-            # logging.info(f'final conv: {t_end - t_start}')
+            net[ti_x_last] = self.conv_last_x(net[ti_x_2ndlast])  # 0,0000681
 
             x = x.view(-1, n_ch, width, height)
             ti_out = f't{i}_out'
@@ -239,23 +228,15 @@ class CRNNMRI(Module):
 
             net[ti_out] = net[ti_out].view(-1, n_batch, n_ch, width, height)
             net[ti_out] = net[ti_out].permute(1, 2, 3, 4, 0)
-            # t_start = time.time()
             net[ti_out].contiguous()
-            # t_end = time.time()
-            # logging.info(f'contiguous: {t_end - t_start}')
-            # t_start = time.time()
-            net[ti_out] = self.dcs[i - 1].perform(net[ti_out], k, m)
-            # t_end = time.time()
-            # logging.info(f'dataconsistency: {t_end - t_start}')
+            net[ti_out] = self.dcs[i - 1].perform(net[ti_out], k, m)  # 0.00155 s
 
-            # t_start = time.time()
             net[ti_out] = torch.clip(net[ti_out], 0, 1)
-            # t_end = time.time()
-            # logging.info(f'torch clip: {t_end - t_start}')
+
             x = net[ti_out]
-            # print_progress_model(gnd, x, 'post_dc', False)
-            logging.debug(f'it {i} @ {mem_info()}')
             out[ti_out] = x
+
+            # logging.debug(f'it {i} @ {mem_info()}')
             # clean up o=i-1
             if test:
                 to_delete = [key for key in net if f't{o}' in key]
@@ -264,6 +245,8 @@ class CRNNMRI(Module):
                     del net[elt]
 
                 torch.cuda.empty_cache()
+            # t_end_loop = time.time()
+            # logging.info(f'1 loop: {t_end_loop - t_start_loop}')
 
         return net[ti_out], out
 

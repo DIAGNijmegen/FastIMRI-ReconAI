@@ -32,6 +32,14 @@ class Parameters:
     def date_name(self) -> str:
         return f'{self.date}_{self.name}'
 
+    @property
+    def date_name_params(self) -> str:
+        return f'{self.date}_{self.name}_{self.config.train.undersampling}und_' \
+               f'seqlen{self.config.data.sequence_length}_' \
+               f'{self.config.model.filters}filters_' \
+               f'{self.config.model.iterations}iters_' \
+               f'{self.config.train.epochs}epochs'
+
     @staticmethod
     def model_names(*args: str) -> List[str]:
         names = []
