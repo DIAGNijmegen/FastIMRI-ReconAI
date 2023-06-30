@@ -65,7 +65,7 @@ class BCRNNlayer(Module):
         self.input_size = input_size
         self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
 
-    def forward(self, input, input_iteration):  #, hid_init):
+    def forward(self, input, input_iteration):
         """
         Parameters
         ----------
@@ -86,7 +86,7 @@ class BCRNNlayer(Module):
         output_f = []
         output_b = []
         # forward pass
-        hidden = hid_init  #[0]
+        hidden = hid_init
         for i in range(nt):
             hidden = self.CRNN_model(input[i], input_iteration[i], hidden)  # 0.0002 s
             output_f.append(hidden)
@@ -94,7 +94,7 @@ class BCRNNlayer(Module):
         output_f = torch.cat(output_f)
 
         # backward pass
-        hidden = hid_init  #[0]
+        hidden = hid_init
         for i in range(nt):
             hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
             output_b.append(hidden)
@@ -119,7 +119,7 @@ class CRNNlayer(Module):
         self.input_size = input_size
         self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
 
-    def forward(self, input, input_iteration):  #, hid_init):
+    def forward(self, input, input_iteration):
         """
         Parameters
         ----------
@@ -137,7 +137,7 @@ class CRNNlayer(Module):
         size_h = [nb, self.hidden_size, nx, ny]
         hid_init = self.init_hidden(size_h)
 
-        hidden = hid_init #[0]
+        hidden = hid_init
         input = input.permute(1, 0, 2, 3, 4)[0]  # remove the batch dimension, since CRNN needs 4D input
         input_iteration = input_iteration.permute(1, 0, 2, 3, 4)[0]
         output = self.CRNN_model(input, input_iteration, hidden)  # 0.00023 s
@@ -183,12 +183,12 @@ class CRNNMRI(Module):
         def conv2d():
             return nn.Conv2d(nf, nf, ks, padding=ks // 2).type(self.TensorType)
 
-        if equal:
-            self.bcrnn = CRNNlayer(n_ch, nf, ks)
-            logging.info('using single CRNN layer')
-        else:
-            self.bcrnn = BCRNNlayer(n_ch, nf, ks)
-            logging.info('using BCRNN layer')
+        # if equal:
+        #     self.bcrnn = CRNNlayer(n_ch, nf, ks)
+        #     logging.info('using single CRNN layer')
+        # else:
+        self.bcrnn = BCRNNlayer(n_ch, nf, ks)
+        logging.info('using BCRNN layer')
 
         self.conv1_x = conv2d()
         self.conv1_h = conv2d()
@@ -205,7 +205,7 @@ class CRNNMRI(Module):
             dcs.append(DataConsistencyInKspace(norm='ortho'))
         self.dcs = dcs
 
-        self.hid_in_test = self.init_hidden([5, nf, 256, 256])
+        # self.hid_in_test = self.init_hidden([5, nf, 256, 256])
 
     def forward(self, x, k, m, test=False):
         """

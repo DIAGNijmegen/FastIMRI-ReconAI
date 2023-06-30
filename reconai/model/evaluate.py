@@ -60,7 +60,7 @@ def evaluate(params: Parameters):
                                      equal_images='nonequal' not in checkpoint)
         logging.info('Finished creating test batchers')
 
-        network = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5, equal='nonequal' not in checkpoint).cuda()
+        network = CRNNMRI(n_ch=1, nf=128, ks=3, nc=10, nd=5, equal='nonequal' not in checkpoint).cuda()
         state_dict = torch.load(path / checkpoint)
         network.load_state_dict(state_dict)
         network.eval()
@@ -81,8 +81,8 @@ def evaluate(params: Parameters):
                 t_start = time.time()
                 result, _ = network(im_und, k_und, mask, test=False)
                 t_end = time.time()
-                plt.imshow(result[0,0,:,:,4].cpu().detach(), cmap="Greys_r", interpolation="nearest", aspect='auto')
-                plt.savefig(dirname / f'res{i}.png')
+                # plt.imshow(result[0,0,:,:,4].cpu().detach(), cmap="Greys_r", interpolation="nearest", aspect='auto')
+                # plt.savefig(dirname / f'res{i}.png')
                 if i > 2:
                     times.append(t_end - t_start)
                 logging.info(f'actual inference speed: {t_end - t_start}')

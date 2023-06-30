@@ -103,7 +103,7 @@ def run_testset(network, batcher, params, seed_offset, equal_mask: bool):
             k_u = Variable(k_und.type(Module.TensorType))
             mask = Variable(mask.type(Module.TensorType))
 
-            pred, full_iterations = network(im_u, k_u, mask, test=True)
+            pred, full_iterations = network(im_u, k_u, mask, test=False)
 
             for im_i, und_i, pred_i in zip(im,
                                            from_tensor_format(im_und.numpy()),

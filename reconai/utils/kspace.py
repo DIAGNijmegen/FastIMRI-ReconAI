@@ -334,10 +334,10 @@ def get_rand_exp_decay_mask(
     right_idx = math.ceil(width // 2 + width // 2 * central_region_perc)
     vec[left_idx: right_idx] = 1.0
 
-    rng = np.random.default_rng(seed)
+    # idxes_test = []
+    rng = np.random.default_rng(seed=seed)
     # Add a k-space line until sampling percentage is reached
     while sum(vec) / width < sampling:
-
         idx = rng.exponential(exp_scale, 1)
         idx = int(idx * left_idx)
 
@@ -346,9 +346,13 @@ def get_rand_exp_decay_mask(
         else:
             idx = right_idx + idx
         try:
+            # idx can become negative, so the try/catch will skip it otherwise
+            # idxes_test.append(idx)
             vec[idx] = 1.0
         except:
             continue
+
+    # logging.info(f'indexes {idxes_test}')
 
     mask = np.zeros((height, width))
     mask[:, :] = vec[np.newaxis, :]
