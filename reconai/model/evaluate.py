@@ -77,7 +77,7 @@ def evaluate(params: Parameters):
                 im_und, k_und, mask, im_gnd = prepare_input_as_variable(img,
                                                                         11,
                                                                         params.config.train.undersampling,
-                                                                        equal_mask=True)
+                                                                        equal_mask=False)
                 t_start = time.time()
                 result, _ = network(im_und, k_und, mask, test=False)
                 t_end = time.time()

@@ -336,6 +336,7 @@ def get_rand_exp_decay_mask(
 
     # idxes_test = []
     rng = np.random.default_rng(seed=seed)
+    np.random.seed(seed=seed)
     # Add a k-space line until sampling percentage is reached
     while sum(vec) / width < sampling:
         idx = rng.exponential(exp_scale, 1)
@@ -347,8 +348,8 @@ def get_rand_exp_decay_mask(
             idx = right_idx + idx
         try:
             # idx can become negative, so the try/catch will skip it otherwise
-            # idxes_test.append(idx)
             vec[idx] = 1.0
+            # idxes_test.append(idx)
         except:
             continue
 
