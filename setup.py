@@ -29,9 +29,11 @@ if __name__ == '__main__':
             'click',
             'matplotlib',
             'python-box~=6.0',
-            'torch',
+            'torch~=2.0.1',
             'scikit-learn',
             'opencv-python',
-            'pandas'
+            'pandas',
+            'strictyaml~=1.7.3',
+            'piqa~=1.3.0'
         ]
     )
