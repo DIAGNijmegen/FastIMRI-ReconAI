@@ -20,31 +20,31 @@ def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal,
 
     vis_e, iters_e, base_psnr_e, test_psnr_e, test_batches_e = \
         run_testset(network, test_batcher_equal, params, seed_offset, equal_mask=True)
-    vis_enm, iters_enm, base_psnr_enm, test_psnr_enm, test_batches_enm = \
-        run_testset(network, test_batcher_equal, params, seed_offset, equal_mask=False)
-    vis_ne, iters_ne, base_psnr_ne, test_psnr_ne, test_batches_ne = \
-        run_testset(network, test_batcher_non_equal, params, seed_offset, equal_mask=True)
+    # vis_enm, iters_enm, base_psnr_enm, test_psnr_enm, test_batches_enm = \
+    #     run_testset(network, test_batcher_equal, params, seed_offset, equal_mask=False)
+    # vis_ne, iters_ne, base_psnr_ne, test_psnr_ne, test_batches_ne = \
+    #     run_testset(network, test_batcher_non_equal, params, seed_offset, equal_mask=True)
     vis_nenm, iters_nenm, base_psnr_nenm, test_psnr_nenm, test_batches_nenm = \
         run_testset(network, test_batcher_non_equal, params, seed_offset, equal_mask=False)
     logging.info(f"completed {test_batches_e} test batches")
 
     base_psnr_e /= (test_batches_e * params.batch_size)
-    base_psnr_enm /= (test_batches_enm * params.batch_size)
-    base_psnr_ne /= (test_batches_ne * params.batch_size)
+    # base_psnr_enm /= (test_batches_enm * params.batch_size)
+    # base_psnr_ne /= (test_batches_ne * params.batch_size)
     base_psnr_nenm /= (test_batches_nenm * params.batch_size)
     test_psnr_e /= (test_batches_e * params.batch_size)
-    test_psnr_enm /= (test_batches_enm * params.batch_size)
-    test_psnr_ne /= (test_batches_ne * params.batch_size)
+    # test_psnr_enm /= (test_batches_enm * params.batch_size)
+    # test_psnr_ne /= (test_batches_ne * params.batch_size)
     test_psnr_nenm /= (test_batches_nenm * params.batch_size)
 
     stats_psnr = '\n'.join([
-        f'\tbase PSNR equal images:\t\t\t{base_psnr_e}',
-        f'\tbase PSNR equal images n-masks:\t\t\t{base_psnr_enm}',
-        f'\tbase PSNR non-equal images:\t\t\t{base_psnr_ne}',
+        f'\n \tbase PSNR equal images:\t\t\t{base_psnr_e}',
+        # f'\tbase PSNR equal images n-masks:\t\t\t{base_psnr_enm}',
+        # f'\tbase PSNR non-equal images:\t\t\t{base_psnr_ne}',
         f'\tbase PSNR non-equal images n-masks:\t\t\t{base_psnr_nenm}',
         f'\ttest PSNR equal images:\t\t\t{test_psnr_e}',
-        f'\ttest PSNR equal images n-masks:\t\t\t{test_psnr_enm}',
-        f'\ttest PSNR non-equal images:\t\t\t{test_psnr_ne}',
+        # f'\ttest PSNR equal images n-masks:\t\t\t{test_psnr_enm}',
+        # f'\ttest PSNR non-equal images:\t\t\t{test_psnr_ne}',
         f'\ttest PSNR non-equal images n-masks:\t\t\t{test_psnr_nenm}'
     ])
     logging.info(stats_psnr)
@@ -52,10 +52,10 @@ def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal,
     # Loop through vis and gather mean, min and max SSIM to print each
     ssim_e, min_e, mean_e, max_e = print_eoe(vis_e, epoch_dir, f'{name}_equal', validate_err,
                                              sequence_length, undersampling, iters_e, iterations)
-    ssim_enm, min_enm, mean_enm, max_enm = print_eoe(vis_enm, epoch_dir, f'{name}_equal_nmasks', validate_err,
-                                             sequence_length, undersampling, iters_enm, iterations)
-    ssim_ne, min_ne, mean_ne, max_ne = print_eoe(vis_ne, epoch_dir, f'{name}_nonequal', validate_err,
-                                                 sequence_length, undersampling, iters_ne, iterations)
+    # ssim_enm, min_enm, mean_enm, max_enm = print_eoe(vis_enm, epoch_dir, f'{name}_equal_nmasks', validate_err,
+    #                                          sequence_length, undersampling, iters_enm, iterations)
+    # ssim_ne, min_ne, mean_ne, max_ne = print_eoe(vis_ne, epoch_dir, f'{name}_nonequal', validate_err,
+    #                                              sequence_length, undersampling, iters_ne, iterations)
     ssim_nenm, min_nenm, mean_nenm, max_nenm = print_eoe(vis_nenm, epoch_dir, f'{name}_nonequal_nmasks',
                                                          validate_err, sequence_length, undersampling,
                                                          iters_nenm, iterations)
@@ -69,20 +69,20 @@ def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal,
         log.write('\n\n SSIM - Equal Images \n')
         log.write(f'MIN: {min_e} | MEAN: {mean_e} | MAX: {max_e} \n\n')
         log.write(np.array2string(ssim_e, separator=','))
-        log.write('\n\n SSIM - Equal Images N-Masks \n')
-        log.write(f'MIN: {min_enm} | MEAN: {mean_enm} | MAX: {max_enm} \n\n')
-        log.write(np.array2string(ssim_enm, separator=','))
-        log.write('\n\n SSIM - Non-Equal Images \n')
-        log.write(f'MIN: {min_ne} | MEAN: {mean_ne} | MAX: {max_ne} \n\n')
-        log.write(np.array2string(ssim_ne, separator=','))
+        # log.write('\n\n SSIM - Equal Images N-Masks \n')
+        # log.write(f'MIN: {min_enm} | MEAN: {mean_enm} | MAX: {max_enm} \n\n')
+        # log.write(np.array2string(ssim_enm, separator=','))
+        # log.write('\n\n SSIM - Non-Equal Images \n')
+        # log.write(f'MIN: {min_ne} | MEAN: {mean_ne} | MAX: {max_ne} \n\n')
+        # log.write(np.array2string(ssim_ne, separator=','))
         log.write('\n\n SSIM - Non-Equal Images N-Masks\n')
         log.write(f'MIN: {min_nenm} | MEAN: {mean_nenm} | MAX: {max_nenm} \n\n')
         log.write(np.array2string(ssim_nenm, separator=','))
         log.write('\n\n train_err validate_err min_e mean_e max_e ... enm ... ne ... nenm')
         log.write(f"\n\n\n{ft(train_err)}\t {ft(validate_err)}"
                   f"\t {ft(min_e)}\t {ft(mean_e)}\t{ft(max_e)}"
-                  f"\t {ft(min_enm)}\t {ft(mean_enm)}\t{ft(max_enm)}"
-                  f"\t {ft(min_ne)}\t {ft(mean_ne)}\t{ft(max_ne)}"
+                  # f"\t {ft(min_enm)}\t {ft(mean_enm)}\t{ft(max_enm)}"
+                  # f"\t {ft(min_ne)}\t {ft(mean_ne)}\t{ft(max_ne)}"
                   f"\t {ft(min_nenm)}\t {ft(mean_nenm)}\t{ft(max_nenm)}")
 
 
@@ -103,7 +103,7 @@ def run_testset(network, batcher, params, seed_offset, equal_mask: bool):
             k_u = Variable(k_und.type(Module.TensorType))
             mask = Variable(mask.type(Module.TensorType))
 
-            pred, full_iterations = network(im_u, k_u, mask, im_gnd, test=True)
+            pred, full_iterations = network(im_u, k_u, mask, test=False)
 
             for im_i, und_i, pred_i in zip(im,
                                            from_tensor_format(im_und.numpy()),

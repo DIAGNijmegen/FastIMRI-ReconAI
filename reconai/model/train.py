@@ -36,7 +36,8 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                       nf=params.config.model.filters,
                       ks=params.config.model.kernelsize,
                       nc=2 if params.debug else iterations,
-                      nd=params.config.model.layers
+                      nd=params.config.model.layers,
+                      equal=params.config.data.equal_images and params.config.train.equal_masks
                       ).cuda()
     logging.info(f'# trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}')
     optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
@@ -67,7 +68,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                                                                  params.config.train.equal_masks)
 
                 optimizer.zero_grad(set_to_none=True)
-                rec, full_iterations = network(im_u, k_u, mask, gnd)
+                rec, full_iterations = network(im_u, k_u, mask)
                 loss = calculate_loss(params, criterion, rec, gnd)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
@@ -91,7 +92,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                                                                      params.config.train.undersampling,
                                                                      params.config.train.equal_masks)
 
-                    pred, full_iterations = network(im_u, k_u, mask, gnd, test=True)
+                    pred, full_iterations = network(im_u, k_u, mask, test=True)
                     err = calculate_loss(params, criterion, pred, gnd)
                     validate_err += err.item()
                     validate_batches += 1
@@ -107,7 +108,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             validate_err /= validate_batches
 
             stats = '\n'.join([f'Epoch {epoch + 1}/{num_epochs}', f'\ttime: {t_end - t_start} s',
-                               f'\ttraining loss:\t\t{train_err}', f'\tvalidation loss:\t\t{validate_err}'])
+                               f'\ttraining loss:\t\t{train_err}x', f'\tvalidation loss:\t\t{validate_err}'])
             logging.info(stats)
 
             if epoch % 5 == 0 or epoch > num_epochs - 5:

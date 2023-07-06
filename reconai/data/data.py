@@ -47,10 +47,10 @@ def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal
     """
     b, s, y, x = image.shape
     mask = np.zeros(image.shape)
+
     for b_ in range(b):
         for s_ in range(s):
             mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3, seed if equal_mask else seed + s_)
-
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
     im_gnd_l = torch.from_numpy(to_tensor_format(image))
     im_und_l = torch.from_numpy(to_tensor_format(im_und))
