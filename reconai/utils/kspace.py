@@ -336,13 +336,12 @@ def get_rand_exp_decay_mask(
 
     # idxes_test = []
     rng = np.random.default_rng(seed=seed)
-    np.random.seed(seed=seed)
     # Add a k-space line until sampling percentage is reached
     while sum(vec) / width < sampling:
         idx = rng.exponential(exp_scale, 1)
         idx = int(idx * left_idx)
 
-        if np.random.random() > 0.5:
+        if rng.random() > 0.5:
             idx = left_idx - idx
         else:
             idx = right_idx + idx

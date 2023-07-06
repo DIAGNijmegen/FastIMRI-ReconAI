@@ -71,7 +71,7 @@ def evaluate(params: Parameters):
 
         logging.info('model loaded. Start eval')
         times = []
-        for i in range(1):
+        for i in range(20):
             with torch.no_grad():
                 img = next(test_batcher.items())
                 im_und, k_und, mask, im_gnd = prepare_input_as_variable(img,
