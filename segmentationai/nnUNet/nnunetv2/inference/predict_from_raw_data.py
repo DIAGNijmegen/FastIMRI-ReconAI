@@ -340,12 +340,12 @@ class nnUNetPredictor(object):
                     os.remove(delfile)
 
                 ofile = preprocessed['ofile']
-                if ofile is not None:
-                    print(f'\nPredicting {os.path.basename(ofile)}:')
-                else:
-                    print(f'\nPredicting image of shape {data.shape}:')
+                # if ofile is not None:
+                #     print(f'\nPredicting {os.path.basename(ofile)}:')
+                # else:
+                #     print(f'\nPredicting image of shape {data.shape}:')
 
-                print(f'perform_everything_on_gpu: {self.perform_everything_on_gpu}')
+                # print(f'perform_everything_on_gpu: {self.perform_everything_on_gpu}')
 
                 properties = preprocessed['data_properites']
 
@@ -376,7 +376,7 @@ class nnUNetPredictor(object):
                     #                                                             configuration_manager, label_manager,
                     #                                                             properties,
                     #                                                             save_probabilities)
-                    print('sending off prediction to background worker for resampling')
+                    # print('sending off prediction to background worker for resampling')
                     r.append(
                         export_pool.starmap_async(
                             convert_predicted_logits_to_segmentation_with_correct_shape, (
@@ -386,10 +386,10 @@ class nnUNetPredictor(object):
                                  save_probabilities),)
                         )
                     )
-                if ofile is not None:
-                    print(f'done with {os.path.basename(ofile)}')
-                else:
-                    print(f'\nDone with image of shape {data.shape}:')
+                # if ofile is not None:
+                #     print(f'done with {os.path.basename(ofile)}')
+                # else:
+                #     print(f'\nDone with image of shape {data.shape}:')
             ret = [i.get()[0] for i in r]
 
         if isinstance(data_iterator, MultiThreadedAugmenter):
@@ -493,7 +493,7 @@ class nnUNetPredictor(object):
                 if len(self.list_of_parameters) > 1:
                     prediction /= len(self.list_of_parameters)
 
-            print('Prediction done, transferring to CPU if needed')
+            # print('Prediction done, transferring to CPU if needed')
             prediction = prediction.to('cpu')
             self.perform_everything_on_gpu = original_perform_everything_on_gpu
         return prediction
