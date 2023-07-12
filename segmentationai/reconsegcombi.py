@@ -15,9 +15,28 @@ from reconai.data.data import DataLoader
 from reconai.data.sequencebuilder import SequenceBuilder
 from reconai.data.batcher import Batcher
 
+def get_imgs_and_filenames():
+    mhas = Path('../../../data_500/test/1')
+    filenames = []
+    images = []
+
+    for file in mhas.iterdir():
+        volumes = []
+        img = sitk.ReadImage(file)
+        imgarr = sitk.GetArrayFromImage(img).astype('float64')
+        z = imgarr.shape[0]
+        sequence = []
+        for i in range(5):
+            sequence.append(crop_or_pad(imgarr[z // 2, :, :] / 1961.06, (256, 256)))
+        volumes.append(sequence)
+        images.append(np.stack(volumes))
+        filenames.append(file)
+
+    return filenames, images
+
 
 def get_batcher(equal_images: bool = False):
-    dl = DataLoader(Path('../../../data/test'))
+    dl = DataLoader(Path('../../../data_500/test'))
     dl.load(split_regex='.*_(.*)_', filter_regex='sag')
     sequencer = SequenceBuilder(dl)
     kwargs = {'seed': 11, 'seq_len': 5, 'random_order': False}
@@ -25,12 +44,13 @@ def get_batcher(equal_images: bool = False):
     batcher = Batcher(dl)
     i = 0
     for s in test_sequences.items():
-        batcher.append_sequence(sequence=s,
-                                crop_expand_to=(256, 256),
-                                norm=1961.06,
-                                equal_images=equal_images,
-                                expand_to_n=equal_images)
-        if i > 20:
+        if i > 9:
+            batcher.append_sequence(sequence=s,
+                                    crop_expand_to=(256, 256),
+                                    norm=1961.06,
+                                    equal_images=equal_images,
+                                    expand_to_n=equal_images)
+        if i > 12:
             return batcher
         i += 1
     return batcher
@@ -68,7 +88,7 @@ def main():
     )
 
     model_folder = '../../../segmentation/nnUNet_results/' \
-                   'Dataset500_fastmri_intervention/nnUNetTrainer__nnUNetPlans__3d_fullres'
+                   'Dataset502_fastmri_intervention/nnUNetTrainer__nnUNetPlans__3d_fullres'
     predictor.initialize_from_trained_model_folder(model_folder, use_folds=(0,))
 
     input_filename = sys.argv[1]
@@ -104,21 +124,28 @@ def main():
             gnd = gnd[0].permute(0, 3, 1, 2).detach().cpu().numpy()
             rec = rec[0].permute(0, 3, 1, 2).detach().cpu().numpy()
 
+            img, props = SimpleITKIO().read_images(['6_4_0000.nii.gz'])
+            img2, props2 = SimpleITKIO().read_images(['5_3_0000.nii.gz'])
+
             ret = predictor.predict_from_list_of_npy_arrays([gnd, rec],
                                                             None,
-                                                            [{'spacing': [3.0, 1.093999981880188, 1.093999981880188]},
-                                                             {'spacing': [3.0, 1.093999981880188, 1.093999981880188]}],
-                                                            None, 1, save_probabilities=False,
-                                                            num_processes_segmentation_export=1)
+                                                            # [{'spacing': [3.0, 1.093999981880188, 1.093999981880188]},
+                                                            #  {'spacing': [3.0, 1.093999981880188, 1.093999981880188]}],
+                                                            [{'spacing': [1.0, 1.0, 1.0]},
+                                                             {'spacing': [1.0, 1.0, 1.0]}],
+                                                            None, 5, save_probabilities=False)
+                                                            # num_processes_segmentation_export=1)
             seg_gnd = np.array(ret[0][2])
-            seg_gnd[seg_gnd == 2] = 0
             seg_rec = np.array(ret[1][2])
-            seg_rec[seg_rec == 2] = 0
-            dice_image = dice_coef(seg_gnd, seg_rec)
-            dices.append(dice_image)
-            print(f'DICE: {dice_image}')
+            if np.sum(seg_gnd) > 0 and np.sum(seg_rec) > 0:
+                dice_image = dice_coef(seg_gnd, seg_rec)
+                dices.append(dice_image)
+                print(f'DICE: {dice_image}')
+            else:
+                print('no needle found')
 
-            if print_images and i % 5 == 0:
+            # if print_images and i % 5 == 0:
+            if dice_image < 0.1:
                 plt.imshow(np.abs(im_u[0, 0, :, :, 4].detach().cpu().numpy() / 1961.06),
                            cmap="Greys_r", interpolation="nearest", aspect='auto')
                 plt.savefig(f'{save_dir}/{i}_und.png')
