@@ -128,7 +128,7 @@ def run_testset(network, batcher, params, seed_offset, equal_mask: bool):
 def print_eoe(vis, epoch_dir, name, validate_err, sequence_length, undersampling, iters, iterations):
     result_ssim = []
     for i, (gnd, pred, und, seg) in enumerate(vis):
-        result_ssim.append(reconai.utils.metric.ssim(gnd[-1], pred[-1]))
+        result_ssim.append(reconai.utils.metric.ssim(gnd[2], pred[2])) # Test middle slice (needle best visible)
 
     arr = np.asarray(result_ssim)
 

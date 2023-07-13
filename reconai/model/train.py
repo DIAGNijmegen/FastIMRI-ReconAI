@@ -31,25 +31,25 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     # Configure directory info
     logging.info(f"saving model to {params.out_dir.absolute()}")
 
-    # Specify network
-    network = CRNNMRI(n_ch=params.config.model.channels,
-                      nf=params.config.model.filters,
-                      ks=params.config.model.kernelsize,
-                      nc=2 if params.debug else iterations,
-                      nd=params.config.model.layers,
-                      equal=params.config.data.equal_images and params.config.train.equal_masks
-                      ).cuda()
-    logging.info(f'# trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}')
-    optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
-    criterion = get_criterion(params)
-
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.config.train.lr_gamma)
-
     train_val_batcher, test_batcher_equal, test_batcher_non_equal = get_dataset_batchers(params)
 
     results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
     for fold in range(n_folds):
+        # Specify network here - each fold needs 'new' network
+        network = CRNNMRI(n_ch=params.config.model.channels,
+                          nf=params.config.model.filters,
+                          ks=params.config.model.kernelsize,
+                          nc=2 if params.debug else iterations,
+                          nd=params.config.model.layers,
+                          equal=params.config.data.equal_images and params.config.train.equal_masks
+                          ).cuda()
+        logging.info(f'# trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}')
+        optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
+        criterion = get_criterion(params)
+
+        scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.config.train.lr_gamma)
+
         fold_dir = params.out_dir / f'fold_{fold}'
 
         graph_train_err, graph_val_err = [], []
