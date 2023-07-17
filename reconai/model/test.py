@@ -59,6 +59,7 @@ def run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal,
     ssim_nenm, min_nenm, mean_nenm, max_nenm = print_eoe(vis_nenm, epoch_dir, f'{name}_nonequal_nmasks',
                                                          validate_err, sequence_length, undersampling,
                                                          iters_nenm, iterations)
+    return mean_nenm
 
     def ft(in_float: float) -> str:
         return format(in_float, '.4f').replace('.', ',')

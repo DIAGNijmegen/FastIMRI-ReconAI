@@ -121,8 +121,8 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 logging.info(f'fold {fold} model parameters saved at {epoch_dir.absolute()}\n')
 
                 if epoch % 5 == 0 or epoch > num_epochs - 5:
-                    run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params, epoch_dir,
-                                            name, train_err, validate_err, mask_i, stats)
+                    mean_nenm = run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params,
+                                                        epoch_dir, name, train_err, validate_err, mask_i, stats)
 
             graph_train_err.append(train_err)
             graph_val_err.append(validate_err)
@@ -133,7 +133,12 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             if params.config.train.stop_lr_decay == -1 or epoch < params.config.train.stop_lr_decay:
                 scheduler.step()
 
-        results.append((fold, graph_train_err, graph_val_err))
+        results.append((fold, graph_train_err[-1], graph_val_err[-1], mean_nenm))
+
+    logging.info(f'completed {n_folds}. Printing results per fold: \n'
+                 f'Fold - Training loss - Validation loss - Mean SSIM ne-nm')
+    logging.info(results)
+
     logging.info(f'completed training at {datetime.datetime.now()}')
 
     return results
