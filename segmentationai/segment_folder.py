@@ -14,6 +14,7 @@ from reconsegcombi import dice_coef
 
 
 def main():
+    # Predictor is slow. Use command
     predictor = nnUNetPredictor(
         tile_step_size=0.5,
         use_gaussian=True,
@@ -30,13 +31,12 @@ def main():
     predictor.initialize_from_trained_model_folder(model_folder, use_folds=(0,))
 
     input_filename = sys.argv[1]
-    print_images = sys.argv[2].lower() == 'true'
     filename = f'../../../segmentation/test/{input_filename}'
 
     und = int(filename.split('_')[2])
     filters = int(filename.split('_')[3])
     iters = int(filename.split('_')[4][0])
-    print(f'und {und}, filters {filters}, iters {iters}, print {print_images}')
+    print(f'und {und}, filters {filters}, iters {iters}')
 
     gnds = Path('../../../data_500/test/1')
     recons = Path(f'../../../segmentation/test/recon_ne_{und}_{filters}_{iters}')

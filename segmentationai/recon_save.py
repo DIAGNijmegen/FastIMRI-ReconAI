@@ -18,21 +18,18 @@ from reconsegcombi import get_imgs_and_filenames
 
 
 def main():
-    model_folder = '../../../segmentation/nnUNet_results/' \
-                   'Dataset502_fastmri_intervention/nnUNetTrainer__nnUNetPlans__3d_fullres'
-
     input_filename = sys.argv[1]
-    print_images = sys.argv[2].lower() == 'true'
     filename = f'../../../segmentation/test/{input_filename}'
 
     filenames, images = get_imgs_and_filenames()
 
+    mask = filename.split('_')[1]
     und = int(filename.split('_')[2])
     filters = int(filename.split('_')[3])
     iters = int(filename.split('_')[4][0])
-    print(f'und {und}, filters {filters}, iters {iters}, print {print_images}')
+    print(f'und {und}, filters {filters}, iters {iters}')
 
-    save_dir: Path = Path(f'../../../segmentation/test/recon_ne_{und}_{filters}_{iters}')
+    save_dir: Path = Path(f'../../../segmentation/test/recon_{mask}_{und}_{filters}_{iters}')
     save_dir.mkdir(parents=True, exist_ok=True)
 
     network = CRNNMRI(n_ch=1, nc=iters, nf=filters, ks=3, nd=5).cuda()

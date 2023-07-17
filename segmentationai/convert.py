@@ -13,6 +13,11 @@ def convert_dataset_files():
     mhas = basepath / 'images-mha'
     niigz = basepath / 'imagesTr'
 
+    # basepath = Path('../../../segmentation/test')
+    #
+    # mhas = basepath / 'gnd'
+    # niigz = basepath / 'gnd'
+
     # Convert file to .nii.gz and normalize
     for file in mhas.iterdir():
 
@@ -26,7 +31,7 @@ def convert_dataset_files():
         img = sitk.ReadImage(file)
         imgarr = sitk.GetArrayFromImage(img)
         imgarr = imgarr / 1961.06
-        print(np.mean(imgarr))
+        # print(np.mean(imgarr))
 
         img = sitk.GetImageFromArray(imgarr)
         sitk.WriteImage(img, niigz / filename)

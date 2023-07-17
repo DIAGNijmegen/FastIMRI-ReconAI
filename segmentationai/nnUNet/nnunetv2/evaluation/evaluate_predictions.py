@@ -74,11 +74,16 @@ def region_or_label_to_mask(segmentation: np.ndarray, region_or_label: Union[int
     return mask
 
 
-def compute_tp_fp_fn_tn(mask_ref: np.ndarray, mask_pred: np.ndarray, ignore_mask: np.ndarray = None):
+def compute_tp_fp_fn_tn(mask_ref: np.ndarray, mask_pred: np.ndarray,
+                        ignore_mask: np.ndarray = None, only_on_dim = None):
     if ignore_mask is None:
         use_mask = np.ones_like(mask_ref, dtype=bool)
     else:
         use_mask = ~ignore_mask
+    if only_on_dim is not None:
+        mask_ref = mask_ref[0][only_on_dim]
+        mask_pred = mask_pred[0][only_on_dim]
+
     tp = np.sum((mask_ref & mask_pred) & use_mask)
     fp = np.sum(((~mask_ref) & mask_pred) & use_mask)
     fn = np.sum((mask_ref & (~mask_pred)) & use_mask)
@@ -88,7 +93,7 @@ def compute_tp_fp_fn_tn(mask_ref: np.ndarray, mask_pred: np.ndarray, ignore_mask
 
 def compute_metrics(reference_file: str, prediction_file: str, image_reader_writer: BaseReaderWriter,
                     labels_or_regions: Union[List[int], List[Union[int, Tuple[int, ...]]]],
-                    ignore_label: int = None) -> dict:
+                    ignore_label: int = None, only_on_dim = None) -> dict:
     # load images
     seg_ref, seg_ref_dict = image_reader_writer.read_seg(reference_file)
     seg_pred, seg_pred_dict = image_reader_writer.read_seg(prediction_file)
@@ -104,7 +109,7 @@ def compute_metrics(reference_file: str, prediction_file: str, image_reader_writ
         results['metrics'][r] = {}
         mask_ref = region_or_label_to_mask(seg_ref, r)
         mask_pred = region_or_label_to_mask(seg_pred, r)
-        tp, fp, fn, tn = compute_tp_fp_fn_tn(mask_ref, mask_pred, ignore_mask)
+        tp, fp, fn, tn = compute_tp_fp_fn_tn(mask_ref, mask_pred, ignore_mask, only_on_dim)
         if tp + fp + fn == 0:
             results['metrics'][r]['Dice'] = np.nan
             results['metrics'][r]['IoU'] = np.nan
@@ -126,7 +131,8 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
                               regions_or_labels: Union[List[int], List[Union[int, Tuple[int, ...]]]],
                               ignore_label: int = None,
                               num_processes: int = default_num_processes,
-                              chill: bool = True) -> dict:
+                              chill: bool = True,
+                              only_on_dim: int = None) -> dict:
     """
     output_file must end with .json; can be None
     """
@@ -145,7 +151,7 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
         results = pool.starmap(
             compute_metrics,
             list(zip(files_ref, files_pred, [image_reader_writer] * len(files_pred), [regions_or_labels] * len(files_pred),
-                     [ignore_label] * len(files_pred)))
+                     [ignore_label] * len(files_pred), [only_on_dim] * len(files_pred)))
         )
 
     # mean metric per class
@@ -155,6 +161,8 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
         means[r] = {}
         for m in metric_list:
             means[r][m] = np.nanmean([i['metrics'][r][m] for i in results])
+            if m == 'Dice':
+                means[r]['Dice std'] = np.std([i['metrics'][r][m] for i in results])
 
     # foreground mean
     foreground_mean = {}
@@ -165,6 +173,7 @@ def compute_metrics_on_folder(folder_ref: str, folder_pred: str, output_file: st
                 continue
             values.append(means[k][m])
         foreground_mean[m] = np.mean(values)
+
 
     [recursive_fix_for_json_export(i) for i in results]
     recursive_fix_for_json_export(means)
