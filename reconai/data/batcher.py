@@ -84,6 +84,7 @@ class Batcher:
         else:
             if equal_images:
                 randint = random.randint(0, len(sequence_images) - 1)
+                # randint = 2  # PUT HERE FOR PRINTING PURPOSES
                 for i in range(0, len(sequence_images)):
                     sequence_images[i] = sequence_images[randint]
             self.add_processed_sequence(sequence_images)
