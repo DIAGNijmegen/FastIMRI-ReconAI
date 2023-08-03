@@ -27,6 +27,8 @@ def main():
     und = int(filename.split('_')[2])
     filters = int(filename.split('_')[3])
     iters = int(filename.split('_')[4][0])
+    if iters == 1:
+        iters = 10
     print(f'und {und}, filters {filters}, iters {iters}')
 
     save_dir: Path = Path(f'../../../segmentation/test/recon_{mask}_{und}_{filters}_{iters}')
