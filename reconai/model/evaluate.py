@@ -23,41 +23,42 @@ def evaluate(params: Parameters):
     path = params.out_dir
     model_checkpoints = [f for f in listdir(path) if isfile(join(path, f)) and f.split('.')[-1] == 'npz']
 
-    print_comparisons(params)
-    exit(1)
+    # print_comparisons(params)
+    # exit(1)
 
     # sig()
     # exit(1)
 
+    # params.config.data.sequence_length = int(checkpoint.split('.')[0].split('_')[2][3:])
+    # params.config.train.undersampling = int(checkpoint.split('.')[0].split('_')[1][0:2])
+
+    params.config.data.sequence_length = 5
+    params.config.train.undersampling = 25
+
+    logging.info('Started creating test batchers')
+    filter_regex = 'a'
+    dl_test = DataLoader(params.in_dir / 'test')
+    dl_test.load(split_regex=params.config.data.split_regex, filter_regex=filter_regex)
+    sequencer_test = SequenceBuilder(dl_test)
+
+    kwargs = {'seed': params.config.data.sequence_seed,
+              'seq_len': params.config.data.sequence_length}
+    test_sequences = sequencer_test.generate_singleslice_sequences(**kwargs)
+    logging.info(len(test_sequences))
+
+    test_batcher = Batcher(dl_test)
+
+    for s in test_sequences.items():
+        # seq = next(test_sequences.items())
+        test_batcher.append_sequence(sequence=s,
+                                     crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
+                                     norm=params.config.data.normalize,
+                                     equal_images=False)
+                                     # equal_images='nonequal' not in checkpoint)
+    logging.info('Finished creating test batchers')
+
     for checkpoint in model_checkpoints:
         logging.info(f'starting {checkpoint}')
-        params.config.data.sequence_length = int(checkpoint.split('.')[0].split('_')[2][3:])
-        params.config.train.undersampling = int(checkpoint.split('.')[0].split('_')[1][0:2])
-
-        logging.info('Started creating test batchers')
-        filter_regex = 'sag'
-        dl_test = DataLoader(params.in_dir / 'test')
-        dl_test.load(split_regex=params.config.data.split_regex, filter_regex=filter_regex)
-        sequencer_test = SequenceBuilder(dl_test)
-
-        kwargs = {'seed': params.config.data.sequence_seed,
-                  'seq_len': params.config.data.sequence_length,
-                  # 'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
-                  # 'max_slices_per_mha': params.config.data.max_slices_per_mha,
-                  # 'q': params.config.data.q
-                  }
-        test_sequences = sequencer_test.generate_singleslice_sequences(**kwargs)
-        logging.info(len(test_sequences))
-
-        test_batcher = Batcher(dl_test)
-
-        for s in test_sequences.items():
-            # seq = next(test_sequences.items())
-            test_batcher.append_sequence(sequence=s,
-                                         crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                         norm=params.config.data.normalize,
-                                         equal_images='nonequal' not in checkpoint)
-        logging.info('Finished creating test batchers')
 
         network = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5, equal='nonequal' not in checkpoint).cuda()
         state_dict = torch.load(path / checkpoint)
@@ -80,7 +81,7 @@ def evaluate(params: Parameters):
         logging.info(f'{result_ssim[idx_min]}, {result_ssim[idx_mean]}, {result_ssim[idx_max]}')
         logging.info(repr(arr))
 
-        exit(1)
+        continue
 
         name = checkpoint.split('.')[0]
         dirname = path / name
@@ -110,11 +111,17 @@ def evaluate(params: Parameters):
 
 def print_comparisons(params: Parameters):
     # path =
-    equal_model = params.out_dir / 'equal-exp1_25und_seq5.npz'
-    nonequal_model = params.out_dir / 'nonequalnmask-exp1_25und_seq5.npz'
+    # equal_model = params.out_dir / 'equal-exp1_25und_seq5.npz'
+    # nonequal_model = params.out_dir / 'nonequalnmask-exp1_25und_seq5.npz'
+
+    equal_model = params.out_dir / 'equal-exp3_16und_seq5.npz'
+    nonequal_model = params.out_dir / 'nonequalnmask-exp3_16und_seq5.npz'
+
+    # equal_model = params.out_dir / 'equal-exp3_32und_seq5.npz'
+    # nonequal_model = params.out_dir / 'nonequalnmask-exp3_32und_seq5.npz'
 
     params.config.data.sequence_length = 5
-    params.config.train.undersampling = 25
+    params.config.train.undersampling = 16
 
     dl_test = DataLoader(params.in_dir / 'test')
     dl_test.load(split_regex=params.config.data.split_regex, filter_regex='sag')
@@ -133,13 +140,13 @@ def print_comparisons(params: Parameters):
     logging.info('Finished creating test batchers')
 
     network_equal = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5, equal=True).cuda()
-    state_dict = torch.load(equal_model)
-    network_equal.load_state_dict(state_dict)
+    state_dict_e = torch.load(equal_model)
+    network_equal.load_state_dict(state_dict_e)
     network_equal.eval()
 
     network_nonequal = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5, equal=False).cuda()
-    state_dict = torch.load(nonequal_model)
-    network_nonequal.load_state_dict(state_dict)
+    state_dict_ne = torch.load(nonequal_model)
+    network_nonequal.load_state_dict(state_dict_ne)
     network_nonequal.eval()
 
     with torch.no_grad():
@@ -156,20 +163,20 @@ def print_comparisons(params: Parameters):
         pred_e, _ = network_equal(im_und_e, k_und_e, mask_e, test=False)
         pred_ne, _ = network_nonequal(im_und_ne, k_und_ne, mask_ne, test=False)
 
-        fig = plt.figure(figsize=(20, 8))
+        fig = plt.figure(figsize=(16, 8))
         fig.suptitle(f'Exp 1')
         axes = [plt.subplot(2, 3, j + 1) for j in range(6)]
 
         axes, ax = set_ax(axes, 0, "ground truth", from_tensor_format(im_gnd_e.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, f"{25}x undersampled", from_tensor_format(im_und_e.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, f"{params.config.train.undersampling}x undersampled", from_tensor_format(im_und_e.cpu().numpy())[0][2])
         axes, ax = set_ax(axes, ax, f"reconstructed non-temporal", from_tensor_format(pred_e.cpu().numpy())[0][2])
 
         axes, ax = set_ax(axes, ax, "ground truth", from_tensor_format(im_gnd_ne.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, f"{25}x undersampled", from_tensor_format(im_und_ne.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, f"reconstructed non-temporal", from_tensor_format(pred_ne.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, f"{params.config.train.undersampling}x undersampled", from_tensor_format(im_und_ne.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, f"reconstructed temporal", from_tensor_format(pred_ne.cpu().numpy())[0][2])
 
         fig.tight_layout()
-        plt.savefig(params.out_dir / f'exp1.png', pad_inches=0)
+        plt.savefig(params.out_dir / f'exp1-{params.config.train.undersampling}.png', pad_inches=0)
         plt.close(fig)
 
 

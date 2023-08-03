@@ -188,7 +188,7 @@ class CRNNMRI(Module):
         #     logging.info('using single CRNN layer')
         # else:
         self.bcrnn = BCRNNlayer(n_ch, nf, ks)
-        logging.info('using BCRNN layer')
+        # logging.info('using BCRNN layer')
 
         self.conv1_x = conv2d()
         self.conv1_h = conv2d()
