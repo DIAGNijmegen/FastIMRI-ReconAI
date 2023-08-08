@@ -15,8 +15,7 @@ from reconai.data.data import DataLoader
 from reconai.data.sequencebuilder import SequenceBuilder
 from reconai.data.batcher import Batcher
 
-def get_imgs_and_filenames():
-    mhas = Path('../../../data_500/test/1')
+def get_imgs_and_filenames(mhas: Path):
     filenames = []
     images = []
 
@@ -24,10 +23,11 @@ def get_imgs_and_filenames():
         volumes = []
         img = sitk.ReadImage(file)
         imgarr = sitk.GetArrayFromImage(img).astype('float64')
-        z = imgarr.shape[0]
+        # z = imgarr.shape[0]
         sequence = []
         for i in range(5):
-            sequence.append(crop_or_pad(imgarr[z // 2, :, :] / 1961.06, (256, 256)))
+            # sequence.append(crop_or_pad(imgarr[z // 2, :, :] / 1961.06, (256, 256)))
+            sequence.append(crop_or_pad(imgarr[i, :, :] / 1961.06, (256, 256)))
         volumes.append(sequence)
         images.append(np.stack(volumes))
         filenames.append(file)

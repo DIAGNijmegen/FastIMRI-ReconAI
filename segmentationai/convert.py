@@ -13,6 +13,17 @@ def convert_dataset_files():
     mhas = basepath / 'images-mha'
     niigz = basepath / 'imagesTr'
 
+    filenames = ['recon_ne_8_128_10_seg', 'recon_ne_16_128_10_seg', 'recon_ne_32_128_10_seg',
+                 'recon_equal_8_128_10_seg', 'recon_equal_16_128_10_seg', 'recon_equal_32_128_10_seg']
+
+    for filename in filenames:
+        path = Path(f'../../../segmentation/test/{filename}')
+        for file in path.iterdir():
+            filename = str(file).split('.')
+            filename[-3] = filename[-3][:-5]
+            os.rename(file, Path('.'.join(filename)))
+
+
     # basepath = Path('../../../segmentation/test')
     #
     # mhas = basepath / 'gnd'
