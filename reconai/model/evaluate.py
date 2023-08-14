@@ -18,13 +18,19 @@ from reconai.model.test import run_testset
 from reconai.utils.metric import ssim
 from scipy.stats import ttest_ind
 from reconai.model.dnn_io import from_tensor_format
+from pathlib import Path
+import SimpleITK as sitk
+from reconai.utils.metric import ssim
 
 def evaluate(params: Parameters):
     path = params.out_dir
     model_checkpoints = [f for f in listdir(path) if isfile(join(path, f)) and f.split('.')[-1] == 'npz']
 
+    undersampled_ssim(params)
+    # print_compare_segmentations(params)
+    # print_5slices(params)
     # print_comparisons(params)
-    # exit(1)
+    exit(1)
 
     # sig()
     # exit(1)
@@ -110,80 +116,193 @@ def evaluate(params: Parameters):
         # exit(1)
 
 def print_comparisons(params: Parameters):
-    # path =
     # equal_model = params.out_dir / 'equal-exp1_25und_seq5.npz'
     # nonequal_model = params.out_dir / 'nonequalnmask-exp1_25und_seq5.npz'
 
-    equal_model = params.out_dir / 'equal-exp3_16und_seq5.npz'
-    nonequal_model = params.out_dir / 'nonequalnmask-exp3_16und_seq5.npz'
+    # equal_model = params.out_dir / 'equal-exp3_16und_seq5.npz'
+    # nonequal_model = params.out_dir / 'nonequalnmask-exp3_16und_seq5.npz'
 
     # equal_model = params.out_dir / 'equal-exp3_32und_seq5.npz'
     # nonequal_model = params.out_dir / 'nonequalnmask-exp3_32und_seq5.npz'
 
-    params.config.data.sequence_length = 5
-    params.config.train.undersampling = 16
+    equal_images = False
+    experiment = 2
+
+    if equal_images:
+        und8_model = params.out_dir / f'equal-exp{experiment}_8und_seq5.npz'
+        und16_model = params.out_dir / f'equal-exp{experiment}_16und_seq5.npz'
+        und25_model = params.out_dir / f'equal-exp{experiment}_25und_seq5.npz'
+        und32_model = params.out_dir / f'equal-exp{experiment}_32und_seq5.npz'
+    else:
+        und8_model = params.out_dir / f'nonequalnmask-exp{experiment}_8und_seq5.npz'
+        und16_model = params.out_dir / f'nonequalnmask-exp{experiment}_16und_seq5.npz'
+        und25_model = params.out_dir / f'nonequalnmask-exp{experiment}_25und_seq5.npz'
+        und32_model = params.out_dir / f'nonequalnmask-exp{experiment}_32und_seq5.npz'
 
     dl_test = DataLoader(params.in_dir / 'test')
     dl_test.load(split_regex=params.config.data.split_regex, filter_regex='sag')
     sequencer_test = SequenceBuilder(dl_test)
 
-    kwargs = {'seed': params.config.data.sequence_seed, 'seq_len': params.config.data.sequence_length }
+    kwargs = {'seed': params.config.data.sequence_seed, 'seq_len': 5}
     test_sequences = sequencer_test.generate_singleslice_sequences(**kwargs)
 
-    test_batcher_equal = Batcher(dl_test)
-    test_batcher_nonequal = Batcher(dl_test)
+    test_batcher = Batcher(dl_test)
     sequence = next(test_sequences.items())
-    test_batcher_equal.append_sequence(sequence=sequence,norm=params.config.data.normalize, equal_images=True,
-                                    crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x))
-    test_batcher_nonequal.append_sequence(sequence=sequence, norm=params.config.data.normalize, equal_images=False,
-                                       crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x))
+    test_batcher.append_sequence(sequence=sequence, norm=params.config.data.normalize, equal_images=equal_images,
+                                          crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x))
     logging.info('Finished creating test batchers')
 
-    network_equal = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5, equal=True).cuda()
-    state_dict_e = torch.load(equal_model)
-    network_equal.load_state_dict(state_dict_e)
-    network_equal.eval()
+    network_und8 = CRNNMRI(n_ch=1, nf=64 if experiment == 1 else 128, ks=3, nc=5 if experiment == 1 else 10,
+                           nd=5, equal=equal_images).cuda()
+    state_dict_e = torch.load(und8_model)
+    network_und8.load_state_dict(state_dict_e)
+    network_und8.eval()
 
-    network_nonequal = CRNNMRI(n_ch=1, nf=64, ks=3, nc=5, nd=5, equal=False).cuda()
-    state_dict_ne = torch.load(nonequal_model)
-    network_nonequal.load_state_dict(state_dict_ne)
-    network_nonequal.eval()
+    network_und16 = CRNNMRI(n_ch=1, nf=64 if experiment == 1 else 128, ks=3, nc=5 if experiment == 1 else 10,
+                            nd=5, equal=equal_images).cuda()
+    state_dict_ne = torch.load(und16_model)
+    network_und16.load_state_dict(state_dict_ne)
+    network_und16.eval()
+
+    network_und25 = CRNNMRI(n_ch=1, nf=64 if experiment == 1 else 128, ks=3, nc=5 if experiment == 1 else 10,
+                            nd=5, equal=equal_images).cuda()
+    state_dict_e = torch.load(und25_model)
+    network_und25.load_state_dict(state_dict_e)
+    network_und25.eval()
+
+    network_und32 = CRNNMRI(n_ch=1, nf=64 if experiment == 1 else 128, ks=3, nc=5 if experiment == 1 else 10,
+                            nd=5, equal=equal_images).cuda()
+    state_dict_ne = torch.load(und32_model)
+    network_und32.load_state_dict(state_dict_ne)
+    network_und32.eval()
 
     with torch.no_grad():
-        img_eq = next(test_batcher_equal.items())
-        im_und_e, k_und_e, mask_e, im_gnd_e = prepare_input_as_variable(img_eq,
-                                                                        11,
-                                                                        params.config.train.undersampling,
-                                                                        equal_mask=True)
-        img_neq = next(test_batcher_nonequal.items())
-        im_und_ne, k_und_ne, mask_ne, im_gnd_ne = prepare_input_as_variable(img_neq,
-                                                                            11,
-                                                                            params.config.train.undersampling,
-                                                                            equal_mask=False)
-        pred_e, _ = network_equal(im_und_e, k_und_e, mask_e, test=False)
-        pred_ne, _ = network_nonequal(im_und_ne, k_und_ne, mask_ne, test=False)
+        img_neq = next(test_batcher.items())
+        im_und_ne_und8, k_und_ne_und8, mask_ne_und8, im_gnd_ne_und8 = prepare_input_as_variable(img_neq, 11, 8, equal_images)
+        im_und_ne_und16, k_und_ne_und16, mask_ne_und16, im_gnd_ne_und16 = prepare_input_as_variable(img_neq, 11, 16, equal_images)
+        im_und_ne_und25, k_und_ne_und25, mask_ne_und25, im_gnd_ne_und25 = prepare_input_as_variable(img_neq, 11, 25, equal_images)
+        im_und_ne_und32, k_und_ne_und32, mask_ne_und32, im_gnd_ne_und32 = prepare_input_as_variable(img_neq, 11, 32, equal_images)
+        pred_ne_und8, _ = network_und8(im_und_ne_und8, k_und_ne_und8, mask_ne_und8, test=False)
+        pred_ne_und16, _ = network_und16(im_und_ne_und16, k_und_ne_und16, mask_ne_und16, test=False)
+        pred_ne_und25, _ = network_und25(im_und_ne_und25, k_und_ne_und25, mask_ne_und25, test=False)
+        pred_ne_und32, _ = network_und32(im_und_ne_und32, k_und_ne_und32, mask_ne_und32, test=False)
 
         fig = plt.figure(figsize=(16, 8))
-        fig.suptitle(f'Exp 1')
-        axes = [plt.subplot(2, 3, j + 1) for j in range(6)]
+        fig.suptitle(f'Exp {experiment}')
+        axes = [plt.subplot(2, 5, j + 1) for j in range(10)]
 
-        axes, ax = set_ax(axes, 0, "ground truth", from_tensor_format(im_gnd_e.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, f"{params.config.train.undersampling}x undersampled", from_tensor_format(im_und_e.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, f"reconstructed non-temporal", from_tensor_format(pred_e.cpu().numpy())[0][2])
+        axes[0].set_axis_off()
+        axes, ax = set_ax(axes, 1, "8x undersampled", from_tensor_format(im_und_ne_und8.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "16x undersampled", from_tensor_format(im_und_ne_und16.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "25x undersampled", from_tensor_format(im_und_ne_und25.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "32x undersampled", from_tensor_format(im_und_ne_und32.cpu().numpy())[0][2])
 
-        axes, ax = set_ax(axes, ax, "ground truth", from_tensor_format(im_gnd_ne.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, f"{params.config.train.undersampling}x undersampled", from_tensor_format(im_und_ne.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, f"reconstructed temporal", from_tensor_format(pred_ne.cpu().numpy())[0][2])
+        recon_string = "Reconstructed Non-Temporal" if equal_images else "Reconstructed Temporal"
+
+        axes, ax = set_ax(axes, ax, "ground truth", from_tensor_format(im_gnd_ne_und8.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, recon_string, from_tensor_format(pred_ne_und8.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, recon_string, from_tensor_format(pred_ne_und16.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, recon_string, from_tensor_format(pred_ne_und25.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, recon_string, from_tensor_format(pred_ne_und32.cpu().numpy())[0][2])
 
         fig.tight_layout()
-        plt.savefig(params.out_dir / f'exp1-{params.config.train.undersampling}.png', pad_inches=0)
+        plt.savefig(params.out_dir / f'exp{experiment}-{recon_string}.png', pad_inches=0)
         plt.close(fig)
 
+def print_5slices(params: Parameters):
+    dl_test = DataLoader(params.in_dir / 'test')
+    dl_test.load(split_regex=params.config.data.split_regex, filter_regex='sag')
+    sequencer_test = SequenceBuilder(dl_test)
 
+    kwargs = {'seed': params.config.data.sequence_seed, 'seq_len': 5}
+    test_sequences = sequencer_test.generate_singleslice_sequences(**kwargs)
 
+    test_batcher = Batcher(dl_test)
+    sequence = next(test_sequences.items())
+    test_batcher.append_sequence(sequence=sequence, norm=params.config.data.normalize, equal_images=True,
+                                 crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x))
+    img_neq = next(test_batcher.items())
 
+    fig = plt.figure(figsize=(8, 2))
+    axes = [plt.subplot(1, 5, j + 1) for j in range(5)]
+    axes, ax = set_ax(axes, 0, "", img_neq[0][0])
+    axes, ax = set_ax(axes, ax, "", img_neq[0][1])
+    axes, ax = set_ax(axes, ax, "", img_neq[0][2])
+    axes, ax = set_ax(axes, ax, "", img_neq[0][3])
+    axes, ax = set_ax(axes, ax, "", img_neq[0][4])
 
+    fig.tight_layout()
+    plt.savefig(params.out_dir / f'slices.png', pad_inches=0)
+    plt.close(fig)
 
+def print_compare_segmentations(params: Parameters):
+    path = '../../segmentation/test'
+    targetfilename = '66603_1.2.276.0.7230010.3.1.3.49661946176608275539401010711952184180_sagittal_0'
+    filters = 128
+    iters = 10
+    network = 'equal'
+
+    gnd_mha = Path(f'{path}/gnd_mhas/{targetfilename}.mha')
+    gnd_seg = Path(f'{path}/gnd_seg/{targetfilename}.nii.gz')
+
+    und8_rec = Path(f'{path}/recon_{network}_8_{filters}_{iters}/{targetfilename}_0000.nii.gz')
+    und8_seg = Path(f'{path}/recon_{network}_8_{filters}_{iters}_seg/{targetfilename}.nii.gz')
+    und16_rec = Path(f'{path}/recon_{network}_16_{filters}_{iters}/{targetfilename}_0000.nii.gz')
+    und16_seg = Path(f'{path}/recon_{network}_16_{filters}_{iters}_seg/{targetfilename}.nii.gz')
+    und25_rec = Path(f'{path}/recon_{network}_25_{filters}_{iters}/{targetfilename}_0000.nii.gz')
+    und25_seg = Path(f'{path}/recon_{network}_25_{filters}_{iters}_seg/{targetfilename}.nii.gz')
+    und32_rec = Path(f'{path}/recon_{network}_32_{filters}_{iters}/{targetfilename}_0000.nii.gz')
+    und32_seg = Path(f'{path}/recon_{network}_32_{filters}_{iters}_seg/{targetfilename}.nii.gz')
+
+    fig = plt.figure(figsize=(16, 8))
+    fig.suptitle(f'Segmentations and reconstructions {"Non-" if network == "equal" else ""}Temporal images '
+                 f'{"small" if filters == 64 else "large"} network')
+    axes = [plt.subplot(2, 5, j + 1) for j in range(5)]
+
+    axes, ax = set_ax(axes, 0, "Ground truth", sitk.GetArrayFromImage(sitk.ReadImage(gnd_mha))[2])
+    axes, ax = set_ax(axes, ax, "8x undersampled reconstruction", sitk.GetArrayFromImage(sitk.ReadImage(und8_rec))[2])
+    axes, ax = set_ax(axes, ax, "16x undersampled reconstruction", sitk.GetArrayFromImage(sitk.ReadImage(und16_rec))[2])
+    axes, ax = set_ax(axes, ax, "25x undersampled reconstruction", sitk.GetArrayFromImage(sitk.ReadImage(und25_rec))[2])
+    axes, ax = set_ax(axes, ax, "32x undersampled reconstruction", sitk.GetArrayFromImage(sitk.ReadImage(und32_rec))[2])
+
+    # axes, ax = set_ax(axes, ax, "Ground truth segmentation", sitk.GetArrayFromImage(sitk.ReadImage(gnd_seg))[2] / 1961.06)
+    # axes, ax = set_ax(axes, ax, "8x undersampled segmentation", sitk.GetArrayFromImage(sitk.ReadImage(und8_seg))[2] / 1961.06)
+    # axes, ax = set_ax(axes, ax, "16x undersampled segmentation", sitk.GetArrayFromImage(sitk.ReadImage(und16_seg))[2] / 1961.06)
+    # axes, ax = set_ax(axes, ax, "25x undersampled segmentation", sitk.GetArrayFromImage(sitk.ReadImage(und25_seg))[2] / 1961.06)
+    # axes, ax = set_ax(axes, ax, "32x undersampled segmentation", sitk.GetArrayFromImage(sitk.ReadImage(und32_seg))[2] / 1961.06)
+
+    fig.tight_layout()
+    plt.savefig(params.out_dir / f'segmentations_{network}_{filters}_{iters}_norm.png', pad_inches=0)
+    plt.close(fig)
+
+def undersampled_ssim(params: Parameters):
+    dl_test = DataLoader(params.in_dir / 'test')
+    dl_test.load(split_regex=params.config.data.split_regex, filter_regex='sag')
+    sequencer_test = SequenceBuilder(dl_test)
+
+    kwargs = {'seed': params.config.data.sequence_seed, 'seq_len': 5}
+    test_sequences = sequencer_test.generate_singleslice_sequences(**kwargs)
+
+    test_batcher = Batcher(dl_test)
+    sequence = next(test_sequences.items())
+    test_batcher.append_sequence(sequence=sequence, norm=params.config.data.normalize, equal_images=True,
+                                 crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x))
+    img_neq = next(test_batcher.items())
+    im_und_ne_und4, k_und_ne_und4, mask_ne_und4, im_gnd_ne_und4 = prepare_input_as_variable(img_neq, 11, 4,False)
+    im_und_ne_und8, k_und_ne_und8, mask_ne_und8, im_gnd_ne_und8 = prepare_input_as_variable(img_neq, 11, 8, False)
+    im_und_ne_und16, k_und_ne_und16, mask_ne_und16, im_gnd_ne_und16 = prepare_input_as_variable(img_neq, 11, 16,False)
+    im_und_ne_und25, k_und_ne_und25, mask_ne_und25, im_gnd_ne_und25 = prepare_input_as_variable(img_neq, 11, 25,False)
+    im_und_ne_und32, k_und_ne_und32, mask_ne_und32, im_gnd_ne_und32 = prepare_input_as_variable(img_neq, 11, 32,False)
+    print(
+        f'ssim 4x und {ssim(from_tensor_format(im_und_ne_und4.cpu().numpy())[0][2], from_tensor_format(im_gnd_ne_und4.cpu().numpy())[0][2])}')
+    print(
+        f'ssim 8x und {ssim(from_tensor_format(im_und_ne_und8.cpu().numpy())[0][2], from_tensor_format(im_gnd_ne_und8.cpu().numpy())[0][2])}')
+    print(
+        f'ssim 16x und {ssim(from_tensor_format(im_und_ne_und16.cpu().numpy())[0][2], from_tensor_format(im_gnd_ne_und16.cpu().numpy())[0][2])}')
+    print(
+        f'ssim 25x und {ssim(from_tensor_format(im_und_ne_und25.cpu().numpy())[0][2], from_tensor_format(im_gnd_ne_und25.cpu().numpy())[0][2])}')
+    print(
+        f'ssim 32x und {ssim(from_tensor_format(im_und_ne_und32.cpu().numpy())[0][2], from_tensor_format(im_gnd_ne_und32.cpu().numpy())[0][2])}')
 
 
 

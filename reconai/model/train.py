@@ -42,7 +42,8 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                           ks=params.config.model.kernelsize,
                           nc=2 if params.debug else iterations,
                           nd=params.config.model.layers,
-                          equal=params.config.data.equal_images and params.config.train.equal_masks
+                          single_crnn=True
+                          # equal = params.config.data.equal_images and params.config.train.equal_masks
                           ).cuda()
         logging.info(f'# trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}')
         optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
