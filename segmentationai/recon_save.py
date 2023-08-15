@@ -22,12 +22,10 @@ def main():
     filenames, images = get_imgs_and_filenames(Path('../../../segmentation/test/gnd_mhas'))
 
     list_filenames = [
-        # 'bcrnn_ne_8_64_5.npz', 'bcrnn_equal_8_64_5.npz',
-        # 'bcrnn_ne_16_64_5.npz', 'bcrnn_equal_16_64_5.npz',
-        # 'bcrnn_ne_25_64_5.npz', 'bcrnn_equal_25_64_5.npz',
-        # 'bcrnn_ne_32_64_5.npz', 'bcrnn_equal_32_64_5.npz',
-        'bcrnn_ne_8_128_10.npz', 'bcrnn_ne_16_128_10.npz', 'bcrnn_ne_25_128_10.npz', 'bcrnn_ne_32_128_10.npz',
-        'bcrnn_equal_8_128_10.npz', 'bcrnn_equal_16_128_10.npz', 'bcrnn_equal_25_128_10.npz', 'bcrnn_equal_32_128_10.npz'
+        'crnn_ne_8_64_5.npz', 'crnn_ne_16_64_5.npz', 'crnn_ne_25_64_5.npz', 'crnn_ne_32_64_5.npz',
+        # 'bcrnn_equal_8_64_5.npz', 'bcrnn_equal_16_64_5.npz', 'bcrnn_equal_25_64_5.npz', 'bcrnn_equal_32_64_5.npz',
+        'crnn_ne_8_128_10.npz', 'crnn_ne_16_128_10.npz', 'crnn_ne_25_128_10.npz', 'crnn_ne_32_128_10.npz',
+        # 'bcrnn_equal_8_128_10.npz', 'bcrnn_equal_16_128_10.npz', 'bcrnn_equal_25_128_10.npz', 'bcrnn_equal_32_128_10.npz'
     ]
 
     for npzfilename in list_filenames:
@@ -41,10 +39,10 @@ def main():
             iters = 10
         print(f'und {und}, filters {filters}, iters {iters}')
 
-        save_dir: Path = Path(f'../../../segmentation/test/recon_{mask}_{und}_{filters}_{iters}')
+        save_dir: Path = Path(f'../../../segmentation/test/recon_crnn_{mask}_{und}_{filters}_{iters}')
         save_dir.mkdir(parents=True, exist_ok=True)
 
-        network = CRNNMRI(n_ch=1, nc=iters, nf=filters, ks=3, nd=5).cuda()
+        network = CRNNMRI(n_ch=1, nc=iters, nf=filters, ks=3, nd=5, single_crnn=True).cuda()
         state_dict = torch.load(filename)
         network.load_state_dict(state_dict)
         network.eval()
