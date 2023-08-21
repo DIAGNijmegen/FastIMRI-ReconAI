@@ -1,5 +1,4 @@
 from nnunetv2.evaluation.evaluate_predictions import compute_metrics_on_folder, labels_to_list_of_regions
-
 from nnunetv2.imageio.simpleitk_reader_writer import SimpleITKIO
 import sys
 
