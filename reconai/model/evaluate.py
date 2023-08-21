@@ -29,8 +29,8 @@ def evaluate(params: Parameters):
     # undersampled_ssim(params)
     # print_compare_segmentations(params)
     # print_5slices(params)
-    # print_comparisons(params)
-    print_iterations(params)
+    print_comparisons(params)
+    # print_iterations(params)
     exit(1)
 
     # sig()
@@ -126,7 +126,7 @@ def get_network(npz: Path, experiment: int, single_crnn: bool = False):
     return network
 
 def print_comparisons(params: Parameters):
-    experiment = 1
+    experiment = 2
 
     nontemp_und8_model = params.out_dir / f'nontemp-exp{experiment}_8und_seq5.npz'
     nontemp_und16_model = params.out_dir / f'nontemp-exp{experiment}_16und_seq5.npz'
@@ -187,16 +187,16 @@ def print_comparisons(params: Parameters):
         axes, ax = set_ax(axes, ax, "32x undersampled", from_tensor_format(im_und_ne_und32.cpu().numpy())[0][2])
 
         axes, ax = set_ax(axes, ax, "Ground truth", from_tensor_format(im_gnd_ne_und8.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Non-Temporal", from_tensor_format(pred_nontemp_und8.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Non-Temporal", from_tensor_format(pred_nontemp_und16.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Non-Temporal", from_tensor_format(pred_nontemp_und25.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Non-Temporal", from_tensor_format(pred_nontemp_und32.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed NANN-L", from_tensor_format(pred_nontemp_und8.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed NANN-L", from_tensor_format(pred_nontemp_und16.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed NANN-L", from_tensor_format(pred_nontemp_und25.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed NANN-L", from_tensor_format(pred_nontemp_und32.cpu().numpy())[0][2])
 
         axes, ax = set_ax(axes, ax, "Ground truth", from_tensor_format(im_gnd_ne_und8.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Temporal", from_tensor_format(pred_temp_und8.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Temporal", from_tensor_format(pred_temp_und16.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Temporal", from_tensor_format(pred_temp_und25.cpu().numpy())[0][2])
-        axes, ax = set_ax(axes, ax, "Reconstructed Temporal", from_tensor_format(pred_temp_und32.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed STNN-L", from_tensor_format(pred_temp_und8.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed STNN-L", from_tensor_format(pred_temp_und16.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed STNN-L", from_tensor_format(pred_temp_und25.cpu().numpy())[0][2])
+        axes, ax = set_ax(axes, ax, "Reconstructed STNN-L", from_tensor_format(pred_temp_und32.cpu().numpy())[0][2])
 
         fig.tight_layout()
         plt.savefig(params.out_dir / f'exp{experiment}.png', pad_inches=0)
@@ -300,7 +300,7 @@ def undersampled_ssim(params: Parameters):
 
 def print_iterations(params: Parameters):
 
-    temp_und25_model = params.out_dir / f'exp1/temp-exp1_25und_seq5.npz'
+    temp_und25_model = params.out_dir / f'exp2/temp-exp2_25und_seq5.npz'
     dl_test = DataLoader(params.in_dir / 'test')
     dl_test.load(split_regex=params.config.data.split_regex, filter_regex='sag')
     sequencer_test = SequenceBuilder(dl_test)
@@ -314,15 +314,26 @@ def print_iterations(params: Parameters):
                                  crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x))
     logging.info('Finished creating test batchers')
 
-    temp_network_und25 = get_network(temp_und25_model, 1)
+    temp_network_und25 = get_network(temp_und25_model, 2)
     img_neq = next(test_batcher.items())
     im_und_ne_und25, k_und_ne_und25, mask_ne_und25, im_gnd_ne_und25 = prepare_input_as_variable(img_neq, 11, 25, False)
     pred_temp_und25, iters = temp_network_und25(im_und_ne_und25, k_und_ne_und25, mask_ne_und25, test=False)
 
-    fig = plt.figure(figsize=(20, 4))
-    axes = [plt.subplot(1, 5, j+1) for j in range(5)]
+    for iter in range(1, 10):
+        key_cur = list(iters.keys())[iter]
+        im_cur = iters[key_cur].permute(4, 0, 1, 2, 3)[2].squeeze().detach().cpu().numpy()
 
-    for iteration in range(5):
+        # key_prev = list(iters.keys())[iter - 1]
+        # im_prev = iters[key_prev].permute(4, 0, 1, 2, 3)[2].squeeze().detach().cpu().numpy()
+
+        logging.info(f'iter: {iter} : {ssim(im_cur, im_gnd_ne_und25.permute(4, 0, 1, 2, 3)[2].squeeze().detach().cpu().numpy())}')
+
+    exit(1)
+
+    fig = plt.figure(figsize=(20, 4))
+    axes = [plt.subplot(1, 5, j+1) for j in range(10)]
+
+    for iteration in range(10):
         key = list(iters.keys())[iteration]
         im = iters[key].permute(4, 0, 1, 2, 3)[2].squeeze()
         axes, ax = set_ax(axes, 0 if iteration == 0 else ax, f"iteration {iteration}", im.detach().cpu())
