@@ -14,6 +14,11 @@ from pathlib import Path
 from reconai.data.data import DataLoader
 from reconai.data.sequencebuilder import SequenceBuilder
 from reconai.data.batcher import Batcher
+##
+## Test file to try to use the nnUNet predictor. Lot slower than the command, so not continued with this.
+##
+
+## Some of the helper functions are used in other scripts.
 
 def get_imgs_and_filenames(mhas: Path):
     filenames = []
