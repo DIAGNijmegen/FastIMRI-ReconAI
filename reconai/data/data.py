@@ -10,9 +10,10 @@ import reconai.utils.compressed_sensing as cs
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
 
+from .sequencebuilder import SequenceBuilder, SequenceCollection
 from .dataloader import DataLoader
 from .batcher import Batcher
-from .sequencebuilder import SequenceBuilder
+from reconai.parameters import Parameters
 
 
 def prepare_input_as_variable(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
@@ -46,10 +47,10 @@ def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal
     """
     b, s, y, x = image.shape
     mask = np.zeros(image.shape)
+
     for b_ in range(b):
         for s_ in range(s):
             mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3, seed if equal_mask else seed + s_)
-
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
     im_gnd_l = torch.from_numpy(to_tensor_format(image))
     im_und_l = torch.from_numpy(to_tensor_format(im_und))
@@ -58,44 +59,56 @@ def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
 
+def get_dataloader(params: Parameters, path_suffix: str) -> DataLoader:
+    dl = DataLoader(params.in_dir / path_suffix)
+    dl.load(split_regex=params.config.data.split_regex, filter_regex=params.config.data.filter_regex)
+    return dl
 
-def get_dataset_batchers(in_dir: Path, sequence_len: int):
-    dl_tra_val = DataLoader(in_dir / 'train')
-    dl_tra_val.load(split_regex='.*_(.*)_', filter_regex='sag')
-    dl_test = DataLoader(in_dir / 'test')
-    dl_test.load(split_regex='.*_(.*)_', filter_regex='sag')
+def generate_sequences(params: Parameters, dl: DataLoader, multislice: bool = True) -> SequenceCollection:
+    sequencer = SequenceBuilder(dl)
+    if multislice:
+        kwargs = {
+            'seed': params.config.data.sequence_seed,
+            'seq_len': params.config.data.sequence_length,
+            'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
+            'max_slices_per_mha': params.config.data.max_slices_per_mha,
+            'q': params.config.data.q
+        }
+        return sequencer.generate_multislice_sequences(**kwargs)
+    else:
+        kwargs = {
+            'seed': params.config.data.sequence_seed,
+            'seq_len': params.config.data.sequence_length,
+            'random_order': False
+        }
+        return sequencer.generate_singleslice_sequences(**kwargs)
 
+def get_batcher(params: Parameters, dl: DataLoader, sequences: SequenceCollection,
+                equal_images: bool = False, expand_to_n: bool = False):
+    batcher = Batcher(dl)
+    for s in sequences.items():
+        batcher.append_sequence(sequence=s,
+                                crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
+                                norm=params.config.data.normalize,
+                                equal_images=equal_images,
+                                expand_to_n=expand_to_n)
+    return batcher
+
+def get_dataset_batchers(params: Parameters):
+    dl_tra_val = get_dataloader(params, 'train')
+    dl_test = get_dataloader(params, 'test')
     logging.info("data loaded")
-    sequencer_tr_val = SequenceBuilder(dl_tra_val)
-    sequencer_test = SequenceBuilder(dl_test)
 
-    kwargs = {'seed': 11, 'seq_len': sequence_len, 'mean_slices_per_mha': 2, 'max_slices_per_mha': 3, 'q': 0.5}
-    train_val_sequences = sequencer_tr_val.generate_sequences(**kwargs)
-    test_sequences = sequencer_test.generate_sequences(**kwargs)
+    train_val_sequences = generate_sequences(params, dl_tra_val, multislice=params.config.data.multislice)
+    test_sequences = generate_sequences(params, dl_test, multislice=params.config.data.multislice)
+    logging.info(f"{len(train_val_sequences)} train/val sequences created")
+    logging.info(f"{len(test_sequences)} test sequences created")
 
-    logging.info("sequences created")
+    tra_val_batcher = get_batcher(params, dl_tra_val, train_val_sequences,
+                                  equal_images=params.config.data.equal_images,
+                                  expand_to_n=params.config.data.expand_to_n)
 
-    tra_val_batcher = Batcher(dl_tra_val)
+    test_batcher_equal = get_batcher(params, dl_test, test_sequences, equal_images=True)
+    test_batcher_non_equal = get_batcher(params, dl_test, test_sequences, equal_images=False)
 
-    for s in train_val_sequences.items():
-        tra_val_batcher.append_sequence(s, norm=1961.06, equal_images=args.equal_images)
-        i += 1
-        if i > 110:
-            break
-
-    test_batcher = Batcher(dl_test)
-    j = 0
-    for s in test_sequences.items():
-        test_batcher.append_sequence(s, norm=1961.06, equal_images=args.equal_images)
-        j += 1
-        if j > 15:
-            break
-
-    return tra_val_batcher, test_batcher
-
-
-def append_to_file(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):
-    with open(fold_dir / 'progress.csv', 'a+') as file:
-        if epoch == 0:
-            file.write('Acceleration, Fold, Epoch, Train error, Validation error \n')
-        file.write(f'{acceleration}, {fold}, {epoch}, {train_err}, {val_err} \n')
+    return tra_val_batcher, test_batcher_equal, test_batcher_non_equal

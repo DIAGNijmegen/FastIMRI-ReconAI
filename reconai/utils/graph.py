@@ -40,7 +40,7 @@ def print_loss_graphs():
     plt.close(fig)
 
 
-def print_loss_progress(train_err, val_err, fold_dir: Path, loss: str):
+def update_loss_progress(train_err, val_err, fold_dir: Path, loss: str):
     graph_x = list(range(len(train_err)))
     if len(graph_x) <= 1:
         return

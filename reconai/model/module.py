@@ -27,7 +27,8 @@ class Module(nn.Module):
 
     def init_hidden(self, size: List[int]):
         if self.cuda_available:
-            return Variable(torch.zeros(size)).type(self.TensorType).cuda()
+            return Variable(torch.zeros(size, device='cuda')).type(self.TensorType)
+            # return Variable(torch.zeros(size)).type(self.TensorType).cuda()
         else:
             return Variable(torch.zeros(size)).type(self.TensorType).cpu()
 

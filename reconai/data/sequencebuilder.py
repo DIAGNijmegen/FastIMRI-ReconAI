@@ -1,6 +1,7 @@
+import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from copy import deepcopy
-from typing import List, Dict
+from typing import List, Dict, Callable
 
 import numpy as np
 
@@ -9,6 +10,8 @@ from .sequence import Sequence, SequenceCollection
 
 
 class SequenceBuilder:
+    MAX_WORKERS = 4
+
     def __init__(self, dataloader: DataLoader):
         self._dataloader = dataloader
 
@@ -16,8 +19,62 @@ class SequenceBuilder:
     def _len_of_values(obj: dict):
         return sum([len(x) for x in obj.values()])
 
-    def generate_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
-                           max_slices_per_mha: int = 3, q: float = 0.5) -> SequenceCollection:
+    def _generate_sequences(self, generate_func: Callable[[int, str], List[Sequence]]) -> SequenceCollection:
+        sequence_collection: Dict[str, List[Sequence]] = {}
+        with ThreadPoolExecutor(max_workers=SequenceBuilder.MAX_WORKERS) as pool:
+            futures = {pool.submit(generate_func, key): key for key in self._dataloader.keys()}
+            for future in as_completed(futures):
+                key = futures[future]
+                sequence_collection[key] = future.result()
+
+        return SequenceCollection(sequence_collection)
+
+    def generate_singleslice_sequences(self, *, seed: int = -1, seq_len: int = 5, random_order: bool = False) \
+            -> SequenceCollection:
+        """
+        For each MHA slice, a sequence is created. If seq_len < len(MHA slice), the center slices are preferred.
+        If seq_len > len(MHA slice), we perform a wrap around. The result is always equal to the number of MHA files.
+        Parameters
+        ----------
+        seed:
+            Seed to use for entire sequence generation
+        seq_len: int=5
+            Length of sequence
+        random_order: bool=False
+            Shuffle the sequence
+        """
+        seeds = {case: seed + s for s, case in enumerate(self._dataloader.keys())}
+
+        def _generate_sequences(case: str) -> List[Sequence]:
+            r = np.random.default_rng(seeds[case] if seed >= 0 else None)
+            sequences: List[Sequence] = []
+            shapes = self._dataloader.shapes(case)
+            slices = {m: np.array(list(range(shapes[m][0]))) for m in range(len(shapes))}
+
+            for i, sl in slices.items():
+                sorter = [(s, 1 / np.power(2, np.abs(s - 2))) for s in sl]
+                sorter.sort(key=lambda a: -a[1])
+                sorter = sorter[:seq_len]
+                sl = [s[0] for s in sorter]
+
+                if random_order:
+                    r.shuffle(sl)
+
+                if seq_len > len(sl):
+                    seq_quotient = (seq_len - len(sl)) // 2
+                    sl = np.pad(sl, (seq_quotient, seq_quotient + seq_len % 2), mode='reflect')
+                    if seq_len != len(sl):
+                        logging.info(f'case with seq_len > len(sl) wrong pad. {case}')
+                        break
+
+                sequences.append(Sequence(case, {f'0_{i}': sl}))
+
+            return sequences
+
+        return self._generate_sequences(_generate_sequences)
+
+    def generate_multislice_sequences(self, *, seed: int = -1, seq_len: int = 15, mean_slices_per_mha: float = 2,
+                                      max_slices_per_mha: int = 3, q: float = 0.5) -> SequenceCollection:
         """
         Every MHA slice within a case has a 'usefulness' score, calculated as 1/2^x, where is the number of steps away
         from the center slice. For each MHA slice, a sequence takes 1 to (max_slices_per_mha)
@@ -103,11 +160,4 @@ class SequenceBuilder:
                     available = c_available
             return sequences
 
-        sequence_collection: Dict[str, List[Sequence]] = {}
-        with ThreadPoolExecutor() as pool:
-            futures = {pool.submit(_generate_sequences, key): key for key in self._dataloader.keys()}
-            for future in as_completed(futures):
-                key = futures[future]
-                sequence_collection[key] = future.result()
-
-        return SequenceCollection(sequence_collection)
+        return self._generate_sequences(_generate_sequences)

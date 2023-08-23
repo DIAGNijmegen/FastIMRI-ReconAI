@@ -1,5 +1,6 @@
 import logging
 import pathlib
+import time
 
 import torch
 import numpy as np
@@ -80,31 +81,67 @@ class BCRNNlayer(Module):
         """
         nt, nb, nc, nx, ny = input.shape
         size_h = [nb, self.hidden_size, nx, ny]
-        hid_init = self.init_hidden(size_h)
+        hid_init = self.init_hidden(size_h)  # 0.0246 s
 
         output_f = []
-        # output_b = []
+        output_b = []
         # forward pass
         hidden = hid_init
         for i in range(nt):
-            hidden = self.CRNN_model(input[i], input_iteration[i], hidden)
+            hidden = self.CRNN_model(input[i], input_iteration[i], hidden)  # 0.0002 s
             output_f.append(hidden)
 
-        # DISABLED BACKWARD PASS
-
-        # output_f = torch.cat(output_f)
+        output_f = torch.cat(output_f)
 
         # backward pass
-        # hidden = hid_init
-        # for i in range(nt):
-        #     hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
-        #
-        #     output_b.append(hidden)
-        # output_b = torch.cat(output_b[::-1])
-        #
-        # output = output_f + output_b
+        hidden = hid_init
+        for i in range(nt):
+            hidden = self.CRNN_model(input[nt - i - 1], input_iteration[nt - i - 1], hidden)
+            output_b.append(hidden)
+        output_b = torch.cat(output_b[::-1])
 
-        output = torch.cat(output_f)
+        output = output_f + output_b
+
+        if nb == 1:
+            output = output.view(nt, 1, self.hidden_size, nx, ny)
+
+        return output
+
+class CRNNlayer(Module):
+    """
+    Convolutional RNN layer
+    """
+
+    def __init__(self, input_size, hidden_size, kernel_size):
+        super(CRNNlayer, self).__init__()
+        self.hidden_size = hidden_size
+        self.kernel_size = kernel_size
+        self.input_size = input_size
+        self.CRNN_model = CRNNcell(self.input_size, self.hidden_size, self.kernel_size)
+
+    def forward(self, input, input_iteration):
+        """
+        Parameters
+        ----------
+        input: torch.Tensor
+            5d tensor, [input_image] with shape (num_seqs, batch_size, channel, width, height)
+        input_iteration: torch.Tensor
+            5d tensor, [hidden states from previous iteration] with shape (n_seq, n_batch, hidden_size, width, height)
+
+        Returns
+        -------
+        output: torch.Tensor
+            5d tensor, shape (n_seq, n_batch, hidden_size, width, height)
+        """
+        nt, nb, nc, nx, ny = input.shape
+        size_h = [nb, self.hidden_size, nx, ny]
+        hid_init = self.init_hidden(size_h)
+
+        hidden = hid_init
+        input = input.permute(1, 0, 2, 3, 4)[0]  # remove the batch dimension, since CRNN needs 4D input
+        input_iteration = input_iteration.permute(1, 0, 2, 3, 4)[0]
+        output = self.CRNN_model(input, input_iteration, hidden)  # 0.00023 s
+
         if nb == 1:
             output = output.view(nt, 1, self.hidden_size, nx, ny)
 
@@ -120,7 +157,7 @@ class CRNNMRI(Module):
 
     """
 
-    def __init__(self, n_ch: int = 2, nf: int = 64, ks: int = 3, nc: int = 5, nd: int = 5):
+    def __init__(self, n_ch: int, nf: int, ks: int, nc: int, nd: int, single_crnn: bool = False):
         """
         Parameters
         ----------
@@ -141,16 +178,25 @@ class CRNNMRI(Module):
         self.nf = nf
         self.ks = ks
 
+        assert nd >= 3, "Need at least 3 layers in each iteration"
+
         def conv2d():
             return nn.Conv2d(nf, nf, ks, padding=ks // 2).type(self.TensorType)
 
-        self.bcrnn = BCRNNlayer(n_ch, nf, ks)
+        if single_crnn:
+            self.bcrnn = CRNNlayer(n_ch, nf, ks)
+            logging.info('using single CRNN layer')
+        else:
+            self.bcrnn = BCRNNlayer(n_ch, nf, ks)
+            logging.info('using BCRNN layer')
+
         self.conv1_x = conv2d()
         self.conv1_h = conv2d()
         self.conv2_x = conv2d()
         self.conv2_h = conv2d()
         self.conv3_x = conv2d()
         self.conv3_h = conv2d()
+
         self.conv4_x = nn.Conv2d(nf, n_ch, ks, padding=ks // 2).type(self.TensorType)
         self.relu = nn.LeakyReLU(inplace=True)
 
@@ -159,7 +205,9 @@ class CRNNMRI(Module):
             dcs.append(DataConsistencyInKspace(norm='ortho'))
         self.dcs = dcs
 
-    def forward(self, x, k, m, gnd, test=False):
+        # self.hid_in_test = self.init_hidden([5, nf, 256, 256])
+
+    def forward(self, x, k, m, test=False):
         """
         Parameters
         ----------
@@ -183,26 +231,32 @@ class CRNNMRI(Module):
         logging.debug(f'net init @ {mem_info()}')
         n_batch, n_ch, width, height, n_seq = x.size()
         size_h = [n_seq * n_batch, self.nf, width, height]
-        hid_init = self.init_hidden(size_h)
+
+        hid_init = self.init_hidden(size_h)  # 0.0267 s
+        # hid_init = self.hid_in_test
 
         for j in range(self.nd - 1):
             net['t0_x%d' % j] = hid_init
 
-        k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)
+        k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)  # 0.00013 s
 
         for i in range(1, self.nc + 1):
             o = i - 1
 
-            # print_progress_model(gnd, x, 'pre_bcrnn', False)
+            # t_start_loop = time.time()
             x = x.permute(4, 0, 1, 2, 3)
             x = x.contiguous()
 
+            # t_start = time.time()
             ti_x0, to_x0 = f't{i}_x0', f't{o}_x0'
             net[to_x0] = net[to_x0].view(n_seq, n_batch, self.nf, width, height)
-            net[ti_x0] = self.bcrnn(x, net[to_x0])
+            net[ti_x0] = self.bcrnn(x, net[to_x0])  # 0.055 s bcrnn, 0.016 single crnn
             net[ti_x0] = net[ti_x0].view(-1, self.nf, width, height)
 
-            # print_progress_model(gnd, net[ti_x0], 'post_bcrnn', True)
+            # t_end = time.time()
+            # logging.info(f'bcrnn: {t_end - t_start}')
+
+            # CRNN layers
             ti_x1, ti_h1, to_x1 = f't{i}_x1', f't{i}_h1', f't{o}_x1'
             net[ti_x1] = self.conv1_x(net[ti_x0])
             net[ti_h1] = self.conv1_h(net[to_x1])
@@ -230,11 +284,14 @@ class CRNNMRI(Module):
             net[ti_out] = net[ti_out].view(-1, n_batch, n_ch, width, height)
             net[ti_out] = net[ti_out].permute(1, 2, 3, 4, 0)
             net[ti_out].contiguous()
-            net[ti_out] = self.dcs[i - 1].perform(net[ti_out], k, m)
+            net[ti_out] = self.dcs[i - 1].perform(net[ti_out], k, m)  # 0.00155 s
+
+            net[ti_out] = torch.clip(net[ti_out], 0, 1)
+
             x = net[ti_out]
-            # print_progress_model(gnd, x, 'post_dc', False)
-            logging.debug(f'it {i} @ {mem_info()}')
             out[ti_out] = x
+
+            # logging.debug(f'it {i} @ {mem_info()}')
             # clean up o=i-1
             if test:
                 to_delete = [key for key in net if f't{o}' in key]
@@ -243,6 +300,8 @@ class CRNNMRI(Module):
                     del net[elt]
 
                 torch.cuda.empty_cache()
+            # t_end_loop = time.time()
+            # logging.info(f'1 loop: {t_end_loop - t_start_loop}')
 
         return net[ti_out], out
 
