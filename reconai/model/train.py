@@ -36,14 +36,15 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     results = []
     logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
     for fold in range(n_folds):
+        # TODO: The BCRNN versus Single CRNN Ablation study is now hardcoded. Move this into YAML eventually
+
         # Specify network here - each fold needs 'new' network
         network = CRNNMRI(n_ch=params.config.model.channels,
                           nf=params.config.model.filters,
                           ks=params.config.model.kernelsize,
                           nc=2 if params.debug else iterations,
                           nd=params.config.model.layers,
-                          single_crnn=True
-                          # equal = params.config.data.equal_images and params.config.train.equal_masks
+                          single_crnn=False
                           ).cuda()
         logging.info(f'# trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}')
         optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
