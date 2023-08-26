@@ -107,6 +107,7 @@ class BCRNNlayer(Module):
 
         return output
 
+
 class CRNNlayer(Module):
     """
     Convolutional RNN layer
@@ -236,7 +237,7 @@ class CRNNMRI(Module):
         # hid_init = self.hid_in_test
 
         for j in range(self.nd - 1):
-            net['t0_x%d' % j] = hid_init
+            net[f't0_x{j}'] = hid_init
 
         k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)  # 0.00013 s
 
