@@ -138,6 +138,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
     return results
 
+
 def get_criterion(params: Parameters) -> torch.nn.Module:
     if params.config.train.loss.mse == 1:
         criterion = torch.nn.MSELoss().cuda()
