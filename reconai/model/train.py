@@ -25,7 +25,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
     num_epochs = 3 if params.debug else params.config.train.epochs
     n_folds = params.config.train.folds if params.config.train.folds > 2 else 1
-    undersampling = params.config.train.undersampling
+    undersampling = params.config.data.undersampling
     iterations = params.config.model.iterations
 
     # Configure directory info
@@ -37,11 +37,16 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                       ks=params.config.model.kernelsize,
                       nc=2 if params.debug else iterations,
                       nd=params.config.model.layers,
-                      equal=params.config.data.equal_images and params.config.train.equal_masks
+                      single_crnn=params.config.data.equal_images and params.config.data.equal_masks
                       ).cuda()
     logging.info(f'# trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}')
     optimizer = optim.Adam(network.parameters(), lr=float(params.config.train.lr), betas=(0.5, 0.999))
-    criterion = get_criterion(params)
+    if params.config.train.loss.mse == 1:
+        criterion = torch.nn.MSELoss().cuda()
+    elif params.config.train.loss.ssim == 1:
+        criterion = SSIM(n_channels=params.config.data.sequence_length).cuda()
+    else:
+        raise NotImplementedError("Only MSE or SSIM loss implemented")
 
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.config.train.lr_gamma)
 

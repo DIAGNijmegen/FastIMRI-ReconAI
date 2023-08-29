@@ -1,18 +1,10 @@
 import pytest
 import torch
-from pathlib import Path
 import numpy as np
 
 from reconai.model.kspace_pytorch import DataConsistencyInKspace
 from reconai.data.data import prepare_input
 
-
-# @pytest.fixture
-# def data_batcher() -> Batcher:
-#     data = gather_data(Path('input'))
-#     data_error = Batcher(data).get_blacklist()
-#     data = list(filter(lambda a: a.study_id not in data_error, data))
-#     return Batcher(data)
 
 @pytest.mark.usefixtures("batcher")
 def test_dc_image_shifting(batcher):
@@ -37,11 +29,3 @@ def test_dc_image_shifting(batcher):
 
             assert np.isclose(im_dc_i.mean(), im_und_i.mean())
             assert np.isclose(np.std(im_dc_i), np.std(im_und_i))
-
-
-# def test_crnncell(data_batcher):
-#     a = 1
-#
-#
-# def test_bcrnn(data_batcher):
-#     a = 1

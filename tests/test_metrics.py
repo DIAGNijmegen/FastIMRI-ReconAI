@@ -12,11 +12,6 @@ def test_ssim(batcher):
 
     assert ssim(image1, image1) == 1
 
-    # Add more checks
-    # image2 = image1.copy()
-    # image2 = np.flip(image2)
-    # score2 = ssim(image1, image2)
-
 
 @pytest.mark.usefixtures("batcher")
 def test_mse(batcher):

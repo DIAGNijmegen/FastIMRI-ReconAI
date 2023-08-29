@@ -8,6 +8,7 @@ from .config import load, load_str, Config
 
 model_package = 'reconai.model.'
 
+
 @dataclass
 class Parameters:
     in_dir: Path

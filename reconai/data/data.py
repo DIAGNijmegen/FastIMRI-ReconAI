@@ -59,14 +59,16 @@ def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
 
+
 def get_dataloader(params: Parameters, path_suffix: str) -> DataLoader:
     dl = DataLoader(params.in_dir / path_suffix)
     dl.load(split_regex=params.config.data.split_regex, filter_regex=params.config.data.filter_regex)
     return dl
 
-def generate_sequences(params: Parameters, dl: DataLoader, multislice: bool = True) -> SequenceCollection:
+
+def generate_sequences(params: Parameters, dl: DataLoader) -> SequenceCollection:
     sequencer = SequenceBuilder(dl)
-    if multislice:
+    if params.config.data.multislice:
         kwargs = {
             'seed': params.config.data.sequence_seed,
             'seq_len': params.config.data.sequence_length,
@@ -83,16 +85,17 @@ def generate_sequences(params: Parameters, dl: DataLoader, multislice: bool = Tr
         }
         return sequencer.generate_singleslice_sequences(**kwargs)
 
-def get_batcher(params: Parameters, dl: DataLoader, sequences: SequenceCollection,
-                equal_images: bool = False, expand_to_n: bool = False):
+
+def get_batcher(params: Parameters, dl: DataLoader, sequences: SequenceCollection):
     batcher = Batcher(dl)
     for s in sequences.items():
         batcher.append_sequence(sequence=s,
                                 crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
                                 norm=params.config.data.normalize,
-                                equal_images=equal_images,
-                                expand_to_n=expand_to_n)
+                                equal_images=params.config.data.equal_images,
+                                expand_to_n=params.config.data.expand_to_n)
     return batcher
+
 
 def get_dataset_batchers(params: Parameters):
     dl_tra_val = get_dataloader(params, 'train')
@@ -104,9 +107,7 @@ def get_dataset_batchers(params: Parameters):
     logging.info(f"{len(train_val_sequences)} train/val sequences created")
     logging.info(f"{len(test_sequences)} test sequences created")
 
-    tra_val_batcher = get_batcher(params, dl_tra_val, train_val_sequences,
-                                  equal_images=params.config.data.equal_images,
-                                  expand_to_n=params.config.data.expand_to_n)
+    tra_val_batcher = get_batcher(params, dl_tra_val, train_val_sequences)
 
     test_batcher_equal = get_batcher(params, dl_test, test_sequences, equal_images=True)
     test_batcher_non_equal = get_batcher(params, dl_test, test_sequences, equal_images=False)

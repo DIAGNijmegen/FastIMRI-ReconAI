@@ -16,6 +16,9 @@ data:
   expand_to_n: True
   multislice: False
   # data transformations
+  undersampling: 8
+  equal_masks: True
+  mask_seed: 11
 model:
   iterations: 5
   filters: 64
@@ -35,7 +38,4 @@ train:
   # 1 voor geen decay
   stop_lr_decay: 45
   # Stop na 45 epochs met LR decay, -1 voor nooit
-  undersampling: 8
-  equal_masks: True
-  mask_seed: 11
 experiment:

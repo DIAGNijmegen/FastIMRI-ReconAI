@@ -2,6 +2,13 @@ from pathlib import Path
 from importlib import resources
 
 from reconai.config import load, load_str
+from reconai.config import Parameters
+
+
+def test_parameters():
+    p = Parameters()
+    p = Parameters('data:\n shape_x: 56')
+    assert p.data.shape_x == 56
 
 
 def test_config():
