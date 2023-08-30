@@ -1,6 +1,6 @@
 data:
-  split_regex: '.*_(.*)_'
-  filter_regex: 'sag'
+  split_regex: .*_(.*)_
+  filter_regex: sag
   # x, y, sequence length
   shape_y: 256
   shape_x: 256

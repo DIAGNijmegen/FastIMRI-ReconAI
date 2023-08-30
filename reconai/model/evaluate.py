@@ -20,16 +20,16 @@ def evaluate(params: Parameters):
 
     for checkpoint in model_checkpoints:
         logging.info(f'starting {checkpoint}')
-        params.config.data.sequence_length = int(checkpoint.split('.')[0].split('_')[2][3:])
-        params.config.train.undersampling = int(checkpoint.split('.')[0].split('_')[1][0:2])
+        params.config.sequence_length = int(checkpoint.split('.')[0].split('_')[2][3:])
+        params.config.undersampling = int(checkpoint.split('.')[0].split('_')[1][0:2])
 
         logging.info('Started creating test batchers')
         dl_test = DataLoader(params.in_dir / 'test')
-        dl_test.load(split_regex=params.config.data.split_regex, filter_regex=params.config.data.filter_regex)
+        dl_test.load(split_regex=params.config.split_regex, filter_regex=params.config.filter_regex)
         sequencer_test = SequenceBuilder(dl_test)
 
-        kwargs = {'seed': params.config.data.sequence_seed,
-                  'seq_len': params.config.data.sequence_length,
+        kwargs = {'seed': params.config.sequence_seed,
+                  'seq_len': params.config.sequence_length,
                   # 'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
                   # 'max_slices_per_mha': params.config.data.max_slices_per_mha,
                   # 'q': params.config.data.q
@@ -55,8 +55,8 @@ def evaluate(params: Parameters):
         #                                            equal_images=False)
         seq = next(test_sequences.items())
         test_batcher.append_sequence(sequence=seq,
-                                     crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                     norm=params.config.data.normalize,
+                                     crop_expand_to=(params.data.shape_y, params.data.shape_x),
+                                     norm=params.data.normalize,
                                      equal_images='nonequal' not in checkpoint)
         logging.info('Finished creating test batchers')
 
@@ -76,7 +76,7 @@ def evaluate(params: Parameters):
                 img = next(test_batcher.items())
                 im_und, k_und, mask, im_gnd = prepare_input_as_variable(img,
                                                                         11,
-                                                                        params.config.train.undersampling,
+                                                                        params.train.undersampling,
                                                                         equal_mask=False)
                 t_start = time.time()
                 result, _ = network(im_und, k_und, mask, test=False)

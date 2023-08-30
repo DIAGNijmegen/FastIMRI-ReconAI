@@ -62,25 +62,25 @@ def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal
 
 def get_dataloader(params: Parameters, path_suffix: str) -> DataLoader:
     dl = DataLoader(params.in_dir / path_suffix)
-    dl.load(split_regex=params.config.data.split_regex, filter_regex=params.config.data.filter_regex)
+    dl.load(split_regex=params.data.split_regex, filter_regex=params.data.filter_regex)
     return dl
 
 
 def generate_sequences(params: Parameters, dl: DataLoader) -> SequenceCollection:
     sequencer = SequenceBuilder(dl)
-    if params.config.data.multislice:
+    if params.data.multislice:
         kwargs = {
-            'seed': params.config.data.sequence_seed,
-            'seq_len': params.config.data.sequence_length,
-            'mean_slices_per_mha': params.config.data.mean_slices_per_mha,
-            'max_slices_per_mha': params.config.data.max_slices_per_mha,
-            'q': params.config.data.q
+            'seed': params.data.sequence_seed,
+            'seq_len': params.data.sequence_length,
+            'mean_slices_per_mha': params.data.mean_slices_per_mha,
+            'max_slices_per_mha': params.data.max_slices_per_mha,
+            'q': params.data.q
         }
         return sequencer.generate_multislice_sequences(**kwargs)
     else:
         kwargs = {
-            'seed': params.config.data.sequence_seed,
-            'seq_len': params.config.data.sequence_length,
+            'seed': params.data.sequence_seed,
+            'seq_len': params.data.sequence_length,
             'random_order': False
         }
         return sequencer.generate_singleslice_sequences(**kwargs)
@@ -90,10 +90,10 @@ def get_batcher(params: Parameters, dl: DataLoader, sequences: SequenceCollectio
     batcher = Batcher(dl)
     for s in sequences.items():
         batcher.append_sequence(sequence=s,
-                                crop_expand_to=(params.config.data.shape_y, params.config.data.shape_x),
-                                norm=params.config.data.normalize,
-                                equal_images=params.config.data.equal_images,
-                                expand_to_n=params.config.data.expand_to_n)
+                                crop_expand_to=(params.data.shape_y, params.data.shape_x),
+                                norm=params.data.normalize,
+                                equal_images=params.data.equal_images,
+                                expand_to_n=params.data.expand_to_n)
     return batcher
 
 
@@ -102,8 +102,8 @@ def get_dataset_batchers(params: Parameters):
     dl_test = get_dataloader(params, 'test')
     logging.info("data loaded")
 
-    train_val_sequences = generate_sequences(params, dl_tra_val, multislice=params.config.data.multislice)
-    test_sequences = generate_sequences(params, dl_test, multislice=params.config.data.multislice)
+    train_val_sequences = generate_sequences(params, dl_tra_val, multislice=params.data.multislice)
+    test_sequences = generate_sequences(params, dl_test, multislice=params.data.multislice)
     logging.info(f"{len(train_val_sequences)} train/val sequences created")
     logging.info(f"{len(test_sequences)} test sequences created")
 

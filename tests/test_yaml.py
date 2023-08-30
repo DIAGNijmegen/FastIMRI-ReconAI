@@ -1,8 +1,8 @@
 from pathlib import Path
 from importlib import resources
 
-from reconai.config import load, load_str
-from reconai.config import Parameters
+from reconai.parameters import load, load_str
+from reconai.parameters import Parameters
 
 
 def test_parameters():
