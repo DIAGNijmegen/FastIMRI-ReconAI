@@ -13,23 +13,21 @@ class Batcher:
     def __init__(self, dataloader: DataLoader):
         self._dataloader = dataloader
 
-        self._processed_sequences = []
+        self._sequences = []
         self._indexes = []
 
         self._crop_expand_to = None
         self._norm = None
 
     def __len__(self):
-        return len(self._processed_sequences)
+        return len(self._sequences)
 
-    def append_sequence(self, sequence: Sequence,
+    def append_sequence(self, sequence: Sequence, *,
                         crop_expand_to: Tuple[int, int] = (256, 256),
                         norm: float = 1,
                         flip: str = '',
                         zoom_factor: float = 1,
-                        rotate_deg: float = 0,
-                        equal_images: bool = False,
-                        expand_to_n: bool = False):
+                        rotate_deg: float = 0):
         """
         Append sequence to this batcher. Apply different norm/flip/rotate_deg in a for loop to multiply the dataset.
 
@@ -47,10 +45,6 @@ class Batcher:
             Zoom the images by 'zoom_factor'.
         rotate_deg: float
             Rotate the images by 'rotate_deg's'.
-        equal_images: bool
-            If set to true, then repeat first image all the time
-        expand_to_n: bool
-            If true and equal_images is also true, then it will expand the sequence n times.
         """
         # precalculate some values
         flips: List[str] = [r.group() for r in re.finditer('(ud)|(lr)', flip)]
@@ -75,22 +69,8 @@ class Batcher:
                 img = normalize(img, norm)
                 sequence_images = np.vstack((sequence_images, img[np.newaxis, ...]))
 
-        if equal_images and expand_to_n:
-            new_sequence = sequence_images.copy()
-            for i in range(0, len(sequence_images)):
-                for j in range(0, len(sequence_images)):
-                    new_sequence[j] = sequence_images[i]
-                self.add_processed_sequence(new_sequence)
-        else:
-            if equal_images:
-                randint = random.randint(0, len(sequence_images) - 1)
-                for i in range(0, len(sequence_images)):
-                    sequence_images[i] = sequence_images[randint]
-            self.add_processed_sequence(sequence_images)
-
-    def add_processed_sequence(self, processed_sequence: np.ndarray):
-        self._indexes.append(len(self._processed_sequences))
-        self._processed_sequences.append(processed_sequence)
+        self._indexes.append(len(sequence_images))
+        self._sequences.append(sequence_images)
 
     def shuffle(self, seed: int = -1):
         self.sort()
@@ -105,7 +85,7 @@ class Batcher:
         Retrieves np.ndarray sequences. If it is not shuffled, it will be in the same order as sequences were appended.
         """
         for i in self._indexes:
-            yield np.stack([self._processed_sequences[i]])
+            yield np.stack([self._sequences[i]])
 
     def items_fold(self, fold: int, max_folds: int = 1, validation: bool = False) -> np.ndarray:
         """
@@ -127,7 +107,7 @@ class Batcher:
         training_ids = validation_ids.symmetric_difference(self._indexes)
 
         for i in validation_ids if validation else training_ids:
-            yield np.stack([self._processed_sequences[i]])
+            yield np.stack([self._sequences[i]])
 
 
 def crop_or_pad(img: np.ndarray, target_shape: Tuple[int, int]):

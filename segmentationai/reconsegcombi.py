@@ -45,7 +45,7 @@ def get_batcher(equal_images: bool = False):
     dl.load(split_regex='.*_(.*)_', filter_regex='sag')
     sequencer = SequenceBuilder(dl)
     kwargs = {'seed': 11, 'seq_len': 5, 'random_order': False}
-    test_sequences = sequencer.generate_singleslice_sequences(**kwargs)
+    test_sequences = sequencer.generate_sequences(**kwargs)
     batcher = Batcher(dl)
     i = 0
     for s in test_sequences.items():

@@ -34,7 +34,7 @@ def evaluate(params: Parameters):
                   # 'max_slices_per_mha': params.config.data.max_slices_per_mha,
                   # 'q': params.config.data.q
                   }
-        test_sequences = sequencer_test.generate_singleslice_sequences(**kwargs)
+        test_sequences = sequencer_test.generate_sequences(**kwargs)
         logging.info(len(test_sequences))
 
         test_batcher = Batcher(dl_test)

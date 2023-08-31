@@ -24,7 +24,6 @@ def cli():
 def train_recon(in_dir: Path, out_dir: Path, config: Path, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
-    return
     train(params)
 
 

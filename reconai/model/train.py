@@ -10,8 +10,9 @@ from typing import List
 from pathlib import Path
 import logging
 
+from reconai.data import SequenceBuilder, DataLoader, Batcher
 from reconai.parameters import Parameters
-from reconai.data.data import get_dataset_batchers, prepare_input_as_variable
+from reconai.data.data import get_dataset_batchers, prepare_input_as_variable, get_dataloader, generate_sequences
 from reconai.model.test import run_and_print_full_test
 
 from reconai.utils.graph import update_loss_progress
@@ -23,24 +24,21 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     if not torch.cuda.is_available() and not params.debug:
         raise Exception('Can only run in Cuda')
 
-    num_epochs = 3 if params.debug else params.train.epochs
+    num_epochs = params.train.epochs
     n_folds = params.train.folds if params.train.folds > 2 else 1
     undersampling = params.data.undersampling
-    iterations = params.model.iterations
-
-    # Configure directory info
-    logging.info(f"saving model to {params.out_dir.absolute()}")
 
     # Specify network
     network = CRNNMRI(n_ch=params.model.channels,
                       nf=params.model.filters,
                       ks=params.model.kernelsize,
-                      nc=2 if params.debug else iterations,
+                      nc=params.model.iterations,
                       nd=params.model.layers,
-                      single_crnn=params.data.equal_images and params.data.equal_masks
+                      bcrnn=params.model.bcrnn
                       ).cuda()
-    logging.info(f'# trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}')
+
     optimizer = optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
+    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.train.lr_gamma)
     if params.train.loss.mse == 1:
         criterion = torch.nn.MSELoss().cuda()
     elif params.train.loss.ssim == 1:
@@ -48,12 +46,21 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     else:
         raise NotImplementedError("Only MSE or SSIM loss implemented")
 
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.train.lr_gamma)
+    loader = DataLoader(params.in_dir).load(split_regex=params.data.split_regex, filter_regex=params.data.filter_regex)
+    sequence_builder = SequenceBuilder(loader)
+    sequence_collection = sequence_builder.generate_sequences(seed=params.data.sequence_seed, seq_len=params.data.sequence_length)
+    batcher = Batcher(loader)
+    for sequence in sequence_collection.items():
+        batcher.append_sequence(sequence, crop_expand_to=(params.data.shape_x, params.data.shape_y), norm=params.data.normalize)
 
-    train_val_batcher, test_batcher_equal, test_batcher_non_equal = get_dataset_batchers(params)
+    logging.info(f"config.yaml: {str(params)}")
+    logging.info(f"trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}")
+    logging.info(f"data: {len(loader)}, from {len(loader.keys())} cases")
+    logging.info(f"saving model to {params.out_dir.absolute()}")
+    params.mkoutdir()
 
     results = []
-    logging.info(f'started {n_folds}-fold training at {datetime.datetime.now()}')
+    logging.info(f'starting {n_folds}-fold training')
     for fold in range(n_folds):
         fold_dir = params.out_dir / f'fold_{fold}'
 
@@ -65,7 +72,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
             network.train()
             train_err, train_batches = 0, 0
-            for im in train_val_batcher.items_fold(fold, 5, validation=False):
+            for im in batcher.items_fold(fold, n_folds, validation=False):
                 logging.debug(f"batch {train_batches}")
                 im_u, k_u, mask, gnd = prepare_input_as_variable(im,
                                                                  params.train.mask_seed + mask_i,
@@ -90,7 +97,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             validate_err, validate_batches = 0, 0
             network.eval()
             with torch.no_grad():
-                for im in train_val_batcher.items_fold(fold, 5, validation=True):
+                for im in batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
                     im_u, k_u, mask, gnd = prepare_input_as_variable(im,
                                                                      params.train.mask_seed + mask_i,
@@ -135,7 +142,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             update_loss_progress(graph_train_err, graph_val_err, fold_dir, params.train.loss)
             log_epoch_stats_to_csv(fold_dir, undersampling, fold, epoch, train_err, validate_err)
 
-            if params.train.stop_lr_decay == -1 or epoch < params.train.stop_lr_decay:
+            if params.train.lr_decay_end == -1 or epoch < params.train.lr_decay_end:
                 scheduler.step()
 
         results.append((fold, graph_train_err, graph_val_err))

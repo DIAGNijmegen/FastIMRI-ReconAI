@@ -83,7 +83,7 @@ def generate_sequences(params: Parameters, dl: DataLoader) -> SequenceCollection
             'seq_len': params.data.sequence_length,
             'random_order': False
         }
-        return sequencer.generate_singleslice_sequences(**kwargs)
+        return sequencer.generate_sequences(**kwargs)
 
 
 def get_batcher(params: Parameters, dl: DataLoader, sequences: SequenceCollection):

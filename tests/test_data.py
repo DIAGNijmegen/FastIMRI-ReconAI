@@ -38,7 +38,7 @@ def batcher(dataloader, sequences):
     return a_batcher
 
 
-def test_generate_multislice_sequence(dataloader: DataLoader, sequences: SequenceCollection):
+def test_generate_multislice_sequences(dataloader: DataLoader, sequences: SequenceCollection):
     # with open('./output/test_data_expected_sequences.json', 'w') as f:
     #     json.dump(repr(sequences), f, indent=1)
     with open('./output/test_data_expected_sequences.json') as f:
@@ -53,15 +53,15 @@ def test_generate_multislice_sequence(dataloader: DataLoader, sequences: Sequenc
     assert obj1 != seq.generate_multislice_sequences(**kwargs)
 
 
-def test_generate_singleslice_sequence(dataloader: DataLoader):
+def test_generate_sequences(dataloader: DataLoader):
     seq = SequenceBuilder(dataloader)
-    obj = seq.generate_singleslice_sequences(seed=10, seq_len=5)
-    obj_random1 = seq.generate_singleslice_sequences(seed=10, seq_len=5, random_order=True)
-    obj_random2 = seq.generate_singleslice_sequences(seed=10, seq_len=5, random_order=True)
+    obj = seq.generate_sequences(seed=10, seq_len=5)
+    obj_random1 = seq.generate_sequences(seed=10, seq_len=5, random_order=True)
+    obj_random2 = seq.generate_sequences(seed=10, seq_len=5, random_order=True)
     assert obj_random1 == obj_random2
-    obj_1 = seq.generate_singleslice_sequences(seed=10, seq_len=1)
+    obj_1 = seq.generate_sequences(seed=10, seq_len=1)
     assert all([list(x.items())[0][1][0] == 2 for x in obj.items()])
-    obj_20 = seq.generate_singleslice_sequences(seed=10, seq_len=20)
+    obj_20 = seq.generate_sequences(seed=10, seq_len=20)
     assert np.all([list(x.items())[0][1] == [1, 3, 0, 4, 0, 3, 1, 2, 1, 3, 0, 4, 0, 3, 1, 2, 1, 3, 0] for x in obj_20.items()])
 
     for o in [obj, obj_random1, obj_random1, obj_1, obj_20]:

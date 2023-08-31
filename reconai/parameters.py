@@ -19,11 +19,7 @@ class Parameters:
         :param shape_y: image rows to crop or zero-fill to
         :param sequence_length: length of T
         :param sequence_seed: seed for sequence generator
-        :param q: Quality preference. (0 <= q <= 1). Higher means fewer sequences per case, with each sequence containing primarily center slices. Lower means more sequences per case, with each sequence containing primarily edge slices.
         :param normalize: image normalize divisor
-        :param equal_images: keep images equal across a sequence
-        :param equal_masks: keep masks equal across a sequence
-        :param multislice: ?
         :param undersampling: how many k-lines to synthetically remove
         :param mask_seed: seed to Gaussian random k-space masks
         """
@@ -33,11 +29,7 @@ class Parameters:
         shape_y: int = 256
         sequence_length: int = 5
         sequence_seed: int = 11
-        q: float = 0.5
         normalize: float = 1961.06
-        equal_images: bool = True
-        equal_masks: bool = True
-        multislice: bool = False
         undersampling: int = 8
         mask_seed: int = 11
 
@@ -64,11 +56,10 @@ class Parameters:
         """Parameters related to the model
 
         :param epochs: number of epochs
-        :param folds: number of folds. if less than 3, folds = 1
-        :param kernelsize: CRNN kernel convolution size
-        :param channels: CRNN channel width
-        :param layers: CRNN total layers
-        :param bcrnn: whether to include the BCRNN layer (False, to replace with regular CRNN layer)
+        :param folds: number of folds
+        :param lr: learning rate
+        :param lr_gamma: learning rate decay per epoch
+        :param lr_decay_end: set lr_gamma to 1 after n epochs. -1 for never.
         """
         @dataclass
         class Loss:
@@ -83,11 +74,11 @@ class Parameters:
             dice: float = 0
 
         epochs: int = 5
-        folds: int = 64
+        folds: int = 3
         loss: Loss = field(default_factory=Loss)
         lr: float = 0.001
         lr_gamma: float = 0.95
-        stop_lr_decay: int = 45
+        lr_decay_end: int = 3
 
     in_dir: Path
     out_dir: Path
@@ -98,7 +89,8 @@ class Parameters:
     train: Train = field(init=False, default_factory=Train)
 
     def __post_init__(self, yaml: str):
-
+        self.in_dir = Path(self.in_dir)
+        self.out_dir = Path(self.out_dir)
         if self.debug:
             yaml = importlib.resources.read_text('reconai.resources', 'config_debug.yaml')
         elif not yaml:
@@ -112,17 +104,24 @@ class Parameters:
             f'E{self.train.epochs}',
             'DEBUG' if self.debug else None
         ]
-        self._name = '_'.join(a for a in args if a)
 
         __deep_update__(self, self._yaml)
-        self.out_dir = self.out_dir / self._name
+
+        self._yaml['name'] = '_'.join(a for a in args if a)
+        self._yaml['date'] = args[0]
+        self._yaml['in_dir'] = self.in_dir.as_posix()
+        self._yaml['out_dir'] = self.out_dir.as_posix()
+        self._yaml['debug'] = self.debug
+
+    def mkoutdir(self):
+        self.out_dir = self.out_dir / self.name
         self.out_dir.mkdir(exist_ok=True, parents=True)
         with open(self.out_dir / 'config.yaml', 'w') as f:
             f.write(str(self))
 
     @property
     def name(self) -> str:
-        return self._name + '_DEBUG' if self.debug else ''
+        return self._yaml['name'].value
 
     def __str__(self):
         return self._yaml.as_yaml()

@@ -26,8 +26,10 @@ class DataLoader:
     def shapes(self, item: str) -> List[tuple]:
         return [m.shape for m in self._mhas[item]]
 
-    def load(self, split_regex: str, *, filter_regex: str = '', as_float32: bool = True):
+    def load(self, split_regex: str, *, filter_regex: str = '', as_float32: bool = True) -> 'DataLoader':
         """
+        Load all data into memory.
+
         Parameters
         ----------
         split_regex: str
@@ -40,10 +42,9 @@ class DataLoader:
         all_dirs = set()
         for root, _, files in os.walk(self._data_dir):
             all_dirs.add(Path(root))
-        all_dirs.remove(self._data_dir)
 
         def gather_mhas(dirname: Path):
-            mhas = {}
+            mhas = dict()
             for file in dirname.iterdir():
                 search = re.search(filter_regex, file.name) if filter_regex else True
                 split = re.search(split_regex, file.name)
@@ -59,6 +60,8 @@ class DataLoader:
         #         self._mhas.update(future.result())
         for dire in all_dirs:
             self._mhas.update(gather_mhas(dire))
+
+        return self
 
     @staticmethod
     def _load_mha(mha: Path):

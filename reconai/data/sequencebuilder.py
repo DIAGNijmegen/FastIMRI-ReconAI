@@ -29,7 +29,7 @@ class SequenceBuilder:
 
         return SequenceCollection(sequence_collection)
 
-    def generate_singleslice_sequences(self, *, seed: int = -1, seq_len: int = 5, random_order: bool = False) \
+    def generate_sequences(self, *, seed: int = -1, seq_len: int = 5, random_order: bool = False) \
             -> SequenceCollection:
         """
         For each MHA slice, a sequence is created. If seq_len < len(MHA slice), the center slices are preferred.

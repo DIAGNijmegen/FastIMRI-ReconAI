@@ -158,7 +158,7 @@ class CRNNMRI(Module):
 
     """
 
-    def __init__(self, n_ch: int, nf: int, ks: int, nc: int, nd: int, single_crnn: bool = False):
+    def __init__(self, n_ch: int, nf: int, ks: int, nc: int, nd: int, bcrnn: bool = True):
         """
         Parameters
         ----------
@@ -184,12 +184,12 @@ class CRNNMRI(Module):
         def conv2d():
             return nn.Conv2d(nf, nf, ks, padding=ks // 2).type(self.TensorType)
 
-        if single_crnn:
-            self.bcrnn = CRNNlayer(n_ch, nf, ks)
-            logging.info('using single CRNN layer')
-        else:
+        if bcrnn:
             self.bcrnn = BCRNNlayer(n_ch, nf, ks)
             logging.info('using BCRNN layer')
+        else:
+            self.bcrnn = CRNNlayer(n_ch, nf, ks)
+            logging.info('using single CRNN layer')
 
         self.conv1_x = conv2d()
         self.conv1_h = conv2d()
