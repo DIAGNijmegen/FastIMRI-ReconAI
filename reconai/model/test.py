@@ -5,7 +5,7 @@ import torch
 
 from reconai.model.module import Module
 from torch.autograd import Variable
-from reconai.data.data import prepare_input
+from reconai.data.data import preprocess
 from reconai.model.dnn_io import from_tensor_format
 from reconai.utils.metric import complex_psnr
 from reconai.utils.graph import print_end_of_epoch
@@ -95,10 +95,10 @@ def run_testset(network, batcher, params, seed_offset, equal_mask: bool):
     with torch.no_grad():
         for im in batcher.items():
             logging.debug(f"batch {test_batches_e}")
-            im_und, k_und, mask, im_gnd = prepare_input(im,
-                                                        mask_seed + mask_i,
-                                                        params.config.train.undersampling,
-                                                        equal_mask=equal_mask)
+            im_und, k_und, mask, im_gnd = preprocess(im,
+                                                     mask_seed + mask_i,
+                                                     params.config.train.undersampling,
+                                                     equal_mask=equal_mask)
             im_u = Variable(im_und.type(Module.TensorType))
             k_u = Variable(k_und.type(Module.TensorType))
             mask = Variable(mask.type(Module.TensorType))

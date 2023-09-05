@@ -1,5 +1,5 @@
 from reconai.data.deprecated.data import get_data_volumes, get_dataset_batchers
-from reconai.data.data import prepare_input_as_variable
+from reconai.data.data import preprocess_as_variable
 import torch
 from reconai.model.model_pytorch import CRNNMRI
 import SimpleITK as sitk
@@ -22,7 +22,7 @@ def main_presentatie_stan():
         network.load_state_dict(state_dict)
         network.eval()
 
-        im_u, k_u, mask, gnd = prepare_input_as_variable(image, acceleration)
+        im_u, k_u, mask, gnd = preprocess_as_variable(image, acceleration)
 
         pred = network(im_u, k_u, mask, test=True)
         pred = from_tensor_format(pred.detach().cpu(), True)

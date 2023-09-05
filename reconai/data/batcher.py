@@ -100,6 +100,10 @@ class Batcher:
         validation: bool=False
             Return the validation set or the training set
         """
+        if fold <= 1:
+            for item in self.items():
+                yield item
+
         assert max_folds > 2, ValueError('max_folds must be at least 2, use items() instead')
         assert fold < max_folds, IndexError(f'fold ({fold}) >= max folds ({max_folds})')
 

@@ -3,7 +3,7 @@ import torch
 import numpy as np
 
 from reconai.model.kspace_pytorch import DataConsistencyInKspace
-from reconai.data.data import prepare_input
+from reconai.data.data import preprocess
 
 
 @pytest.mark.usefixtures("batcher")
@@ -15,7 +15,7 @@ def test_dc_image_shifting(batcher):
     dc_layer = DataConsistencyInKspace()
 
     for im in batcher.items():
-        im_und, k_und, mask, im_gnd = prepare_input(im, 1, 1)
+        im_und, k_und, mask, im_gnd = preprocess(im, 1, 1)
         k_und = torch.complex(k_und[:, 0, ...], k_und[:, 1, ...]).unsqueeze(0)
 
         im_dc = dc_layer(im_und, k_und, mask).cpu()

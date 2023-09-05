@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from reconai.model.model_pytorch import CRNNMRI
 import SimpleITK as sitk
-from reconai.data.data import prepare_input_as_variable
+from reconai.data.data import preprocess_as_variable
 from reconai.data.batcher import crop_or_pad
 import sys
 from datetime import datetime
@@ -53,27 +53,27 @@ def main():
 
                 if 'equal' in npzfilename:
                     img0 = get_image_nontemporal(image, 0)
-                    im_u_0, k_u_0, mask_0, _ = prepare_input_as_variable(img0, 11, und, equal_mask=True)
+                    im_u_0, k_u_0, mask_0, _ = preprocess_as_variable(img0, 11, und, equal_mask=True)
                     rec0, _ = network(im_u_0, k_u_0, mask_0, False)
                     rec0 = rec0[0].permute(0, 3, 1, 2).detach().cpu().numpy()[0]
 
                     img1 = get_image_nontemporal(image, 1)
-                    im_u_1, k_u_1, mask_1, _ = prepare_input_as_variable(img1, 12, und, equal_mask=True)
+                    im_u_1, k_u_1, mask_1, _ = preprocess_as_variable(img1, 12, und, equal_mask=True)
                     rec1, _ = network(im_u_1, k_u_1, mask_1, False)
                     rec1 = rec1[0].permute(0, 3, 1, 2).detach().cpu().numpy()[0]
 
                     img2 = get_image_nontemporal(image, 2)
-                    im_u_2, k_u_2, mask_2, _ = prepare_input_as_variable(img2, 13, und, equal_mask=True)
+                    im_u_2, k_u_2, mask_2, _ = preprocess_as_variable(img2, 13, und, equal_mask=True)
                     rec2, _ = network(im_u_2, k_u_2, mask_2, False)
                     rec2 = rec2[0].permute(0, 3, 1, 2).detach().cpu().numpy()[0]
 
                     img3 = get_image_nontemporal(image, 3)
-                    im_u_3, k_u_3, mask_3, _ = prepare_input_as_variable(img3, 14, und, equal_mask=True)
+                    im_u_3, k_u_3, mask_3, _ = preprocess_as_variable(img3, 14, und, equal_mask=True)
                     rec3, _ = network(im_u_3, k_u_3, mask_3, False)
                     rec3 = rec3[0].permute(0, 3, 1, 2).detach().cpu().numpy()[0]
 
                     img4 = get_image_nontemporal(image, 4)
-                    im_u_4, k_u_4, mask_4, _ = prepare_input_as_variable(img4, 15, und, equal_mask=True)
+                    im_u_4, k_u_4, mask_4, _ = preprocess_as_variable(img4, 15, und, equal_mask=True)
                     rec4, _ = network(im_u_4, k_u_4, mask_4, False)
                     rec4 = rec4[0].permute(0, 3, 1, 2).detach().cpu().numpy()[0]
 
@@ -83,7 +83,7 @@ def main():
                     rec0[4] = rec4[4]
                     rec = rec0
                 else:
-                    im_u, k_u, mask, gnd = prepare_input_as_variable(image, 11, und, equal_mask=False)
+                    im_u, k_u, mask, gnd = preprocess_as_variable(image, 11, und, equal_mask=False)
                     rec, _ = network(im_u, k_u, mask, False)
 
                     rec = rec[0].permute(0, 3, 1, 2).detach().cpu().numpy()[0]

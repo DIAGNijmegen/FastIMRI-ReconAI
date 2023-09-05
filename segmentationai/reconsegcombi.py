@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from reconai.model.model_pytorch import CRNNMRI
 import SimpleITK as sitk
-from reconai.data.data import prepare_input_as_variable
+from reconai.data.data import preprocess_as_variable
 from reconai.data.batcher import crop_or_pad
 import sys
 from datetime import datetime
@@ -122,7 +122,7 @@ def main():
 
         for image in batcher.items():
             i = 0
-            im_u, k_u, mask, gnd = prepare_input_as_variable(image, 11, und, equal_mask='equal' in input_filename)
+            im_u, k_u, mask, gnd = preprocess_as_variable(image, 11, und, equal_mask='equal' in input_filename)
 
             rec, iters = network(im_u, k_u, mask, False)
 

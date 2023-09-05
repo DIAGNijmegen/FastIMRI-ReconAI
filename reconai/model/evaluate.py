@@ -10,7 +10,7 @@ from reconai.parameters import Parameters
 from reconai.data.sequencebuilder import SequenceBuilder
 from reconai.data.dataloader import DataLoader
 from reconai.data.batcher import Batcher
-from reconai.data.data import prepare_input_as_variable
+from reconai.data.data import preprocess_as_variable
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -74,10 +74,10 @@ def evaluate(params: Parameters):
         for i in range(20):
             with torch.no_grad():
                 img = next(test_batcher.items())
-                im_und, k_und, mask, im_gnd = prepare_input_as_variable(img,
-                                                                        11,
-                                                                        params.train.undersampling,
-                                                                        equal_mask=False)
+                im_und, k_und, mask, im_gnd = preprocess_as_variable(img,
+                                                                     11,
+                                                                     params.train.undersampling,
+                                                                     equal_mask=False)
                 t_start = time.time()
                 result, _ = network(im_und, k_und, mask, test=False)
                 t_end = time.time()

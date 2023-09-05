@@ -12,7 +12,7 @@ import logging
 
 from reconai.data import SequenceBuilder, DataLoader, Batcher
 from reconai.parameters import Parameters
-from reconai.data.data import get_dataset_batchers, prepare_input_as_variable, get_dataloader, generate_sequences
+from reconai.data.data import get_dataset_batchers, preprocess_as_variable, get_dataloader, generate_sequences
 from reconai.model.test import run_and_print_full_test
 
 from reconai.utils.graph import update_loss_progress
@@ -27,8 +27,8 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     num_epochs = params.train.epochs
     n_folds = params.train.folds if params.train.folds > 2 else 1
     undersampling = params.data.undersampling
+    mask_seed = params.data.mask_seed
 
-    # Specify network
     network = CRNNMRI(n_ch=params.model.channels,
                       nf=params.model.filters,
                       ks=params.model.kernelsize,
@@ -39,6 +39,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
     optimizer = optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
     scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.train.lr_gamma)
+    # He initialization?
     if params.train.loss.mse == 1:
         criterion = torch.nn.MSELoss().cuda()
     elif params.train.loss.ssim == 1:
@@ -71,56 +72,54 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             t_start = time.time()
 
             network.train()
-            train_err, train_batches = 0, 0
+            train_loss, train_batches = 0, 0
             for im in batcher.items_fold(fold, n_folds, validation=False):
                 logging.debug(f"batch {train_batches}")
-                im_u, k_u, mask, gnd = prepare_input_as_variable(im,
-                                                                 params.train.mask_seed + mask_i,
-                                                                 params.train.undersampling,
-                                                                 params.train.equal_masks)
+                im_u, k_u, mask, gnd = preprocess_as_variable(im, mask_seed, undersampling)
 
                 optimizer.zero_grad(set_to_none=True)
                 rec, full_iterations = network(im_u, k_u, mask)
-                loss = calculate_loss(params, criterion, rec, gnd)
+                loss: torch.Tensor = calculate_loss(params, criterion, rec, gnd)
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
                 optimizer.step()
 
-                train_err += loss.item()
+                train_loss += loss.item()
                 train_batches += 1
-                mask_i += params.data.sequence_length
+
+                mask_seed += params.data.sequence_length
 
                 if params.debug and train_batches == 2:
                     break
             logging.info(f"completed {train_batches} train batches")
-
-            validate_err, validate_batches = 0, 0
             network.eval()
+
+            validate_loss, validate_batches = 0, 0
             with torch.no_grad():
                 for im in batcher.items_fold(fold, 5, validation=True):
                     logging.debug(f"batch {validate_batches}")
-                    im_u, k_u, mask, gnd = prepare_input_as_variable(im,
-                                                                     params.train.mask_seed + mask_i,
-                                                                     params.train.undersampling,
-                                                                     params.train.equal_masks)
+                    im_u, k_u, mask, gnd = preprocess_as_variable(im, mask_seed, undersampling)
 
                     pred, full_iterations = network(im_u, k_u, mask, test=True)
-                    err = calculate_loss(params, criterion, pred, gnd)
-                    validate_err += err.item()
+                    loss: torch.Tensor = calculate_loss(params, criterion, pred, gnd)
+
+                    validate_loss += loss.item()
                     validate_batches += 1
 
-                    mask_i += params.data.sequence_length
+                    mask_seed += params.data.sequence_length
                     if params.debug and validate_batches == 2:
                         break
             logging.info(f"completed {validate_batches} validate batches")
 
             t_end = time.time()
 
-            train_err /= train_batches
-            validate_err /= validate_batches
+            train_loss /= train_batches
+            validate_loss /= validate_batches
+
+            # rework this part
 
             stats = '\n'.join([f'Epoch {epoch + 1}/{num_epochs}', f'\ttime: {t_end - t_start} s',
-                               f'\ttraining loss:\t\t{train_err}x', f'\tvalidation loss:\t\t{validate_err}'])
+                               f'\ttraining loss:\t\t{train_loss}x', f'\tvalidation loss:\t\t{validate_loss}'])
             logging.info(stats)
 
             if epoch % 5 == 0 or epoch > num_epochs - 5:
@@ -134,13 +133,13 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
                 if epoch % 5 == 0 or epoch > num_epochs - 5:
                     run_and_print_full_test(network, test_batcher_equal, test_batcher_non_equal, params, epoch_dir,
-                                            name, train_err, validate_err, mask_i, stats)
+                                            name, train_loss, validate_loss, mask_i, stats)
 
-            graph_train_err.append(train_err)
-            graph_val_err.append(validate_err)
+            graph_train_err.append(train_loss)
+            graph_val_err.append(validate_loss)
 
             update_loss_progress(graph_train_err, graph_val_err, fold_dir, params.train.loss)
-            log_epoch_stats_to_csv(fold_dir, undersampling, fold, epoch, train_err, validate_err)
+            log_epoch_stats_to_csv(fold_dir, undersampling, fold, epoch, train_loss, validate_loss)
 
             if params.train.lr_decay_end == -1 or epoch < params.train.lr_decay_end:
                 scheduler.step()

@@ -16,9 +16,9 @@ from .batcher import Batcher
 from reconai.parameters import Parameters
 
 
-def prepare_input_as_variable(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
+def preprocess_as_variable(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
         -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
-    im_und, k_und, mask, im_gnd = prepare_input(image, seed, acceleration, equal_mask)
+    im_und, k_und, mask, im_gnd = preprocess(image, seed, acceleration, equal_mask)
     im_u = Variable(im_und.type(Module.TensorType))
     k_u = Variable(k_und.type(Module.TensorType))
     mask = Variable(mask.type(Module.TensorType))
@@ -27,7 +27,7 @@ def prepare_input_as_variable(image: np.ndarray, seed: int, acceleration: float 
     return im_u, k_u, mask, gnd
 
 
-def prepare_input(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
+def preprocess(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
         -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
     """Undersample the batch, then reformat them into what the network accepts.
 
