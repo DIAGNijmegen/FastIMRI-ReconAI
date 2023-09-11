@@ -2,22 +2,22 @@
 from __future__ import print_function, division
 
 import datetime
+import logging
 import time
+from pathlib import Path
+from typing import List
 
 import torch
 import torch.optim as optim
-from typing import List
-from pathlib import Path
-import logging
+import wandb
+from piqa import SSIM
 
 from reconai.data import SequenceBuilder, DataLoader, Batcher
-from reconai.parameters import Parameters
-from reconai.data.data import get_dataset_batchers, preprocess_as_variable, get_dataloader, generate_sequences
-from reconai.model.test import run_and_print_full_test
-
-from reconai.utils.graph import update_loss_progress
+from reconai.data.data import preprocess_as_variable
 from reconai.model.model_pytorch import CRNNMRI
-from piqa import SSIM
+from reconai.model.test import run_and_print_full_test
+from reconai.parameters import Parameters
+from reconai.utils.graph import update_loss_progress
 
 
 def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
@@ -162,11 +162,14 @@ def get_criterion(params: Parameters) -> torch.nn.Module:
 
 
 def calculate_loss(params: Parameters, criterion, pred, gnd) -> float:
-    if params.train.loss.mse == 1:
-        err = criterion(pred, gnd)
-    elif params.train.loss.ssim == 1:
-        err = 1 - criterion(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])
-    return err
+    errors = []
+    if params.train.loss.mse > 0:
+        errors.append((params.train.loss.mse, criterion(pred, gnd)))
+    if params.train.loss.ssim > 0:
+        errors.append((params.train.loss.mse, 1 - criterion(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])))
+    if params.train.loss.dice > 0:
+        raise NotImplementedError("Only MSE or SSIM loss implemented")
+    return sum([w * err for w, err in errors])
 
 
 def log_epoch_stats_to_csv(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float, val_err: float):

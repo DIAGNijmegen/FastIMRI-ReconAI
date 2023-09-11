@@ -2,6 +2,7 @@ from pathlib import Path
 import logging
 
 import click
+import wandb as wdb
 import shutil
 from os.path import join
 
@@ -20,21 +21,33 @@ def cli():
 @click.option('--in_dir', type=Path, required=True)
 @click.option('--out_dir', type=Path, required=True)
 @click.option('--config', type=Path, required=False)
-@click.option('--debug', is_flag=True, default=False, help="light weight process for debugging")
-def train_recon(in_dir: Path, out_dir: Path, config: Path, debug: bool):
+@click.option('--wandb', type=str, required=False)
+@click.option('--debug', is_flag=True, default=False)
+def train_recon(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
+    setup_wandb(wandb, params, group='debug' if debug else 'train')
     train(params)
+    wdb.finish()
 
 
 @cli.command(name='eval')
 @click.option('--in_dir', type=Path, required=True)
 @click.option('--out_dir', type=Path, required=True)
 @click.option('--config', type=Path, required=True)
-def evaluate_models(in_dir: Path, out_dir: Path, config: Path):
-    params = Parameters(in_dir, out_dir, config, False)
+@click.option('--wandb', type=str, required=False)
+@click.option('--debug', is_flag=True, default=False)
+def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
+    params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
+    setup_wandb(wandb, params, group='debug' if debug else 'eval')
     evaluate(params)
+    wdb.finish()
+
+
+def setup_wandb(params: Parameters, api_key: str, group: str = ''):
+    wdb.login(key=api_key)
+    wdb.init(project='FastIMRI-ReconAI', group=group, config=params.as_dict())
 
 
 def setup_logging(params: Parameters):

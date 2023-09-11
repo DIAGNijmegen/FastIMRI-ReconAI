@@ -10,3 +10,4 @@ def test_parameters():
     assert p.data.shape_x == 256
     p = Parameters(in_dir, out_dir, 'data:\n shape_x: 56')
     assert p.data.shape_x == 56
+    assert p.as_dict()['data']['shape_x'] == 56

@@ -1,5 +1,5 @@
 import importlib
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass, field, InitVar, is_dataclass
 from datetime import datetime
 from importlib import resources
 from pathlib import Path
@@ -73,6 +73,11 @@ class Parameters:
             ssim: float = 1
             dice: float = 0
 
+            def __post_init__(self):
+                total = sum(self.__dict__.values())
+                for key in self.__dict__.keys():
+                    setattr(self, key, getattr(self, key) / total)
+
         epochs: int = 5
         folds: int = 3
         loss: Loss = field(default_factory=Loss)
@@ -123,11 +128,22 @@ class Parameters:
     def name(self) -> str:
         return self._yaml['name'].value
 
+    def as_dict(self):
+        return __deep_dict__(self)
+
     def __str__(self):
         return self._yaml.as_yaml()
 
 
 types = (int, float, bool, str)
+
+
+def __deep_dict__(obj) -> dict:
+    r = {key: value for key, value in obj.__dict__.items() if not key.startswith('_')}
+    for key in r.keys():
+        if is_dataclass(r[key]):
+            r[key] = __deep_dict__(r[key])
+    return r
 
 
 def __deep_update__(obj, yaml: YAML):
