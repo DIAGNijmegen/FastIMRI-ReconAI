@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import logging
 import time
-from .train import run_and_print_full_test
 from os import listdir
 from os.path import isfile, join
 from .model_pytorch import CRNNMRI
@@ -13,6 +12,7 @@ from reconai.data.batcher import Batcher
 from reconai.data.data import preprocess_as_variable
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 def evaluate(params: Parameters):
     path = params.out_dir

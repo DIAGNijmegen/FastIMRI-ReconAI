@@ -1,4 +1,5 @@
 import shutil
+from pathlib import Path
 
 import freezegun
 from click.testing import CliRunner
@@ -10,11 +11,13 @@ runner = CliRunner()
 
 @freezegun.freeze_time("2023-08-30 10:30:00")
 def test_train_debug(monkeypatch):
-    shutil.rmtree('./output/20230830-1030_CRNN-MRI_R8_E5_DEBUG')
+    out_dir = Path('./output/20230830-1030_CRNN-MRI_R8_E5_DEBUG')
+    if out_dir.exists():
+        shutil.rmtree(out_dir)
 
     kwargs = {
         'in_dir': './input/patient1',
-        'out_dir': './output',
+        'out_dir': out_dir.parent.as_posix(),
         'debug': None
     }
     args = []
