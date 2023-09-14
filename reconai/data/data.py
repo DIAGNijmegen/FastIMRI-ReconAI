@@ -16,9 +16,8 @@ from .batcher import Batcher
 from reconai.parameters import Parameters
 
 
-def preprocess_as_variable(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
-        -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
-    im_und, k_und, mask, im_gnd = preprocess(image, seed, acceleration, equal_mask)
+def preprocess_as_variable(image: np.ndarray, acceleration: float = 4.0) -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
+    im_und, k_und, mask, im_gnd = preprocess(image, acceleration)
     im_u = Variable(im_und.type(Module.TensorType))
     k_u = Variable(k_und.type(Module.TensorType))
     mask = Variable(mask.type(Module.TensorType))
@@ -27,16 +26,13 @@ def preprocess_as_variable(image: np.ndarray, seed: int, acceleration: float = 4
     return im_u, k_u, mask, gnd
 
 
-def preprocess(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_mask: bool = False) \
-        -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
+def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
     """Undersample the batch, then reformat them into what the network accepts.
 
     Parameters
     ----------
     image: ndarray - input image of shape (batch_size, n_channels, width, height)
-    seed: int - the seed to use for the randomization in the mask
     acceleration: float - controls the undersampling rate. higher the value, more undersampling
-    equal_mask: bool - If true then all sequences receive the same undersampling mask
 
     Returns
     ------
@@ -50,9 +46,9 @@ def preprocess(image: np.ndarray, seed: int, acceleration: float = 4.0, equal_ma
 
     for b_ in range(b):
         for s_ in range(s):
-            mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3, seed if equal_mask else seed + s_)
+            mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3)
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
-    im_gnd_l = torch.from_numpy(to_tensor_format(image))
+    im_gnd_l = to_tensor_format(image)
     im_und_l = torch.from_numpy(to_tensor_format(im_und))
     k_und_l = torch.from_numpy(to_tensor_format(k_und, complex=True))
     mask_l = torch.from_numpy(to_tensor_format(mask))

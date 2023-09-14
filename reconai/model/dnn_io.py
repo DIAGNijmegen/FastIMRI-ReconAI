@@ -57,8 +57,8 @@ def to_tensor_format(x, complex=False):
     Reshapes to (n, n_channels, nx, ny[, nt])
     Note: Depth must be the last axis, the dimensions will be reordered
     """
-    if x.ndim == 4:  # n 3D inputs. reorder axes
-        x = np.transpose(x, (0, 2, 3, 1))
+    assert x.ndim == 4, f'invalid shape {x.shape}'  # n 3D inputs. reorder axes
+    x = np.transpose(x, (0, 2, 3, 1))
 
     # if mask:  # Hacky solution
     #     x = x*(1+1j)
@@ -66,11 +66,7 @@ def to_tensor_format(x, complex=False):
     if complex:
         x = c2r(x)
     else:
-        x = np.abs(x[np.newaxis, :])
-    # if mask:  # Hacky solution
-    #     x = x * (1 + 1j)
-
-    # x = c2r(x)
+        x = np.abs(x[:, np.newaxis, :])
 
     return x
 

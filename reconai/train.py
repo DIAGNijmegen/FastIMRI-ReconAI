@@ -18,6 +18,7 @@ from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import Parameters
 from reconai.tdata import Dataset
 from reconai.tdata import DataLoader as tDataLoader
+from reconai.rng import rng
 
 
 def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
@@ -27,20 +28,8 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     num_epochs = params.train.epochs
     n_folds = params.train.folds if params.train.folds > 2 else 1
     undersampling = params.data.undersampling
-    mask_seed = params.data.mask_seed
 
     dataset_full = Dataset(params.in_dir)
-
-    # torchset = Dataset(params.in_dir)
-    # torchloader = tDataLoader(torchset, batch_size=4)
-    # for arg in torchloader:
-    #     pass
-
-    # batcher = Batcher(loader)
-    # for sequence in sequence_collection.items():
-    #     batcher.append_sequence(sequence, crop_expand_to=(params.data.shape_x, params.data.shape_y),
-    #                             norm=params.data.normalize)
-    # del loader
 
     network = CRNNMRI(n_ch=params.model.channels,
                       nf=params.model.filters,
@@ -69,6 +58,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     logging.info(f'starting {n_folds}-fold training')
     for fold, dataset in enumerate(torch_data.random_split(dataset_full, [len(dataset_full) // n_folds] * n_folds)):
         fold_dir = params.out_dir / f'fold_{fold}'
+        rng(params.data.mask_seed)
 
         dataset_split = [1 / n_folds] * n_folds if n_folds > 1 else [0.8, 0.2]
         dataset_train, dataset_validate = torch_data.random_split(dataset, [dataset_split[0], sum(dataset_split[1:])])
@@ -80,26 +70,20 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
             network.train()
             train_loss, train_batches = 0, 0
             for batch in dataloader_train:
-                im_u, k_u, mask, gnd = preprocess_as_variable(batch, params.data.mask_seed, params.data.undersampling)
+                im_u, k_u, mask, gnd = preprocess_as_variable(batch, params.data.undersampling)
                 optimizer.zero_grad(set_to_none=True)
-                rec, full_iterations = network(im)
-            # for im in batcher.items_fold(fold, n_folds, validation=False):
-            #     im_u, k_u, mask, gnd = preprocess_as_variable(im, mask_seed, undersampling)
-            #
-            #     optimizer.zero_grad(set_to_none=True)
-            #     rec, full_iterations = network(im_u, k_u, mask)
-            #     loss: torch.Tensor = calculate_loss(params, criterion, rec, gnd)
-            #     loss.backward()
-            #     torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
-            #     optimizer.step()
-            #
-            #     train_loss += loss.item()
-            #     train_batches += 1
-            #
-            #     mask_seed += params.data.sequence_length
-            #
-            #     if params.debug and train_batches == 2:
-            #         break
+                for i in range(params.data.batch_size):
+                    # oops, this means the arrays are squeezed
+                    rec, full_iterations = network(im_u[i], k_u[i], mask[i])
+                    loss: torch.Tensor = calculate_loss(params, criterion, rec, gnd[i])
+                    loss.backward()
+
+                    torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
+                    optimizer.step()
+
+                    train_loss += loss.item()
+
+                train_batches += params.data.batch_size
             network.eval()
 
             validate_loss, validate_batches = 0, 0

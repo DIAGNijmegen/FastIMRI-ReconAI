@@ -213,13 +213,11 @@ class CRNNMRI(Module):
         Parameters
         ----------
         x: torch.Tensor
-            input in image domain, of shape (n, 2, nx, ny, n_seq)
+            input in image domain, of shape (1, 1, y, x, s)
         k: torch.Tensor
-            initially sampled elements in k-space
+            initially sampled elements in k-space, of shape (1, 2, y, x, s)
         m: torch.Tensor
-            corresponding nonzero location
-        gnd: torch.Tensor
-            groundtruth
+            corresponding nonzero location, of shape (1, 1, y, x, s)
         test: bool, optional
             True: the model is in test mode, False: train mode
 

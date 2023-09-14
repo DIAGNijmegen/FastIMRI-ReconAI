@@ -2,6 +2,8 @@ import numpy as np
 from . import mymath
 from numpy.lib.stride_tricks import as_strided
 
+from reconai.rng import rng
+
 
 def soft_thresh(u, lmda):
     """Soft-threshing operator for complex valued input"""
@@ -31,7 +33,7 @@ def var_dens_mask(shape, ivar, sample_high_freq=True):
     # this must be false if undersampling rate is very low (around 90%~ish)
     if sample_high_freq:
         strided_pdf = strided_pdf / 1.25 + 0.02
-    mask = np.random.binomial(1, strided_pdf)
+    mask = rng().binomial(1, strided_pdf)
 
     xc = Nx / 2
     yc = Ny / 2
@@ -66,7 +68,7 @@ def cartesian_mask(shape, acc, sample_n=10, centred=False):
 
     mask = np.zeros((N, Nx))
     for i in range(N):
-        idx = np.random.choice(Nx, n_lines, False, pdf_x)
+        idx = rng().choice(Nx, n_lines, False, pdf_x)
         mask[i, idx] = 1
 
     if sample_n:
@@ -102,7 +104,7 @@ def shear_grid_mask(shape, acceleration_rate: int, sample_low_freq=True,
 
     """
     Nt, Nx, Ny = shape
-    start = np.random.randint(0, acceleration_rate)
+    start = rng().integers(0, acceleration_rate)
     mask = np.zeros((Nt, Nx))
     for t in range(Nt):
         mask[t, (start+t) % acceleration_rate::acceleration_rate] = 1
@@ -196,7 +198,7 @@ def undersample(x, mask, centred=False, norm='ortho', noise=0):
     assert x.shape == mask.shape
     # zero mean complex Gaussian noise
     noise_power = noise
-    nz = np.sqrt(.5)*(np.random.normal(0, 1, x.shape) + 1j * np.random.normal(0, 1, x.shape))
+    nz = np.sqrt(.5)*(rng().normal(0, 1, x.shape) + 1j * rng().normal(0, 1, x.shape))
     nz = nz * np.sqrt(noise_power)
 
     if norm == 'ortho':

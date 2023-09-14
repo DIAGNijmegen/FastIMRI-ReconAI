@@ -9,6 +9,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import ifft2, fft2, fftshift
 
+from reconai.rng import rng
+
 
 def show(arr):
     arr = np.abs(arr)
@@ -321,7 +323,6 @@ def get_rand_exp_decay_mask(
         height: int,
         sampling: float,
         centre_sampling: float,
-        seed: int,
         exp_scale: float = 0.4,  # determined empirically
         verbatim=False
 ):
@@ -335,13 +336,12 @@ def get_rand_exp_decay_mask(
     vec[left_idx: right_idx] = 1.0
 
     # idxes_test = []
-    rng = np.random.default_rng(seed=seed)
     # Add a k-space line until sampling percentage is reached
     while sum(vec) / width < sampling:
-        idx = rng.exponential(exp_scale, 1)
+        idx = rng().exponential(exp_scale, 1)
         idx = int(idx * left_idx)
 
-        if rng.random() > 0.5:
+        if rng().random() > 0.5:
             idx = left_idx - idx
         else:
             idx = right_idx + idx
