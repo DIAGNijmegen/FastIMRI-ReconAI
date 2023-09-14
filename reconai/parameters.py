@@ -23,8 +23,7 @@ class Parameters:
         :param undersampling: how many k-lines to synthetically remove
         :param mask_seed: seed to Gaussian random k-space masks
         """
-        split_regex: str = '.*_(.*)_'
-        filter_regex: str = 'sag'
+        batch_size: int = 10
         shape_x: int = 256
         shape_y: int = 256
         sequence_length: int = 5

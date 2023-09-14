@@ -24,7 +24,7 @@ def cli():
 def train_recon(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
-    setup_wandb(wandb, params, group='debug' if debug else 'train')
+    setup_wandb(params, api_key=wandb, group='train_debug' if debug else 'train')
     train(params)
     wdb.finish()
 
@@ -38,7 +38,7 @@ def train_recon(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bo
 def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
-    setup_wandb(wandb, params, group='debug' if debug else 'eval')
+    setup_wandb(params, api_key=wandb, group='eval_debug' if debug else 'eval')
     evaluate(params)
     wdb.finish()
 

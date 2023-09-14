@@ -1,6 +1,5 @@
 data:
-  split_regex: '.*_(.*)_'
-  filter_regex: 'sag'
+  batch_size: 10
   shape_y: 256
   shape_x: 256
   sequence_length: 5

@@ -16,7 +16,7 @@ def test_train_debug(monkeypatch):
         shutil.rmtree(out_dir)
 
     kwargs = {
-        'in_dir': './input/patient1',
+        'in_dir': './tests/input',
         'out_dir': out_dir.parent.as_posix(),
         'debug': None
     }
