@@ -21,7 +21,7 @@ class Parameters:
         :param sequence_seed: seed for sequence generator
         :param normalize: image normalize divisor
         :param undersampling: how many k-lines to synthetically remove
-        :param mask_seed: seed to Gaussian random k-space masks
+        :param seed: seed to Gaussian random k-space masks
         """
         batch_size: int = 10
         shape_x: int = 256
@@ -30,7 +30,7 @@ class Parameters:
         sequence_seed: int = 11
         normalize: float = 1961.06
         undersampling: int = 8
-        mask_seed: int = 11
+        seed: int = 11
 
     @dataclass
     class Model:
@@ -86,17 +86,19 @@ class Parameters:
 
     in_dir: Path
     out_dir: Path
-    yaml_file: InitVar[Path] = None
+    yaml_file: InitVar[Path | str] = None
     debug: bool = False
     data: Data = field(init=False, default_factory=Data)
     model: Model = field(init=False, default_factory=Model)
     train: Train = field(init=False, default_factory=Train)
 
-    def __post_init__(self, yaml_file: Path):
+    def __post_init__(self, yaml_file: Path | str):
         self.in_dir = Path(self.in_dir)
         self.out_dir = Path(self.out_dir)
         if self.debug:
             yaml = importlib.resources.read_text('reconai.resources', 'config_debug.yaml')
+        elif isinstance(yaml_file, str):
+            yaml = yaml_file
         elif not yaml_file:
             yaml = importlib.resources.read_text('reconai.resources', 'config_default.yaml')
         else:

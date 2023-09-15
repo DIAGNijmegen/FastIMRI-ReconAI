@@ -290,17 +290,11 @@ class CRNNMRI(Module):
             x = net[ti_out]
             out[ti_out] = x
 
-            # logging.debug(f'it {i} @ {mem_info()}')
-            # clean up o=i-1
             if test:
-                to_delete = [key for key in net if f't{o}' in key]
-
-                for elt in to_delete:
+                for elt in [key for key in net if f't{o}' in key]:
                     del net[elt]
 
                 torch.cuda.empty_cache()
-            # t_end_loop = time.time()
-            # logging.info(f'1 loop: {t_end_loop - t_start_loop}')
 
         return net[ti_out], out
 

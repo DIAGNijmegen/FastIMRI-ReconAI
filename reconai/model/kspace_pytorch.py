@@ -46,32 +46,6 @@ class DataConsistencyInKspace(Module):
         x_res = x_res.permute(0, 1, 3, 4, 2)
         return x_res
 
-        # OLD
-        # n_ch = x.shape[1]
-        # if x.dim() == 4:  # input is 2D
-        #     x = x.permute(0, 2, 3, 1)
-        #     k0 = k0.permute(0, 2, 3, 1)
-        #     mask = mask.permute(0, 2, 3, 1)
-        # elif x.dim() == 5:  # input is 3D
-        #     x = x.permute(0, 4, 2, 3, 1)
-        #     k0 = k0.permute(0, 4, 2, 3, 1)
-        #     mask = mask.permute(0, 4, 2, 3, 1)
-        #
-        # if n_ch == 1:
-        #     dim = (2, 3)
-        #     k = fourier.fft2(x, dim=dim)
-        #     k_c = self.data_consistency(k, k0, mask, self.noise_lvl)
-        #     x_res = torch.abs(fourier.ifftshift(fourier.ifft2(k_c, dim=dim), dim=dim))
-        # else:
-        #     raise NotImplementedError()
-
-        # if x.dim() == 4:
-        #     x_res = x_res.permute(0, 3, 1, 2)
-        # elif x.dim() == 5:
-        #     x_res = x_res.permute(0, 4, 2, 3, 1)
-        #
-        # return x_res
-
     @staticmethod
     def data_consistency(k, k0, mask, noise_lvl=None):
         """

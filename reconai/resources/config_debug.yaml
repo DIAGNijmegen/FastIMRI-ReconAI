@@ -6,7 +6,7 @@ data:
   sequence_seed: 11
   normalize: 1961.06
   undersampling: 8
-  mask_seed: 11
+  seed: 11
 
 model:
   iterations: 2

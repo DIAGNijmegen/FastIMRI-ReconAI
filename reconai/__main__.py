@@ -6,7 +6,7 @@ import wandb as wdb
 
 from .__version__ import __version__
 from .train import train
-from .model.evaluate import evaluate
+# from .model.evaluate import evaluate
 from .parameters import Parameters
 
 
@@ -39,7 +39,7 @@ def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug
     params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
     setup_wandb(params, api_key=wandb, group='eval_debug' if debug else 'eval')
-    evaluate(params)
+    # evaluate(params)
     wdb.finish()
 
 
