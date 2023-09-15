@@ -10,6 +10,7 @@ import torch
 import torch.optim as torch_optim
 import torch.utils.data as torch_data
 import wandb
+import numpy as np
 from piqa import SSIM
 
 from reconai.data import SequenceBuilder, DataLoader, Batcher
@@ -20,16 +21,24 @@ from reconai.tdata import Dataset
 from reconai.tdata import DataLoader as tDataLoader
 from reconai.rng import rng
 
+import matplotlib.pyplot as plt
 
-def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
+
+def view(x: torch.Tensor):
+    plt.imshow(x.cpu(), cmap='gray')
+    plt.show()
+
+
+def train(params: Parameters):
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
-    num_epochs = params.train.epochs
-    n_folds = params.train.folds if params.train.folds > 2 else 1
-    undersampling = params.data.undersampling
-
     dataset_full = Dataset(params.in_dir)
+    if params.data.normalize == 0 or True:
+        for sample in tDataLoader(dataset_full, batch_size=1000):
+            params.data.normalize = np.percentile(sample, 95)
+            break
+    dataset_full.normalize = params.data.normalize
 
     network = CRNNMRI(n_ch=params.model.channels,
                       nf=params.model.filters,
@@ -55,16 +64,17 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
     logging.info(f"saving model to {params.out_dir.absolute()}")
     params.mkoutdir()
 
-    logging.info(f'starting {n_folds}-fold training')
-    for fold, dataset in enumerate(torch_data.random_split(dataset_full, [len(dataset_full) // n_folds] * n_folds)):
+    folds = params.train.folds
+    logging.info(f'starting {folds}-fold training')
+    for fold, dataset in enumerate(torch_data.random_split(dataset_full, [len(dataset_full) // folds] * folds)):
         fold_dir = params.out_dir / f'fold_{fold}'
         rng(params.data.mask_seed)
 
-        dataset_split = [1 / n_folds] * n_folds if n_folds > 1 else [0.8, 0.2]
+        dataset_split = [1 / folds] * folds if folds > 1 else [0.8, 0.2]
         dataset_train, dataset_validate = torch_data.random_split(dataset, [dataset_split[0], sum(dataset_split[1:])])
         dataloader_train, dataloader_validate = (tDataLoader(ds, batch_size=params.data.batch_size) for ds in (dataset_train, dataset_validate))
 
-        for epoch in range(num_epochs):
+        for epoch in range(params.train.epochs):
             epoch_start = datetime.now()
 
             network.train()
@@ -73,9 +83,9 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                 im_u, k_u, mask, gnd = preprocess_as_variable(batch, params.data.undersampling)
                 optimizer.zero_grad(set_to_none=True)
                 for i in range(params.data.batch_size):
-                    # oops, this means the arrays are squeezed
-                    rec, full_iterations = network(im_u[i], k_u[i], mask[i])
-                    loss: torch.Tensor = calculate_loss(params, criterion, rec, gnd[i])
+                    j = i + 1
+                    rec, full_iterations = network(im_u[i:j], k_u[i:j], mask[i:j])
+                    loss: torch.Tensor = calculate_loss(params, criterion, rec, gnd[i:j])
                     loss.backward()
 
                     torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
@@ -88,7 +98,7 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
 
             validate_loss, validate_batches = 0, 0
             with torch.no_grad():
-                for im in batcher.items_fold(fold, n_folds, validation=True):
+                for im in batcher.items_fold(fold, folds, validation=True):
                     im_u, k_u, mask, gnd = preprocess_as_variable(im, mask_seed, undersampling)
 
                     pred, full_iterations = network(im_u, k_u, mask, test=True)
@@ -112,7 +122,10 @@ def train(params: Parameters) -> List[tuple[int, List[int], List[int]]]:
                    'loss_eval': validate_loss, }
 
             logging.info('\n' + '\n'.join([f'{key}: {value:>15}' for key, value in log.items()]) + '\n')
-            wandb.log(log)
+            try:
+                wandb.log(log)
+            except wandb.errors.Error:
+                pass
 
             # rework this part
 
@@ -157,16 +170,21 @@ def get_criterion(params: Parameters) -> torch.nn.Module:
     return criterion
 
 
-def calculate_loss(params: Parameters, criterion, pred, gnd) -> float:
-    errors = []
-    if params.train.loss.mse > 0:
-        errors.append((params.train.loss.mse, criterion(pred, gnd)))
-    if params.train.loss.ssim > 0:
-        errors.append(
-            (params.train.loss.mse, 1 - criterion(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])))
-    if params.train.loss.dice > 0:
-        raise NotImplementedError("Only MSE or SSIM loss implemented")
-    return sum([w * err for w, err in errors])
+def calculate_loss(params: Parameters, criterion, pred, gnd) -> torch.Tensor:
+    # loss = []
+    # if params.train.loss.mse > 0:
+    #     loss.append((params.train.loss.mse, criterion(pred, gnd)))
+    # if params.train.loss.ssim > 0:
+    #     loss.append(
+    #         (params.train.loss.mse, 1 - criterion(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])))
+    # if params.train.loss.dice > 0:
+    #     raise NotImplementedError("Only MSE or SSIM loss implemented")
+    # return sum([w * err for w, err in loss])
+    if params.train.loss.mse == 1:
+        err = criterion(pred, gnd)
+    elif params.train.loss.ssim == 1:
+        err = 1 - criterion(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])
+    return err
 
 
 def log_epoch_stats_to_csv(fold_dir: Path, acceleration: float, fold: int, epoch: int, train_err: float,

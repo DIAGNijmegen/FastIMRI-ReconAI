@@ -44,9 +44,10 @@ def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug
 
 
 def setup_wandb(params: Parameters, api_key: str, group: str = ''):
-    wdb.login(key=api_key)
-    wdb.init(project='FastIMRI-ReconAI', group=group, config=params.as_dict())
-    wdb.define_metric('epoch')
+    if api_key:
+        wdb.login(key=api_key)
+        wdb.init(project='FastIMRI-ReconAI', group=group, config=params.as_dict())
+        wdb.define_metric('epoch')
 
 
 def setup_logging(params: Parameters):

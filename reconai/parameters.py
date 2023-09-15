@@ -86,19 +86,23 @@ class Parameters:
 
     in_dir: Path
     out_dir: Path
-    yaml: InitVar[str] = None
+    yaml_file: InitVar[Path] = None
     debug: bool = False
     data: Data = field(init=False, default_factory=Data)
     model: Model = field(init=False, default_factory=Model)
     train: Train = field(init=False, default_factory=Train)
 
-    def __post_init__(self, yaml: str):
+    def __post_init__(self, yaml_file: Path):
         self.in_dir = Path(self.in_dir)
         self.out_dir = Path(self.out_dir)
         if self.debug:
             yaml = importlib.resources.read_text('reconai.resources', 'config_debug.yaml')
-        elif not yaml:
+        elif not yaml_file:
             yaml = importlib.resources.read_text('reconai.resources', 'config_default.yaml')
+        else:
+            with open(yaml_file, 'r') as f:
+                yaml = f.read()
+
         self._yaml = strict_load(yaml)
 
         args = [

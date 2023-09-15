@@ -165,3 +165,4 @@ result
 .idea
 reconai/model/train-ignite.py
 /wandb
+/tests/output

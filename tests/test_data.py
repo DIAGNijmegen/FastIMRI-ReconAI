@@ -41,7 +41,7 @@ def batcher(dataloader, sequences):
 def test_generate_multislice_sequences(dataloader: DataLoader, sequences: SequenceCollection):
     # with open('./output/test_data_expected_sequences.json', 'w') as f:
     #     json.dump(repr(sequences), f, indent=1)
-    with open('./output/test_data_expected_sequences.json') as f:
+    with open('./output_expected/test_data_expected_sequences.json') as f:
         assert json.load(f) == repr(sequences)
 
     seq = SequenceBuilder(dataloader)
@@ -73,7 +73,7 @@ def test_batcher_append_sequence(dataloader: DataLoader, sequences: SequenceColl
     batcher.append_sequence(next(sequences.items()))
 
     show = False
-    expected_output = './output/test_batcher_append_sequence_expected_'
+    expected_output = './output_expected/test_batcher_append_sequence_expected_'
 
     def imshow(img, title, show=False, save=False):
         fig = plt.figure()
