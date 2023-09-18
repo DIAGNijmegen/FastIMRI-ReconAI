@@ -1,8 +1,7 @@
-import logging
 from pathlib import Path
 
 import click
-import wandb as wdb
+import wandb
 
 from .__version__ import __version__
 from .train import train
@@ -19,55 +18,33 @@ def cli():
 @click.option('--in_dir', type=Path, required=True)
 @click.option('--out_dir', type=Path, required=True)
 @click.option('--config', type=Path, required=False)
-@click.option('--wandb', type=str, required=False)
+@click.option('--wandb_api', type=str, required=True)
 @click.option('--debug', is_flag=True, default=False)
-def reconai_train(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
+def reconai_train(in_dir: Path, out_dir: Path, config: Path, wandb_api: str, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
-    setup_logging(params)
-    setup_wandb(params, api_key=wandb, group='train_debug' if debug else 'train')
+    setup_wandb(params, api_key=wandb_api, group='train_debug' if debug else 'train')
     train(params)
-    wdb.finish()
+    wandb.finish()
 
 
 @cli.command(name='eval')
 @click.option('--in_dir', type=Path, required=True)
 @click.option('--out_dir', type=Path, required=True)
 @click.option('--config', type=Path, required=True)
-@click.option('--wandb', type=str, required=False)
+@click.option('--wandb_api', type=str, required=True)
 @click.option('--debug', is_flag=True, default=False)
-def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
+def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb_api: str, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
-    setup_logging(params)
-    setup_wandb(params, api_key=wandb, group='eval_debug' if debug else 'eval')
+    setup_wandb(params, api_key=wandb_api, group='eval_debug' if debug else 'eval')
     # evaluate(params)
-    wdb.finish()
+    wandb.finish()
 
 
 def setup_wandb(params: Parameters, api_key: str, group: str = ''):
     if api_key:
-        wdb.login(key=api_key)
-        wdb.init(project='FastIMRI-ReconAI', group=group, config=params.as_dict())
-        wdb.define_metric('epoch')
-
-
-def setup_logging(params: Parameters):
-    logging.basicConfig(
-        filename=(params.out_dir / f'{params.name}.log').as_posix(),
-        level=logging.DEBUG if params.debug else logging.INFO,
-        format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s >> %(message)s',
-        datefmt='%H:%M:%S'
-    )
-
-    # set up logging to console
-    console = logging.StreamHandler()
-    console.setLevel(logging.DEBUG)
-    # set a format which is simpler for console use
-    formatter = logging.Formatter('%(levelname)-8s >> %(message)s')
-    console.setFormatter(formatter)
-    # add the handler to the root logger
-    logging.getLogger('').addHandler(console)
-    logging.info(f"v{__version__}")
-    logging.info(f'{params.name}\n{params}')
+        wandb.login(key=api_key)
+        wandb.init(project='FastIMRI-ReconAI', group=group, name='debug' if params.debug else None, config=params.as_dict())
+        wandb.define_metric('epoch')
 
 
 if __name__ == '__main__':

@@ -27,7 +27,7 @@ def test_train_debug(monkeypatch):
     kwargs = {
         'in_dir': './tests/input/data',
         'out_dir': out_dir.parent.as_posix(),
-        'wandb': secrets['wandb'],
+        'wandb_api': secrets['wandb'],
         'debug': None
     }
     args = []

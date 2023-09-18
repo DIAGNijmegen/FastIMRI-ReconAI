@@ -1,24 +1,21 @@
-#!/usr/bin/env python
-from __future__ import print_function, division
-
-import logging
 from datetime import datetime
 from pathlib import Path
 from typing import List
 
+import matplotlib.pyplot as plt
+import numpy as np
 import torch
 import torch.optim as torch_optim
 import torch.utils.data as torch_data
 import wandb
-import numpy as np
 from piqa import SSIM
 
+from reconai import version
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import Parameters
+from reconai.print import print_log
 from reconai.rng import rng
-
-import matplotlib.pyplot as plt
 
 
 def view(x: torch.Tensor):
@@ -27,6 +24,9 @@ def view(x: torch.Tensor):
 
 
 def train(params: Parameters):
+    print_log(f'reconai version {version}', params.name)
+    print(str(params))
+
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
@@ -35,6 +35,7 @@ def train(params: Parameters):
         for sample in DataLoader(dataset_full, shuffle=False, batch_size=1000):
             params.data.normalize = np.percentile(sample, 95)
             break
+
     dataset_full.normalize = params.data.normalize
 
     network = CRNNMRI(n_ch=params.model.channels,
@@ -55,15 +56,14 @@ def train(params: Parameters):
     else:
         raise NotImplementedError("Only MSE or SSIM loss implemented")
 
-    logging.info(f"config.yaml:\n{str(params)}")
-    logging.info(f"trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}")
-    logging.info(f"data: {len(dataset_full)} items")
-    logging.info(f"saving model data to {params.out_dir.absolute()}")
+    print_log(f'trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}',
+              f'data: {len(dataset_full)} items',
+              f'saving model data to {params.out_dir.resolve()}')
     params.mkoutdir()
 
     folds = params.train.folds
     start = datetime.now()
-    logging.info(f'starting {folds}-fold training at {start}')
+    print_log(f'starting {folds}-fold training at {start}')
     for fold, dataset in enumerate(torch_data.random_split(dataset_full, [len(dataset_full) // folds] * folds)):
         fold_dir = params.out_dir / f'fold_{fold}'
 
@@ -119,13 +119,15 @@ def train(params: Parameters):
                    'loss_train': train_loss,
                    'loss_eval': validate_loss, }
 
-            logging.info('\n' + '\n'.join([f'{key}: {value:>15}' for key, value in log.items()]) + '\n')
+            print_log(*[f'{key:<10}: {value:>20}' for key, value in log.items()])
             try:
                 wandb.log(log)
             except wandb.errors.Error:
                 pass
 
-            # rework this part
+
+
+            # rework this part, save only best and last
 
             # stats = '\n'.join([f'Epoch {epoch + 1}/{num_epochs}', f'\ttime: {t_end - t_start} s',
             #                    f'\ttraining loss:\t\t{train_loss}x', f'\tvalidation loss:\t\t{validate_loss}'])
@@ -154,7 +156,7 @@ def train(params: Parameters):
                 scheduler.step()
 
     end = datetime.now()
-    logging.info(f'completed training in {(end - start).total_seconds()} seconds, at {end}')
+    print_log(f'completed training in {(end - start).total_seconds()} seconds, at {end}')
 
 
 def get_criterion(params: Parameters) -> torch.nn.Module:
