@@ -43,7 +43,7 @@ def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb_api: str, d
 def setup_wandb(params: Parameters, api_key: str, group: str = ''):
     if api_key:
         wandb.login(key=api_key)
-        wandb.init(project='FastIMRI-ReconAI', group=group, name='debug' if params.debug else None, config=params.as_dict())
+        wandb.init(project='FastIMRI-ReconAI', group=group, name=params.name, config=params.as_dict())
         wandb.define_metric('epoch')
 
 

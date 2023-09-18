@@ -11,5 +11,5 @@ def print_log(*messages: str):
 
     for msg in messages:
         dt = str(datetime.now() - start)
-        print(dt + ' | ' + msg)
-    print()
+        print(f'{dt:<10} | {msg}')
+    print(f'           |')
