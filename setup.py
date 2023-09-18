@@ -1,5 +1,6 @@
 from setuptools import setup
 
+version = "1.1.0"
 
 if __name__ == '__main__':
     name = 'reconai'

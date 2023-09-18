@@ -21,7 +21,7 @@ def cli():
 @click.option('--config', type=Path, required=False)
 @click.option('--wandb', type=str, required=False)
 @click.option('--debug', is_flag=True, default=False)
-def train_recon(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
+def reconai_train(in_dir: Path, out_dir: Path, config: Path, wandb: str, debug: bool):
     params = Parameters(in_dir, out_dir, config, debug)
     setup_logging(params)
     setup_wandb(params, api_key=wandb, group='train_debug' if debug else 'train')

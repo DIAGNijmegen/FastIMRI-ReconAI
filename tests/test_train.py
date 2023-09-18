@@ -6,7 +6,7 @@ import pandas
 import freezegun
 from click.testing import CliRunner
 
-from reconai import train_recon
+from reconai.__main__ import reconai_train
 
 runner = CliRunner()
 
@@ -18,15 +18,16 @@ def test_train_debug(monkeypatch):
         shutil.rmtree(out_dir)
 
     secrets_path = Path('./tests/input/secrets.json')
-    secrets = dict()
-    if secrets_path.exists():
-        with open(secrets_path, 'r') as j:
-            secrets = json.load(j)
+    if not secrets_path.exists():
+        raise FileNotFoundError(f'no secrets.json file found at {secrets_path}')
+
+    with open(secrets_path, 'r') as j:
+        secrets = json.load(j)
 
     kwargs = {
         'in_dir': './tests/input/data',
         'out_dir': out_dir.parent.as_posix(),
-        'wandb': secrets.get('wandb', ''),
+        'wandb': secrets['wandb'],
         'debug': None
     }
     args = []
@@ -35,7 +36,7 @@ def test_train_debug(monkeypatch):
         if value:
             args.append(value)
 
-    result = runner.invoke(train_recon, args)
+    result = runner.invoke(reconai_train, args)
     if result.exception:
         raise result.exception
     assert result.exit_code == 0
