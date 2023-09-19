@@ -2,21 +2,16 @@ import shutil
 import json
 from pathlib import Path
 
-import pandas
 import freezegun
 from click.testing import CliRunner
 
-from reconai.__main__ import reconai_train
+from reconai.__main__ import reconai_test
 
 runner = CliRunner()
 
 
-@freezegun.freeze_time("2023-08-30 10:30:00")
-def test_train_debug(monkeypatch):
-    output_dir = Path('./tests/output')
-    for d in output_dir.iterdir():
-        if d.is_dir():
-            shutil.rmtree(d)
+def test_test_debug():
+    model_dir = Path('./tests/output_expected/20230830T1030_CRNN-MRI_R2_E3_DEBUG')
 
     secrets_path = Path('./tests/input/secrets.json')
     if not secrets_path.exists():
@@ -27,16 +22,17 @@ def test_train_debug(monkeypatch):
 
     kwargs = {
         'in_dir': './tests/input/data',
-        'out_dir': output_dir.as_posix(),
+        'model_dir': model_dir.as_posix(),
         'wandb_api': secrets['wandb']
     }
+
     args = []
     for key, value in kwargs.items():
         args.append(f'--{key}')
         if value:
             args.append(value)
 
-    result = runner.invoke(reconai_train, args)
+    result = runner.invoke(reconai_test, args)
     if result.exception:
         raise result.exception
     assert result.exit_code == 0

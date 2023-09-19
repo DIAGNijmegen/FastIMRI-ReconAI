@@ -1,0 +1,9 @@
+{
+    "fold": 0,
+    "epoch": 2,
+    "epoch_time": 0.0,
+    "loss_train": 0.05977897047996521,
+    "loss_validate": 0.0644775927066803,
+    "ssim_validate": 0.9355224072933197,
+    "mse_validate": 0.000512140613864176
+}

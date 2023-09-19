@@ -5,7 +5,7 @@ data:
   sequence_length: 5
   sequence_seed: 11
   normalize: 1961.06
-  undersampling: 8
+  undersampling: 2
   seed: 11
 
 model:
