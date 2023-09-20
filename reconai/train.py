@@ -64,7 +64,8 @@ def train(params: TrainParameters):
 
         dataset_split = [1 / folds] * folds if folds > 1 else [0.8, 0.2]
         dataset_train, dataset_validate = torch_data.random_split(dataset, [dataset_split[0], sum(dataset_split[1:])])
-        dataloader_train, dataloader_validate = (DataLoader(ds, batch_size=params.data.batch_size) for ds in (dataset_train, dataset_validate))
+        dataloader_train = DataLoader(dataset_train, batch_size=params.data.batch_size)
+        dataloader_validate = DataLoader(dataset_validate, batch_size=params.data.batch_size)
 
         validate_best = 0
         for epoch in range(params.train.epochs):
@@ -73,6 +74,7 @@ def train(params: TrainParameters):
             network.train()
             train_loss = []
             for batch in dataloader_train:
+                p = dataloader_train.indices
                 im_u, k_u, mask, gnd = preprocess_as_variable(batch, params.data.undersampling)
                 optimizer.zero_grad(set_to_none=True)
                 for i in range(len(batch)):

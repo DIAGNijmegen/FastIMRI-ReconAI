@@ -34,13 +34,10 @@ def test(params: TestParameters):
                       nd=params.model.layers,
                       bcrnn=params.model.bcrnn
                       ).cuda()
+    criterion = Criterion(params)
 
     network.load_state_dict(torch.load(params.npz))
     network.eval()
-
-    optimizer = torch_optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.train.lr_gamma)
-    criterion = Criterion(params)
 
     print_log(f'model parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}',
               f'data: {len(dataset_test)} items',
@@ -60,4 +57,3 @@ def test(params: TestParameters):
                 # validate_loss.append(criterion.weighted_loss(pred, gnd[i:j]).item())
                 # validate_ssim.append(criterion.ssim(pred, gnd[i:j]).item())
                 # validate_mse.append(criterion.mse(pred, gnd[i:j]).item())
-                

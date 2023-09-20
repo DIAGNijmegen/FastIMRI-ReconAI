@@ -205,6 +205,10 @@ class TestParameters(Parameters):
         self.out_dir.mkdir()
 
     @property
+    def nnunet(self) -> None:
+        return None
+
+    @property
     def npz(self) -> Path:
         """
         Trained model (npz file)

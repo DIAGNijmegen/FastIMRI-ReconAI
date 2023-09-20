@@ -1,5 +1,5 @@
 data:
-  batch_size: 10
+  batch_size: 2
   shape_y: 256
   shape_x: 256
   sequence_length: 5
