@@ -11,11 +11,14 @@ from .parameters import Parameters
 class Evaluation:
     class Criterion:
         def __init__(self, crit: Callable):
+            # add loss_weight=None, name:str to simplify Evaluation by a lot
             self._crit = crit
             self._n = 0
-            self._value = torch.tensor(0, device='cuda')
+            self._value = None
 
         def calculate(self, pred: np.ndarray, gnd: np.ndarray) -> torch.Tensor:
+            if not self._value:
+                self._value = torch.tensor(0, device='cuda', dtype=gnd.dtype)
             return self._crit(pred, gnd)
 
         def add(self, value: torch.Tensor):
