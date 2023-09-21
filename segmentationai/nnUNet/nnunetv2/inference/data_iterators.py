@@ -92,7 +92,7 @@ def preprocessing_iterator_fromfiles(list_of_lists: List[List[str]],
                          abort_event,
                          verbose
                      ), daemon=True)
-        pr.start()
+        pr.start_timer()
         target_queues.append(queue)
         done_events.append(event)
         processes.append(pr)
@@ -291,7 +291,7 @@ def preprocessing_iterator_fromnpy(list_of_images: List[np.ndarray],
                          abort_event,
                          verbose
                      ), daemon=True)
-        pr.start()
+        pr.start_timer()
         done_events.append(event)
         processes.append(pr)
         target_queues.append(queue)

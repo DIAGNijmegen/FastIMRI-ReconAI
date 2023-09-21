@@ -10,7 +10,7 @@ import torch.utils.data as torch_data
 import wandb
 
 from reconai import version
-from reconai.criterion import Criterion
+from reconai.evaluation import Evaluation
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import TestParameters
@@ -34,7 +34,8 @@ def test(params: TestParameters):
                       nd=params.model.layers,
                       bcrnn=params.model.bcrnn
                       ).cuda()
-    criterion = Criterion(params)
+
+    evaluator = Evaluation(params)
 
     network.load_state_dict(torch.load(params.npz))
     network.eval()
@@ -48,12 +49,26 @@ def test(params: TestParameters):
     torch.manual_seed(params.data.seed)
     with torch.no_grad():
         dataloader_test = DataLoader(dataset_test, batch_size=params.data.batch_size)
+
         for batch in dataloader_test:
-            im_u, k_u, mask, gnd = preprocess_as_variable(batch, params.data.undersampling)
+            im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
+            paths = batch['path']
             for i in range(len(batch)):
                 j = i + 1
-                pred, full_iterations = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
+                evaluator.start_timer()
+                pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
+                evaluator.calculate(pred, gnd[i:j], paths[i])
+                np.save((params.out_dir / paths[i]).with_suffix('.png'), pred)
+                # save segmentation also
 
-                # validate_loss.append(criterion.weighted_loss(pred, gnd[i:j]).item())
-                # validate_ssim.append(criterion.ssim(pred, gnd[i:j]).item())
-                # validate_mse.append(criterion.mse(pred, gnd[i:j]).item())
+        stats = {'loss_test': evaluator['loss'],
+                 'ssim_test': evaluator['ssim'],
+                 'mse_test': evaluator['mse'],
+                 'time_test': evaluator['time'],
+                 'dataset': evaluator.paths}
+
+        print_log(*[f'{key:<13}: {value:<20}' for key, value in stats.items()])
+        wandb.log(stats)
+
+        with open(params.out_dir / 'stats.json', 'w') as f:
+            json.dump(stats, f, indent=4)

@@ -1,23 +1,19 @@
 from pathlib import Path
 from typing import List
 
-import torch
-from piqa import SSIM
-
 import SimpleITK as sitk
 import numpy as np
 import torch
-import torch.utils.data as torch_data
+import torch.utils.data
 from torch.autograd import Variable
 
 import reconai.utils.compressed_sensing as cs
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
 from reconai.utils.kspace import get_rand_exp_decay_mask
-from reconai.parameters import Parameters
 
 
-class Dataset(torch_data.Dataset):
+class Dataset(torch.utils.data.Dataset):
     def __init__(self, data_dir: Path, *, normalize: float = 0, as_float32: bool = True):
         self._data_paths: List[Path] = [item.resolve() for item in data_dir.iterdir() if item.suffix == '.mha']
         self._data_len = len(self._data_paths)
@@ -39,14 +35,11 @@ class Dataset(torch_data.Dataset):
         return self._data_len
 
     def __getitem__(self, idx):
-        file = self._data_paths[idx]
+        file = str(self._data_paths[idx])
         ifr = sitk.ImageFileReader()
-        ifr.SetFileName(str(file))
+        ifr.SetFileName(file)
         img = sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64')
-        return self.__normalize(img)
-
-    def path_at(self, *idxs):
-        return (self._data_paths[idx] for idx in idxs)
+        return {"path": str(file), "data": self.__normalize(img)}
 
     def __normalize(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
         if self._normalize > 0:
@@ -57,57 +50,12 @@ class Dataset(torch_data.Dataset):
         return img
 
 
-class DataLoader(torch_data.DataLoader):
+class DataLoader(torch.utils.data.DataLoader):
     def __init__(self, dataset: Dataset, batch_size: int = 1, shuffle: bool = True):
         super().__init__(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
-        self._last_indices = []
 
     def __iter__(self):
-        if hasattr(self.dataset, 'indices'):
-            self._last_indices = self.dataset.indices
         return super().__iter__()
-
-    @property
-    def indices(self):
-        return self._last_indices
-
-
-class DataSaver:
-    def __init__(self, params: Parameters, save: bool = False):
-        self._mse = params.train.loss.mse
-        self._ssim = params.train.loss.ssim
-        self._dice = params.train.loss.dice
-
-        self._crit_mse = torch.nn.MSELoss().cuda()
-        self._crit_ssim = SSIM(n_channels=params.data.sequence_length).cuda()
-        self._crit_dice = lambda a, b: 0
-
-        stats = ['loss', 'mse', 'ssim', 'dice', 'time']
-        self._stats = {}
-
-    def mse(self, pred, gnd):
-        return self._crit_mse(pred, gnd)
-
-    def ssim(self, pred, gnd):
-        pred_permute, gnd_permute = pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0]
-        return self._crit_ssim(pred_permute, gnd_permute)
-
-    def dice(self, pred, gnd):
-        return self._crit_dice(pred, gnd)
-
-    def weighted_loss(self, pred, gnd) -> torch.Tensor:
-        weighted_loss: List[(float, torch.Tensor)] = []
-        if self._mse > 0:
-            weighted_loss.append((self._mse, self.mse(pred, gnd)))
-        if self._ssim > 0:
-            weighted_loss.append((self._ssim, 1 - self.ssim(pred, gnd)))
-        if self._dice > 0:
-            raise NotImplementedError("Only MSE or SSIM loss implemented")
-
-        loss_sum = torch.tensor(0, device='cuda', dtype=gnd.dtype)
-        for weight, value in weighted_loss:
-            loss_sum += weight * value
-        return loss_sum
 
 
 def preprocess_as_variable(image: np.ndarray, acceleration: float = 4.0) -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
