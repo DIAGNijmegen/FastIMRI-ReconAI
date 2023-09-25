@@ -11,8 +11,10 @@ runner = CliRunner()
 
 
 def test_test_debug():
-    model_dir = Path('./tests/output_expected/20230830T1030_CRNN-MRI_R2_E3_DEBUG')
-    # copytree to /output
+    model_dir = Path('./tests/output/20230830T1030_CRNN-MRI_R2_E3_DEBUG')
+    if model_dir.exists():
+        shutil.rmtree(model_dir)
+    shutil.copytree(Path('./tests/output_expected/20230830T1030_CRNN-MRI_R2_E3_DEBUG'), model_dir)
 
     secrets_path = Path('./tests/input/secrets.json')
     if not secrets_path.exists():

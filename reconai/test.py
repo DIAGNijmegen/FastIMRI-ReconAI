@@ -58,7 +58,7 @@ def test(params: TestParameters):
                 evaluator.start_timer()
                 pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
                 evaluator.calculate(pred, gnd[i:j], paths[i])
-                np.save((params.out_dir / paths[i]).with_suffix('.png'), pred)
+                np.save(params.out_dir / Path(paths[i]).name, pred)  # save each slice? also, ssim is not per slice, needs fixing
                 # save segmentation also
 
         stats = {'loss_test': evaluator['loss'],
