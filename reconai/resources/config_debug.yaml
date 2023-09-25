@@ -16,7 +16,7 @@ model:
   layers: 5
 
 train:
-  epochs: 3
+  epochs: 10
   folds: 1
   loss:
     mse: 0

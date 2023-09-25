@@ -66,7 +66,7 @@ def train(params: TrainParameters):
         dataloader_train = DataLoader(dataset_train, batch_size=params.data.batch_size)
         dataloader_validate = DataLoader(dataset_validate, batch_size=params.data.batch_size)
 
-        validate_loss_best = 0
+        validate_loss_best = np.inf
         for epoch in range(params.train.epochs):
             epoch_start = datetime.now()
 
@@ -80,8 +80,8 @@ def train(params: TrainParameters):
                 for i in range(len(batch)):
                     j = i + 1
                     pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
-                    loss = evaluator_train.calculate(pred, gnd[i:j])
-                    loss.backward()
+                    evaluator_train.calculate(pred, gnd[i:j])
+                    evaluator_train.loss.backward()
 
                     torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
                     optimizer.step()
@@ -117,7 +117,7 @@ def train(params: TrainParameters):
                     json.dump(stats, f, indent=4)
 
             save_model(params.out_dir / f'reconai_{fold}.npz')
-            if validate_loss >= validate_loss_best:
+            if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
                 save_model(params.out_dir / f'reconai_{fold}_best.npz')
 
