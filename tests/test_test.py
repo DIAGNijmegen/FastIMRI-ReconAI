@@ -16,17 +16,9 @@ def test_test_debug():
         shutil.rmtree(model_dir)
     shutil.copytree(Path('./tests/output_expected/20230830T1030_CRNN-MRI_R2_E3_DEBUG'), model_dir)
 
-    secrets_path = Path('./tests/input/secrets.json')
-    if not secrets_path.exists():
-        raise FileNotFoundError(f'no secrets.json file found at {secrets_path}')
-
-    with open(secrets_path, 'r') as j:
-        secrets = json.load(j)
-
     kwargs = {
         'in_dir': './tests/input/data',
-        'model_dir': model_dir.as_posix(),
-        'wandb_api': secrets['wandb']
+        'model_dir': model_dir.as_posix()
     }
 
     args = []

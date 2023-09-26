@@ -31,7 +31,7 @@ def train(params: TrainParameters):
         raise Exception('Can only run in Cuda')
 
     dataset_full = Dataset(params.in_dir)
-    if params.data.normalize == 0 or True:
+    if params.data.normalize <= 0 or True:
         for sample in DataLoader(dataset_full, shuffle=False, batch_size=1000):
             params.data.normalize = float(np.percentile(sample['data'], 95))
             break
@@ -77,7 +77,7 @@ def train(params: TrainParameters):
             for batch in dataloader_train:
                 im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
                 optimizer.zero_grad(set_to_none=True)
-                for i in range(len(batch)):
+                for i in range(len(batch['paths'])):
                     j = i + 1
                     pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
                     evaluator_train.calculate(pred, gnd[i:j])
@@ -90,7 +90,7 @@ def train(params: TrainParameters):
             with torch.no_grad():
                 for batch in dataloader_validate:
                     im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
-                    for i in range(len(batch)):
+                    for i in range(len(batch['paths'])):
                         j = i + 1
                         evaluator_validate.start_timer()
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
@@ -102,11 +102,12 @@ def train(params: TrainParameters):
             stats = {'fold': fold,
                      'epoch': epoch,
                      'epoch_time': (epoch_end - epoch_start).total_seconds(),
-                     'loss_train': evaluator_train['loss'],
-                     'loss_validate': (validate_loss := evaluator_validate['loss']),
-                     'ssim_validate': evaluator_validate['ssim'],
-                     'mse_validate': evaluator_validate['mse'],
-                     'time_validate': evaluator_validate['time']}
+                     'loss_train': evaluator_train.criterion_value('loss'),
+                     'loss_validate': (validate_loss := evaluator_validate.criterion_value('loss')),
+                     'ssim_validate': evaluator_validate.criterion_value('ssim'),
+                     'mse_validate': evaluator_validate.criterion_value('mse'),
+                     'time_validate': evaluator_validate.criterion_value('time')
+                     }
 
             print_log(*[f'{key:<13}: {value:<20}' for key, value in stats.items()])
             wandb.log(stats)

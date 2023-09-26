@@ -39,7 +39,7 @@ class Dataset(torch.utils.data.Dataset):
         ifr = sitk.ImageFileReader()
         ifr.SetFileName(file)
         img = sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64')
-        return {"path": str(file), "data": self.__normalize(img)}
+        return {"paths": str(file), "data": self.__normalize(img)}
 
     def __normalize(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
         if self._normalize > 0:

@@ -1,5 +1,6 @@
-from typing import List, Callable
+from typing import Callable
 from datetime import datetime
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -20,8 +21,11 @@ class Evaluation:
             self._loss_weight = loss_weight
             self._criterion = criterion
             self._n = 0
-            self._value = torch.tensor(0)
-            self._result = torch.tensor(0)
+            self._value = None
+            self._result = None
+
+        def __str__(self):
+            return f'{self.name} ({self._loss_weight})'
 
         def calculate(self, pred: np.ndarray, gnd: np.ndarray):
             if not self._value:
@@ -32,7 +36,7 @@ class Evaluation:
             self._value += self._result
 
         @property
-        def result(self) -> torch.Tensor:
+        def result(self) -> torch.Tensor | None:
             return self._result
 
         @property
@@ -44,8 +48,10 @@ class Evaluation:
             return self._name
 
         @property
-        def value(self):
-            return (self._value / self._n) if self._n > 0 else 0
+        def value(self) -> float:
+            if not self._value:
+                return 0
+            return (self._value / self._n).item()
 
     def __init__(self, params: Parameters, loss_only: bool = False):
         self._criterions = [
@@ -57,24 +63,29 @@ class Evaluation:
         ]
         self._getitem = {crit.name: c for c, crit in enumerate(self._criterions)}
 
-        self._paths: dict[str, dict[str, float]] = {}
+        self._keys: dict[str, dict[str, float]] = {}
         self._loss_only = loss_only
-        self._start = datetime.now()
-
-    @property
-    def paths(self) -> dict[str, dict[str, float]]:
-        return self._paths
+        self._start: datetime | None = None
 
     @property
     def loss(self) -> torch.Tensor:
         return self._criterions[3].result
+
+    @property
+    def criterion_value_per_key(self) -> dict[str, dict[str, float]]:
+        return self._keys
+
+    def criterion_value(self, name: str) -> float:
+        if self._loss_only and name != 'loss':
+            raise NameError('only loss is available')
+        return self._criterions[self._getitem[name]].value
 
     def start_timer(self):
         if self._loss_only:
             raise AssertionError('only loss is available')
         self._start = datetime.now()
 
-    def calculate(self, pred, gnd, path: str = None):
+    def calculate(self, pred, gnd, key: str = None):
         """
         Calculate all criterions.
         """
@@ -82,25 +93,17 @@ class Evaluation:
             if self._loss_only and not crit.loss_weight and crit.name != 'loss':  # 0 or None
                 continue
 
-            if crit.name == 'dice':
+            if crit.name == 'time' and self._start is None:
+                continue
+            elif crit.name == 'dice':
                 continue  # NYI
             elif crit.name == 'ssim':
-                pred_permute, gnd_permute = pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0]
-                crit.calculate(pred_permute, gnd_permute)
+                crit.calculate(pred.permute(0, 1, 4, 2, 3)[0], gnd.permute(0, 1, 4, 2, 3)[0])
             else:
                 crit.calculate(pred, gnd)
 
-        if path:
-            self._paths[path] = {crit.name: crit.result for crit in self._criterions}
-
-    def __getitem__(self, item: str):
-        if self._loss_only and item != 'loss':
-            raise KeyError('only loss is available')
-        value = self._criterions[self._getitem[item]].value
-        if isinstance(value, torch.Tensor):
-            return value.item()
-        else:
-            return value
+        if key:
+            self._keys[key] = {crit.name: crit.value for crit in self._criterions if crit.result is not None}
 
     def _weighted_loss(self, pred, _) -> torch.Tensor:
         loss_sum = torch.tensor(0, device='cuda', dtype=pred.dtype)

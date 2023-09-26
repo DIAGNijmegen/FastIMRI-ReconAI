@@ -33,12 +33,9 @@ def reconai_train(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
 @click.option('--model_dir', type=Path, required=True, help='Trained model directory')
 @click.option('--nnunet_dir', type=Path, required=False, help='Trained nnunet directory')
 @click.option('--model_name', type=str, required=False, help='Use a specific model by name')
-@click.option('--wandb_api', type=str, required=True, help='wandb api key')
-def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, model_name: str, wandb_api: str):
+def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, model_name: str):
     params = TestParameters(in_dir, model_dir, nnunet_dir, model_name)
-    setup_wandb(params, api_key=wandb_api, group='test_debug' if params.meta.debug else 'test')
     test(params)
-    wandb.finish()
 
 
 # @cli.command(name='eval')

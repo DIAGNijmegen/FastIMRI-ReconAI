@@ -1,17 +1,16 @@
 import json
-from datetime import datetime
+import re
 from pathlib import Path
+from copy import deepcopy
 
-import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.optim as torch_optim
-import torch.utils.data as torch_data
 import wandb
+from PIL import Image
 
 from reconai import version
-from reconai.evaluation import Evaluation
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
+from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import TestParameters
 from reconai.print import print_log
@@ -20,7 +19,14 @@ from reconai.rng import rng
 
 def test(params: TestParameters):
     print_log(f'reconai version {version}', params.meta.name)
-    assert version == params.meta.version
+    version_re = r'(\d+)\.(\d+)\.(\d+)'
+    version_r, params_version_r = re.match(version_re, version), re.match(version_re, params.meta.version)
+    for v in [1, 2]:
+        if int(version_v := version_r.group(v)) != int(params_version_v := params_version_r.group(v)):
+            if v == 1:
+                raise ImportError(f'major version mismatch: {version_v} != {params_version_v}')
+            else:
+                print(f'WARNING: minor version mismatch: {version_v} != {params_version_v}')
 
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
@@ -36,6 +42,9 @@ def test(params: TestParameters):
                       ).cuda()
 
     evaluator = Evaluation(params)
+    params_1 = deepcopy(params)
+    params_1.data.sequence_length = 1
+    evaluator_single = Evaluation(params_1)
 
     network.load_state_dict(torch.load(params.npz))
     network.eval()
@@ -52,23 +61,27 @@ def test(params: TestParameters):
 
         for batch in dataloader_test:
             im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
-            paths = batch['path']
-            for i in range(len(batch)):
+            paths = batch['paths']
+            for i in range(len(paths)):
                 j = i + 1
+                path = Path(paths[i])
                 evaluator.start_timer()
                 pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
-                evaluator.calculate(pred, gnd[i:j], paths[i])
-                np.save(params.out_dir / Path(paths[i]).name, pred)  # save each slice? also, ssim is not per slice, needs fixing
-                # save segmentation also
+                evaluator.calculate(pred, gnd[i:j], path.stem)
 
-        stats = {'loss_test': evaluator['loss'],
-                 'ssim_test': evaluator['ssim'],
-                 'mse_test': evaluator['mse'],
-                 'time_test': evaluator['time'],
-                 'dataset': evaluator.paths}
+                for s in range(params.data.sequence_length):
+                    t = s + 1
+                    pred_single = pred[..., s:t]
+                    evaluator_single.calculate(pred_single, gnd[i:j, ..., s:t], f'{path.stem}_{s}')
+                    img = Image.fromarray((pred_single.squeeze() * 255).byte().cpu().numpy())
+                    img.save(params.out_dir / f'{path.stem}_{s}.png')
+                    # save segmentation also
 
-        print_log(*[f'{key:<13}: {value:<20}' for key, value in stats.items()])
-        wandb.log(stats)
+        stats = {'loss_test': evaluator.criterion_value('loss'),
+                 'ssim_test': evaluator.criterion_value('ssim'),
+                 'mse_test': evaluator.criterion_value('mse'),
+                 'time_test': evaluator.criterion_value('time'),
+                 'dataset_test': evaluator.criterion_value_per_key | evaluator_single.criterion_value_per_key}
 
         with open(params.out_dir / 'stats.json', 'w') as f:
             json.dump(stats, f, indent=4)
