@@ -8,6 +8,7 @@ import nnunetv2
 from .train import train
 from .test import test
 from .parameters import TrainParameters, TestParameters, Parameters
+from .data import prepare_nnunet2, validate_nnunet2_dir
 
 
 @click.group()
@@ -42,13 +43,16 @@ def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, model_name: st
 
 @cli.command(name='train_segmentation')
 @click.option('--in_dir', type=Path, required=True,
-              help='nnUnet data directory.')
-@click.option('--annotation_dir', type=Path, required=True,
-              help='nnUnet data directory.')
+              help='Images data directory for training OR nnUNet_raw.')
+@click.option('--annotation_dir', type=Path, required=False,
+              help='Annotations data directory for training.')
 @click.option('--out_dir', type=Path, required=True,
               help='Trained model output directory.')
 def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path):
-    pass
+    if annotation_dir:
+        prepare_nnunet2(in_dir, annotation_dir, out_dir)
+    else:
+        validate_nnunet2_dir(in_dir)
 
 
 # @cli.command(name='eval')

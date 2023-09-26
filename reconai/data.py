@@ -1,3 +1,5 @@
+import json
+import shutil
 from pathlib import Path
 from typing import List
 
@@ -11,11 +13,13 @@ import reconai.math.compressed_sensing as cs
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
 from reconai.math.kspace import get_rand_exp_decay_mask
+from reconai import version
 
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, data_dir: Path, *, normalize: float = 0, as_float32: bool = True):
-        self._data_paths: List[Path] = [item.resolve() for item in data_dir.iterdir() if item.suffix in ['.npy', '.mha']]
+        self._data_paths: List[Path] = [item.resolve() for item in data_dir.iterdir() if
+                                        item.suffix in ['.npy', '.mha']]
         self._data_len = len(self._data_paths)
         if self._data_len == 0:
             raise ValueError(f'no .mha files found at {data_dir}!')
@@ -58,7 +62,8 @@ class DataLoader(torch.utils.data.DataLoader):
         return super().__iter__()
 
 
-def preprocess_as_variable(image: np.ndarray, acceleration: float = 4.0) -> (torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
+def preprocess_as_variable(image: np.ndarray, acceleration: float = 4.0) -> (
+torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
     im_und, k_und, mask, im_gnd = preprocess(image, acceleration)
     im_u = Variable(im_und.type(Module.TensorType))
     k_u = Variable(k_und.type(Module.TensorType))
@@ -68,7 +73,8 @@ def preprocess_as_variable(image: np.ndarray, acceleration: float = 4.0) -> (tor
     return im_u, k_u, mask, gnd
 
 
-def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
+def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (
+torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
     """Undersample the batch, then reformat them into what the network accepts.
 
     Parameters
@@ -96,3 +102,56 @@ def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (torch.Tensor, t
     mask_l = torch.from_numpy(to_tensor_format(mask))
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
+
+
+def validate_nnunet2_dir(in_dir: Path):
+    nnUNet_raw = in_dir / 'nnUNet_raw'
+
+    assert nnUNet_raw.exists()
+    assert (dataset_json := nnUNet_raw / 'dataset.json').exists()
+    with open(dataset_json, 'r') as j:
+        dataset = json.load(j)
+    assert all(key in ['channel_names', 'labels', 'numTraining', 'file_ending', 'overwrite_image_reader_writer'] for key in dataset.keys())
+    assert (imagesTr := nnUNet_raw / 'imagesTr').exists()
+    assert (labelsTr := nnUNet_raw / 'labelsTr').exists()
+    images = set()
+    for file in imagesTr.iterdir():
+        assert file.stem.endswith('_0000')
+        assert file.suffix == '.mha'
+        images.add(file.name[:-9])
+    labels = set()
+    for file in labelsTr.iterdir():
+        assert file.suffix == '.mha'
+        labels.add(file.name[:-4])
+    assert images == labels
+    assert dataset['numTraining'] == len(images)
+
+
+def prepare_nnunet2(data_dir: Path, annotations_dir: Path, out_dir: Path):
+    nnUNet_raw = out_dir / 'nnUNet_raw'
+    assert not nnUNet_raw.exists()
+
+    assert next(data_dir.iterdir()).suffix == '.mha'
+    assert {file.name for file in data_dir.iterdir()} == {file.name for file in annotations_dir.iterdir()}
+    for source, target in [(data_dir, 'imagesTr'), (annotations_dir, 'labelsTr')]:
+        target = nnUNet_raw / target
+        target.mkdir(parents=True, exist_ok=False)
+        shutil.copytree(source, target)
+
+    with open(nnUNet_raw / 'dataset.json', 'w') as j:
+        json.dump({
+        "channel_names": {"0": "IMRI", },
+        "labels": {"background": 0, "needle": 1},
+        "numTraining": len(list(data_dir.iterdir())),
+        "file_ending": ".mha",
+        "overwrite_image_reader_writer": "SimpleITKIO",
+        "dataset_name": "imri_xyt",
+        "release": version
+    }, j)
+
+    nnUNet_results = out_dir / 'nnUNet_results'
+    nnUNet_results.mkdir(exist_ok=False)
+
+
+
+
