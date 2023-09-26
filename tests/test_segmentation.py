@@ -9,15 +9,14 @@ runner = CliRunner()
 
 
 def test_segmentation():
-    # model_dir = Path('./tests/output/20230830T1030_CRNN-MRI_R2_E3_DEBUG')
-    # if model_dir.exists():
-    #     shutil.rmtree(model_dir)
-    # shutil.copytree(Path('./tests/output_expected/20230830T1030_CRNN-MRI_R2_E3_DEBUG'), model_dir)
-    #
+    for directory in ['./tests/output/nnUNet_raw', './tests/output/nnUNet_results']:
+        if (directory := Path(directory)).exists():
+            shutil.rmtree(directory)
+
     kwargs = {
         'in_dir': './tests/input/images',
         'annotation_dir': './tests/input/annotations',
-        'out_dir': '/tests/output/'
+        'out_dir': './tests/output/'
     }
 
     args = []
@@ -27,6 +26,18 @@ def test_segmentation():
             args.append(value)
 
     result = runner.invoke(reconai_train_segmentation, args)
+    if result.exception:
+        raise result.exception
+    assert result.exit_code == 0
+
+
+def test_existing_segmentation():
+    for directory in ['./tests/output/nnUNet_raw', './tests/output/nnUNet_results']:
+        if (directory := Path(directory)).exists():
+            shutil.rmtree(directory)
+    shutil.copytree('./tests/output_expected/nnUNet_raw', './tests/output/nnUNet_raw')
+
+    result = runner.invoke(reconai_train_segmentation, ['--in_dir', './tests/output/nnUNet_raw'])
     if result.exception:
         raise result.exception
     assert result.exit_code == 0

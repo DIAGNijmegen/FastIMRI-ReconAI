@@ -45,14 +45,17 @@ def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, model_name: st
 @click.option('--in_dir', type=Path, required=True,
               help='Images data directory for training OR nnUNet_raw.')
 @click.option('--annotation_dir', type=Path, required=False,
-              help='Annotations data directory for training.')
-@click.option('--out_dir', type=Path, required=True,
-              help='Trained model output directory.')
+              help='Annotations data directory for training (if in_dir is not nnUNet_raw).')
+@click.option('--out_dir', type=Path, required=False,
+              help='Trained model output directory. (if in_dir is not nnUNet_raw)')
 def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path):
-    if annotation_dir:
+    if annotation_dir and out_dir:
         prepare_nnunet2(in_dir, annotation_dir, out_dir)
     else:
         validate_nnunet2_dir(in_dir)
+        out_dir = in_dir.parent
+
+    result_dir = out_dir / 'nnUNet_results'
 
 
 # @cli.command(name='eval')

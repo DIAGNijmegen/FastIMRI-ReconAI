@@ -63,7 +63,7 @@ class DataLoader(torch.utils.data.DataLoader):
 
 
 def preprocess_as_variable(image: np.ndarray, acceleration: float = 4.0) -> (
-torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
+        torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
     im_und, k_und, mask, im_gnd = preprocess(image, acceleration)
     im_u = Variable(im_und.type(Module.TensorType))
     k_u = Variable(k_und.type(Module.TensorType))
@@ -74,7 +74,7 @@ torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cu
 
 
 def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (
-torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
+        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
     """Undersample the batch, then reformat them into what the network accepts.
 
     Parameters
@@ -105,13 +105,15 @@ torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
 
 
 def validate_nnunet2_dir(in_dir: Path):
-    nnUNet_raw = in_dir / 'nnUNet_raw'
+    nnUNet_raw = in_dir
 
+    assert nnUNet_raw.name == 'nnUNet_raw'
     assert nnUNet_raw.exists()
     assert (dataset_json := nnUNet_raw / 'dataset.json').exists()
     with open(dataset_json, 'r') as j:
         dataset = json.load(j)
-    assert all(key in ['channel_names', 'labels', 'numTraining', 'file_ending', 'overwrite_image_reader_writer'] for key in dataset.keys())
+    dataset_expected = ['channel_names', 'labels', 'numTraining', 'file_ending', 'overwrite_image_reader_writer']
+    assert all(key in dataset.keys() for key in dataset_expected)
     assert (imagesTr := nnUNet_raw / 'imagesTr').exists()
     assert (labelsTr := nnUNet_raw / 'labelsTr').exists()
     images = set()
@@ -123,7 +125,7 @@ def validate_nnunet2_dir(in_dir: Path):
     for file in labelsTr.iterdir():
         assert file.suffix == '.mha'
         labels.add(file.name[:-4])
-    assert images == labels
+    assert images == labels, images.symmetric_difference(labels)
     assert dataset['numTraining'] == len(images)
 
 
@@ -132,26 +134,22 @@ def prepare_nnunet2(data_dir: Path, annotations_dir: Path, out_dir: Path):
     assert not nnUNet_raw.exists()
 
     assert next(data_dir.iterdir()).suffix == '.mha'
-    assert {file.name for file in data_dir.iterdir()} == {file.name for file in annotations_dir.iterdir()}
+    data_dir_files, annotation_dir_files = {file.name for file in data_dir.iterdir()}, {file.name for file in
+                                                                                        annotations_dir.iterdir()}
+    assert data_dir_files == annotation_dir_files, data_dir_files.symmetric_difference(annotation_dir_files)
     for source, target in [(data_dir, 'imagesTr'), (annotations_dir, 'labelsTr')]:
         target = nnUNet_raw / target
         target.mkdir(parents=True, exist_ok=False)
-        shutil.copytree(source, target)
+        for file in source.iterdir():
+            shutil.copy(file, target / (file.stem + ('_0000' if source == data_dir else '') + file.suffix))
 
     with open(nnUNet_raw / 'dataset.json', 'w') as j:
         json.dump({
-        "channel_names": {"0": "IMRI", },
-        "labels": {"background": 0, "needle": 1},
-        "numTraining": len(list(data_dir.iterdir())),
-        "file_ending": ".mha",
-        "overwrite_image_reader_writer": "SimpleITKIO",
-        "dataset_name": "imri_xyt",
-        "release": version
-    }, j)
-
-    nnUNet_results = out_dir / 'nnUNet_results'
-    nnUNet_results.mkdir(exist_ok=False)
-
-
-
-
+            "channel_names": {"0": "IMRI", },
+            "labels": {"background": 0, "needle": 1},
+            "numTraining": len(list(data_dir.iterdir())),
+            "file_ending": ".mha",
+            "overwrite_image_reader_writer": "SimpleITKIO",
+            "dataset_name": "imri_xyt",
+            "release": version
+        }, j, indent=4)
