@@ -15,7 +15,7 @@ from reconai.math.kspace import get_rand_exp_decay_mask
 
 class Dataset(torch.utils.data.Dataset):
     def __init__(self, data_dir: Path, *, normalize: float = 0, as_float32: bool = True):
-        self._data_paths: List[Path] = [item.resolve() for item in data_dir.iterdir() if item.suffix == '.mha']
+        self._data_paths: List[Path] = [item.resolve() for item in data_dir.iterdir() if item.suffix in ['.npy', '.mha']]
         self._data_len = len(self._data_paths)
         if self._data_len == 0:
             raise ValueError(f'no .mha files found at {data_dir}!')

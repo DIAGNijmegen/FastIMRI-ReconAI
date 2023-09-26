@@ -12,7 +12,7 @@ runner = CliRunner()
 
 
 @freezegun.freeze_time("2023-08-30 10:30:00")
-def test_train_debug(monkeypatch):
+def test_train(monkeypatch):
     output_dir = Path('./tests/output')
     for d in output_dir.iterdir():
         if d.is_dir():
@@ -26,7 +26,7 @@ def test_train_debug(monkeypatch):
         secrets = json.load(j)
 
     kwargs = {
-        'in_dir': './tests/input/data',
+        'in_dir': './tests/input/images',
         'out_dir': output_dir.as_posix(),
         'wandb_api': secrets['wandb']
     }

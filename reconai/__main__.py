@@ -1,7 +1,9 @@
+import os
 from pathlib import Path
 
 import click
 import wandb
+import nnunetv2
 
 from .train import train
 from .test import test
@@ -36,6 +38,17 @@ def reconai_train(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
 def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, model_name: str):
     params = TestParameters(in_dir, model_dir, nnunet_dir, model_name)
     test(params)
+
+
+@cli.command(name='train_segmentation')
+@click.option('--in_dir', type=Path, required=True,
+              help='nnUnet data directory.')
+@click.option('--annotation_dir', type=Path, required=True,
+              help='nnUnet data directory.')
+@click.option('--out_dir', type=Path, required=True,
+              help='Trained model output directory.')
+def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path):
+    pass
 
 
 # @cli.command(name='eval')
