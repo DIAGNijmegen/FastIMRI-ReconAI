@@ -34,7 +34,8 @@ if __name__ == '__main__':
             'strictyaml~=1.7.3',
             'click~=8.1.3',
             'piqa~=1.3.0',
-            'wandb~=0.15.9'
+            'wandb~=0.15.9',
+            'nnunetv2~=2.2'
         ],
         extras_require={
             'dev': [

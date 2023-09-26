@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import ifft2, fft2, fftshift
 
-from reconai.rng import rng
+from reconai.random import rng
 
 
 def show(arr):
@@ -238,12 +238,11 @@ def get_rand_exp_decay_mask_ac_matrix(
         height: int,
         sampling: float,
         centre_sampling: float,
-        seed: int,
         nifti_path: str,
         dicom_db_path: str,
         exp_scale: float = 0.4,  # determined emperically
         tablename: str = 'dicom_headers_v2',
-        verbatim=False,
+        verbose: bool = False,
 ):
     # Find the patient ID in the nifti path with regex
     regex_patient_pattern = r'[0-9]+-[A-Z]-[0-9]+|pat[0-9]{4}'
@@ -258,10 +257,10 @@ def get_rand_exp_decay_mask_ac_matrix(
         cur=cur,
         patient_id=patient_id,
         tablename=tablename,
-        verbatim=verbatim,
+        verbatim=verbose,
     )
 
-    if verbatim:
+    if verbose:
         print(f"\t>Found acquistion matrix: {acquistion_matrices}")
 
     for ac_shape in acquistion_matrices:
@@ -284,18 +283,17 @@ def get_rand_exp_decay_mask_ac_matrix(
                 height=ac_shape[1],
                 sampling=sampling,
                 centre_sampling=centre_sampling,
-                seed=seed,
                 exp_scale=exp_scale,  # determined emperically
-                verbatim=verbatim,
+                verbatim=verbose,
             )
 
             # Do some printing for debugging
-            if verbatim:
+            if verbose:
                 # write_np2nifti(cropped_mask, os.path.join('temp', 'cropped_mask.nii.gz'))
                 print(f"\t>expected sampling: {sampling}")
                 print(f"\t>actual   sampling: {np.sum(cropped_mask) / (cropped_mask.shape[0] * cropped_mask.shape[1])}")
 
-            if verbatim:
+            if verbose:
                 print(f"\tacquisition matrix = {ac_shape}")
                 print(f"\timg dims = {width}, {height}")
                 print(f"\txdiff = {xdiff}")

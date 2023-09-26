@@ -15,7 +15,7 @@ from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import TrainParameters
 from reconai.print import print_log
-from reconai.rng import rng
+from reconai.random import rng
 
 
 def view(x: torch.Tensor):

@@ -1,8 +1,8 @@
 import numpy as np
-from . import mymath
+from . import fourier
 from numpy.lib.stride_tricks import as_strided
 
-from reconai.rng import rng
+from reconai.random import rng
 
 
 def soft_thresh(u, lmda):
@@ -80,7 +80,7 @@ def cartesian_mask(shape, acc, sample_n=10, centred=False):
     mask = mask.reshape(shape)
 
     if not centred:
-        mask = mymath.ifftshift(mask, axes=(-1, -2))
+        mask = fourier.ifftshift(mask, axes=(-1, -2))
 
     return mask
 
@@ -208,14 +208,14 @@ def undersample(x, mask, centred=False, norm='ortho', noise=0):
         nz = nz * np.prod(mask.shape[-2:])
 
     if centred:
-        x_f = mymath.fft2c(x)
+        x_f = fourier.fft2c(x)
         x_fu = mask * (x_f + nz)
-        x_u = mymath.ifft2c(x_fu)
+        x_u = fourier.ifft2c(x_fu)
         return x_u, x_fu
     else:
-        x_f = mymath.fft2(x)
+        x_f = fourier.fft2(x)
         x_fu = mask * (x_f + nz)
-        x_u = mymath.ifft2(x_fu)
+        x_u = fourier.ifft2(x_fu)
         return x_u, x_fu
 
 
@@ -225,13 +225,13 @@ def data_consistency(x, y, mask, centered=False, norm='ortho'):
     y is in k-space
     """
     if centered:
-        xf = mymath.fft2c(x)
+        xf = fourier.fft2c(x)
         xm = (1 - mask) * xf + y
-        xd = mymath.ifft2c(xm)
+        xd = fourier.ifft2c(xm)
     else:
-        xf = mymath.fft2(x, norm=norm)
+        xf = fourier.fft2(x, norm=norm)
         xm = (1 - mask) * xf + y
-        xd = mymath.ifft2(xm, norm=norm)
+        xd = fourier.ifft2(xm, norm=norm)
 
     return xd
 

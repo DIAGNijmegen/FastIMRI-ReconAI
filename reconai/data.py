@@ -7,10 +7,10 @@ import torch
 import torch.utils.data
 from torch.autograd import Variable
 
-import reconai.utils.compressed_sensing as cs
+import reconai.math.compressed_sensing as cs
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
-from reconai.utils.kspace import get_rand_exp_decay_mask
+from reconai.math.kspace import get_rand_exp_decay_mask
 
 
 class Dataset(torch.utils.data.Dataset):

@@ -61,10 +61,6 @@ def fourier_matrix(rows, cols):
     return fourier_mat
 
 
-def inverse_fourier_matrix(rows, cols):
-    return np.array(np.matrix(fourier_matrix(rows, cols)).getH())
-
-
 def flip(m, axis):
     """
     ==== > Only in numpy 1.12 < =====
@@ -124,26 +120,3 @@ def flip(m, axis):
         raise ValueError("axis=%i is invalid for the %i-dimensional input array"
                          % (axis, m.ndim))
     return m[tuple(indexer)]
-
-
-def rot90_nd(x, axes=(-2, -1), k=1):
-    """Rotates selected axes"""
-    def flipud(x):
-        return flip(x, axes[0])
-
-    def fliplr(x):
-        return flip(x, axes[1])
-
-    x = np.asanyarray(x)
-    if x.ndim < 2:
-        raise ValueError("Input must >= 2-d.")
-    k = k % 4
-    if k == 0:
-        return x
-    elif k == 1:
-        return fliplr(x).swapaxes(*axes)
-    elif k == 2:
-        return fliplr(flipud(x))
-    else:
-        # k == 3
-        return fliplr(x.swapaxes(*axes))

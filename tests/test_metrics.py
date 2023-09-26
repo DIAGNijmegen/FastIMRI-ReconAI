@@ -1,7 +1,7 @@
 # import pytest
 #
 # import numpy as np
-# from reconai.utils.metric import mse, ssim
+# from reconai.math.metric import mse, ssim
 #
 #
 # @pytest.mark.usefixtures("batcher")

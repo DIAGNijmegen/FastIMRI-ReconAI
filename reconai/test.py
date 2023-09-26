@@ -14,7 +14,7 @@ from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import TestParameters
 from reconai.print import print_log
-from reconai.rng import rng
+from reconai.random import rng
 
 
 def test(params: TestParameters):
