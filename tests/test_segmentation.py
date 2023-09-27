@@ -33,7 +33,7 @@ def test_test_segmentation():
 
     prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results', 'nnUNet_predictions',
                        replace_with_expected=True)
-    run_click(reconai_test_segmentation, '--debug',
+    run_click(reconai_test_segmentation,
               in_dir='./tests/input/images',
               nnunet_dir='./tests/output/nnUNet_results',
               out_dir='./tests/output/nnUNet_predictions')

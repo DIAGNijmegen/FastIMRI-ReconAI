@@ -39,21 +39,37 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: 
     nnunet2_find_best_configuration(configs, folds, debug)
 
 
-def test(in_dir: Path, nnunet_dir: Path, out_dir: Path, debug: bool = False):
-    out_dir.mkdir(parents=True, exist_ok=False)
-    pass
+def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
+    nnunet2_environ_set(nnunet_dir.parent)
+
+    from nnunetv2.inference.predict_from_raw_data import predict_entry_point
+
+    nnunet_copy(in_dir, out_dir_input := out_dir / 'input', '_0000')
+    (out_dir_output := out_dir / 'output').mkdir(exist_ok=False)
+
+    with open(nnunet_dir / nnUNet_dataset_name / 'inference_information.json', 'r') as f:
+        inference_information = json.load(f)
+    assert inference_information['dataset_name_or_id'] == nnUNet_dataset_name
+
+    selected_model = inference_information['best_model_or_ensemble']['selected_model_or_models'][0]
+    config, plans, trainer = selected_model['configuration'], selected_model['plans_identifier'], selected_model['trainer']
+    folds = Path(inference_information['best_model_or_ensemble']['some_plans_file']).parent.name[-1]
+
+    sys.argv = [argv_0, '-d', nnUNet_dataset_name, '-i', out_dir_input.as_posix(), '-o', out_dir_output.as_posix(),
+                '-f', *folds, '-c', config, '-tr', trainer, '-p', plans]
+    predict_entry_point()
 
 
 def nnunet2_dirnames() -> tuple[str, str, str]:
     return 'nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results'
 
 
-def nnunet2_environ_set(out_dir: Path):
+def nnunet2_environ_set(base_dir: Path):
     """
     Environment paths are set when importing nnunet2 for the first time
     """
     for name in nnunet2_dirnames():
-        os.environ[name] = (out_dir / name).resolve().as_posix()
+        os.environ[name] = (base_dir / name).resolve().as_posix()
 
 
 def nnunet2_plan_and_preprocess(existing: bool):
@@ -144,11 +160,9 @@ def nnunet_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
     data_dir_files, annotation_dir_files = {file.name for file in data_dir.iterdir()}, {file.name for file in
                                                                                         annotations_dir.iterdir()}
     assert data_dir_files == annotation_dir_files, data_dir_files.symmetric_difference(annotation_dir_files)
-    for source, target in [(data_dir, 'imagesTr'), (annotations_dir, 'labelsTr')]:
-        target = dataset / target
-        target.mkdir(parents=True, exist_ok=False)
-        for file in source.iterdir():
-            shutil.copy(file, target / (file.stem + ('_0000' if source == data_dir else '') + file.suffix))
+
+    nnunet_copy(data_dir, dataset / 'imagesTr', '_0000')
+    nnunet_copy(annotations_dir, dataset / 'labelsTr')
 
     with open(dataset / 'dataset.json', 'w') as j:
         json.dump({
@@ -160,3 +174,9 @@ def nnunet_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
             "dataset_name": "imri_xyt",
             "release": version
         }, j, indent=4)
+
+
+def nnunet_copy(source: Path, target: Path, suffix: str = ''):
+    target.mkdir(parents=True, exist_ok=False)
+    for file in source.iterdir():
+        shutil.copy(file, target / (file.stem + suffix + file.suffix))

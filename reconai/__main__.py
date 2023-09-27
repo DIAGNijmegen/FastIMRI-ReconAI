@@ -66,9 +66,8 @@ def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path
               help='nnUNet_results directory.')
 @click.option('--out_dir', type=Path, required=True,
               help='Output directory to contain inferences')
-@click.option('--debug', is_flag=True, hidden=True, default=False)
-def reconai_test_segmentation(in_dir: Path, nnunet_dir: Path, out_dir: Path, debug: bool = False):
-    test_segmentation(in_dir, nnunet_dir, out_dir, debug)
+def reconai_test_segmentation(in_dir: Path, nnunet_dir: Path, out_dir: Path):
+    test_segmentation(in_dir, nnunet_dir, out_dir)
 
 
 if __name__ == '__main__':
