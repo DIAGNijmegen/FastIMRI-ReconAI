@@ -1,0 +1,58 @@
+{
+    "foreground_mean": {
+        "Dice": 0.7027625802788559,
+        "FN": 599.5,
+        "FP": 872.0,
+        "IoU": 0.5455082040813464,
+        "TN": 324401.0,
+        "TP": 1807.5,
+        "n_pred": 2679.5,
+        "n_ref": 2407.0
+    },
+    "mean": {
+        "1": {
+            "Dice": 0.7027625802788559,
+            "FN": 599.5,
+            "FP": 872.0,
+            "IoU": 0.5455082040813464,
+            "TN": 324401.0,
+            "TP": 1807.5,
+            "n_pred": 2679.5,
+            "n_ref": 2407.0
+        }
+    },
+    "metric_per_case": [
+        {
+            "metrics": {
+                "1": {
+                    "Dice": 0.7668357530173168,
+                    "FN": 329,
+                    "FP": 1004,
+                    "IoU": 0.6218439716312056,
+                    "TN": 324155,
+                    "TP": 2192,
+                    "n_pred": 3196,
+                    "n_ref": 2521
+                }
+            },
+            "prediction_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_results\\Dataset111_FastIMRI\\nnUNetTrainer_FastIMRI_debug__nnUNetPlans__2d\\crossval_results_folds_0\\49525_1.2.276.0.7230010.3.1.3.248623070997097050689621896147651379259_sagittal_1.mha",
+            "reference_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_raw\\Dataset111_FastIMRI\\labelsTr\\49525_1.2.276.0.7230010.3.1.3.248623070997097050689621896147651379259_sagittal_1.mha"
+        },
+        {
+            "metrics": {
+                "1": {
+                    "Dice": 0.6386894075403949,
+                    "FN": 870,
+                    "FP": 740,
+                    "IoU": 0.469172436531487,
+                    "TN": 324647,
+                    "TP": 1423,
+                    "n_pred": 2163,
+                    "n_ref": 2293
+                }
+            },
+            "prediction_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_results\\Dataset111_FastIMRI\\nnUNetTrainer_FastIMRI_debug__nnUNetPlans__2d\\crossval_results_folds_0\\49537_1.2.276.0.7230010.3.1.3.2116233370128126728634537077401683122_sagittal_1.mha",
+            "reference_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_raw\\Dataset111_FastIMRI\\labelsTr\\49537_1.2.276.0.7230010.3.1.3.2116233370128126728634537077401683122_sagittal_1.mha"
+        }
+    ]
+}

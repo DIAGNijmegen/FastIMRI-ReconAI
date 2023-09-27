@@ -1,14 +1,11 @@
-import os
 from pathlib import Path
 
 import click
 import wandb
-import nnunetv2
 
-from .train import train
-from .test import test
 from .parameters import TrainParameters, TestParameters, Parameters
-from .data import prepare_nnunet2, validate_nnunet2_dir
+from .reconstruction import train as train_reconstruction, test as test_reconstruction
+from .segmentation import train as train_segmentation, test as test_segmentation
 
 
 @click.group()
@@ -24,10 +21,10 @@ def cli():
 @click.option('--config', type=Path, required=False,
               help='Config .yaml file. If undefined, use a DEBUG .yaml file.')
 @click.option('--wandb_api', type=str, required=True, help='wandb api key')
-def reconai_train(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
+def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
     params = TrainParameters(in_dir, out_dir, config)
     setup_wandb(params, api_key=wandb_api, group='train_debug' if params.meta.debug else 'train')
-    train(params)
+    train_reconstruction(params)
     wandb.finish()
 
 
@@ -36,39 +33,35 @@ def reconai_train(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
 @click.option('--model_dir', type=Path, required=True, help='Trained model directory')
 @click.option('--nnunet_dir', type=Path, required=False, help='Trained nnunet directory')
 @click.option('--model_name', type=str, required=False, help='Use a specific model by name')
-def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, model_name: str):
+def reconai_test_reconstruction(in_dir: Path, model_dir: Path, nnunet_dir: Path, model_name: str):
     params = TestParameters(in_dir, model_dir, nnunet_dir, model_name)
-    test(params)
+    test_reconstruction(params)
 
 
 @cli.command(name='train_segmentation')
 @click.option('--in_dir', type=Path, required=True,
-              help='Images data directory for training OR nnUNet_raw.')
+              help='Images data directory for training OR nnUNet_raw directory.')
 @click.option('--annotation_dir', type=Path, required=False,
               help='Annotations data directory for training (if in_dir is not nnUNet_raw).')
 @click.option('--out_dir', type=Path, required=False,
-              help='Trained model output directory. (if in_dir is not nnUNet_raw)')
-def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path):
-    if annotation_dir and out_dir:
-        prepare_nnunet2(in_dir, annotation_dir, out_dir)
-    else:
-        validate_nnunet2_dir(in_dir)
-        out_dir = in_dir.parent
-
-    result_dir = out_dir / 'nnUNet_results'
+              help='Output directory to contain nnUNet_raw. (if in_dir is not nnUNet_raw)')
+@click.option('--folds', type=int, required=False, default=5,
+              help='Number of folds to train')
+@click.option('--debug', is_flag=True, hidden=True, default=False)
+def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: bool = False):
+    train_segmentation(in_dir, annotation_dir, out_dir, folds, debug)
 
 
-# @cli.command(name='eval')
-# @click.option('--in_dir', type=Path, required=True)
-# @click.option('--out_dir', type=Path, required=True)
-# @click.option('--config', type=Path, required=True)
-# @click.option('--wandb_api', type=str, required=True)
-# @click.option('--debug', is_flag=True, default=False)
-# def evaluate_models(in_dir: Path, out_dir: Path, config: Path, wandb_api: str, debug: bool):
-#     params = Parameters(in_dir, out_dir, config, debug)
-#     setup_wandb(params, api_key=wandb_api, group='eval_debug' if debug else 'eval')
-#     # evaluate(params)
-#     wandb.finish()
+@cli.command(name='test_segmentation')
+@click.option('--in_dir', type=Path, required=True,
+              help='Images data directory.')
+@click.option('--nnunet_dir', type=Path, required=False,
+              help='nnUNet_results directory.')
+@click.option('--out_dir', type=Path, required=False,
+              help='Output directory to contain inferences')
+@click.option('--debug', is_flag=True, hidden=True, default=False)
+def reconai_test_segmentation(in_dir: Path, nnunet_dir: Path, debug: bool = False):
+    test_segmentation(in_dir, nnunet_dir, debug)
 
 
 def setup_wandb(params: Parameters, api_key: str, group: str = ''):

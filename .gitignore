@@ -159,6 +159,7 @@ cython_debug/
 
 RUMC.db
 *.pickle
+*.pth
 data
 result
 .idea

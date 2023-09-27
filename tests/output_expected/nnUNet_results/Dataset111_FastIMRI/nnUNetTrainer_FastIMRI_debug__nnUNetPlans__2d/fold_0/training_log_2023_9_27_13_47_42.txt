@@ -1,0 +1,55 @@
+
+#######################################################################
+Please cite the following paper when using nnU-Net:
+Isensee, F., Jaeger, P. F., Kohl, S. A., Petersen, J., & Maier-Hein, K. H. (2021). nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature methods, 18(2), 203-211.
+#######################################################################
+ 
+
+This is the configuration used by this training:
+Configuration name: 2d
+ {'data_identifier': 'nnUNetPlans_2d', 'preprocessor_name': 'DefaultPreprocessor', 'batch_size': 2, 'patch_size': [256, 256], 'median_image_size_in_voxels': [254.0, 254.0], 'spacing': [1.09375, 1.09375], 'normalization_schemes': ['ZScoreNormalization'], 'use_mask_for_norm': [False], 'UNet_class_name': 'PlainConvUNet', 'UNet_base_num_features': 32, 'n_conv_per_stage_encoder': [2, 2, 2, 2, 2, 2, 2], 'n_conv_per_stage_decoder': [2, 2, 2, 2, 2, 2], 'num_pool_per_axis': [6, 6], 'pool_op_kernel_sizes': [[1, 1], [2, 2], [2, 2], [2, 2], [2, 2], [2, 2], [2, 2]], 'conv_kernel_sizes': [[3, 3], [3, 3], [3, 3], [3, 3], [3, 3], [3, 3], [3, 3]], 'unet_max_num_features': 512, 'resampling_fn_data': 'resample_data_or_seg_to_shape', 'resampling_fn_seg': 'resample_data_or_seg_to_shape', 'resampling_fn_data_kwargs': {'is_seg': False, 'order': 3, 'order_z': 0, 'force_separate_z': None}, 'resampling_fn_seg_kwargs': {'is_seg': True, 'order': 1, 'order_z': 0, 'force_separate_z': None}, 'resampling_fn_probabilities': 'resample_data_or_seg_to_shape', 'resampling_fn_probabilities_kwargs': {'is_seg': False, 'order': 1, 'order_z': 0, 'force_separate_z': None}, 'batch_dice': True} 
+ 
+These are the global plan.json settings:
+ {'dataset_name': 'Dataset111_FastIMRI', 'plans_name': 'nnUNetPlans', 'original_median_spacing_after_transp': [3.00000005426875, 1.09375, 1.09375], 'original_median_shape_after_transp': [5, 254, 254], 'image_reader_writer': 'SimpleITKIO', 'transpose_forward': [0, 1, 2], 'transpose_backward': [0, 1, 2], 'experiment_planner_used': 'ExperimentPlanner', 'label_manager': 'LabelManager', 'foreground_intensity_properties_per_channel': {'0': {'max': 892.0, 'mean': 120.74180603027344, 'median': 85.0, 'min': 0.0, 'percentile_00_5': 8.0, 'percentile_99_5': 589.0, 'std': 105.91513061523438}}} 
+ 
+2023-09-27 13:47:43.152538: unpacking dataset... 
+2023-09-27 13:47:43.590037: unpacking done... 
+2023-09-27 13:47:43.590537: do_dummy_2d_data_aug: False 
+2023-09-27 13:47:43.591537: Creating new 5-fold cross-validation split... 
+2023-09-27 13:47:43.592538: Desired fold for training: 0 
+2023-09-27 13:47:43.592538: This split has 5 training and 2 validation cases. 
+2023-09-27 13:47:43.613537: Unable to plot network architecture: 
+2023-09-27 13:47:43.613537: No module named 'hiddenlayer' 
+2023-09-27 13:47:43.631540:  
+2023-09-27 13:47:43.632038: Epoch 0 
+2023-09-27 13:47:43.632038: Current learning rate: 0.01 
+2023-09-27 13:48:02.329038: train_loss 0.0436 
+2023-09-27 13:48:02.329538: val_loss -0.0838 
+2023-09-27 13:48:02.330040: Pseudo dice [0.0] 
+2023-09-27 13:48:02.330040: Epoch time: 18.7 s 
+2023-09-27 13:48:02.330539: Yayy! New best EMA pseudo Dice: 0.0 
+2023-09-27 13:48:03.089537:  
+2023-09-27 13:48:03.090038: Epoch 1 
+2023-09-27 13:48:03.090038: Current learning rate: 0.00694 
+2023-09-27 13:48:13.247600: train_loss -0.3321 
+2023-09-27 13:48:13.248100: val_loss -0.6075 
+2023-09-27 13:48:13.248600: Pseudo dice [0.6599] 
+2023-09-27 13:48:13.248600: Epoch time: 10.16 s 
+2023-09-27 13:48:13.248600: Yayy! New best EMA pseudo Dice: 0.066 
+2023-09-27 13:48:14.253600:  
+2023-09-27 13:48:14.254100: Epoch 2 
+2023-09-27 13:48:14.254601: Current learning rate: 0.00372 
+2023-09-27 13:48:24.536601: train_loss -0.6826 
+2023-09-27 13:48:24.536601: val_loss -0.6402 
+2023-09-27 13:48:24.537102: Pseudo dice [0.7072] 
+2023-09-27 13:48:24.537601: Epoch time: 10.28 s 
+2023-09-27 13:48:24.537601: Yayy! New best EMA pseudo Dice: 0.1301 
+2023-09-27 13:48:26.235818: Training done. 
+2023-09-27 13:48:26.265321: Using splits from existing split file: C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_preprocessed\Dataset111_FastIMRI\splits_final.json 
+2023-09-27 13:48:26.265821: The split file contains 5 splits. 
+2023-09-27 13:48:26.266321: Desired fold for training: 0 
+2023-09-27 13:48:26.266821: This split has 5 training and 2 validation cases. 
+2023-09-27 13:48:26.267320: predicting 49525_1.2.276.0.7230010.3.1.3.248623070997097050689621896147651379259_sagittal_1 
+2023-09-27 13:48:26.824818: predicting 49537_1.2.276.0.7230010.3.1.3.2116233370128126728634537077401683122_sagittal_1 
+2023-09-27 13:48:30.736340: Validation complete 
+2023-09-27 13:48:30.736839: Mean Validation Dice:  0.7027625802788559 
