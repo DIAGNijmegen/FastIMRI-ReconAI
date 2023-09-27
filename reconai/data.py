@@ -106,16 +106,21 @@ def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (
 
 def validate_nnunet2_dir(in_dir: Path):
     nnUNet_raw = in_dir
+    dataset = nnUNet_raw / 'Dataset111_FastIMRI'
 
     assert nnUNet_raw.name == 'nnUNet_raw'
     assert nnUNet_raw.exists()
-    assert (dataset_json := nnUNet_raw / 'dataset.json').exists()
+    assert dataset.name == 'Dataset111_FastIMRI'
+    assert dataset.exists()
+
+    assert (dataset_json := dataset / 'dataset.json').exists()
     with open(dataset_json, 'r') as j:
-        dataset = json.load(j)
+        dataset_content = json.load(j)
     dataset_expected = ['channel_names', 'labels', 'numTraining', 'file_ending', 'overwrite_image_reader_writer']
-    assert all(key in dataset.keys() for key in dataset_expected)
-    assert (imagesTr := nnUNet_raw / 'imagesTr').exists()
-    assert (labelsTr := nnUNet_raw / 'labelsTr').exists()
+    assert all(key in dataset_content.keys() for key in dataset_expected)
+
+    assert (imagesTr := dataset / 'imagesTr').exists()
+    assert (labelsTr := dataset / 'labelsTr').exists()
     images = set()
     for file in imagesTr.iterdir():
         assert file.stem.endswith('_0000')
@@ -125,25 +130,28 @@ def validate_nnunet2_dir(in_dir: Path):
     for file in labelsTr.iterdir():
         assert file.suffix == '.mha'
         labels.add(file.name[:-4])
+
     assert images == labels, images.symmetric_difference(labels)
-    assert dataset['numTraining'] == len(images)
+    assert dataset_content['numTraining'] == len(images)
 
 
 def prepare_nnunet2(data_dir: Path, annotations_dir: Path, out_dir: Path):
     nnUNet_raw = out_dir / 'nnUNet_raw'
     assert not nnUNet_raw.exists()
 
+    dataset = nnUNet_raw / 'Dataset111_FastIMRI'
+
     assert next(data_dir.iterdir()).suffix == '.mha'
     data_dir_files, annotation_dir_files = {file.name for file in data_dir.iterdir()}, {file.name for file in
                                                                                         annotations_dir.iterdir()}
     assert data_dir_files == annotation_dir_files, data_dir_files.symmetric_difference(annotation_dir_files)
     for source, target in [(data_dir, 'imagesTr'), (annotations_dir, 'labelsTr')]:
-        target = nnUNet_raw / target
+        target = dataset / target
         target.mkdir(parents=True, exist_ok=False)
         for file in source.iterdir():
             shutil.copy(file, target / (file.stem + ('_0000' if source == data_dir else '') + file.suffix))
 
-    with open(nnUNet_raw / 'dataset.json', 'w') as j:
+    with open(dataset / 'dataset.json', 'w') as j:
         json.dump({
             "channel_names": {"0": "IMRI", },
             "labels": {"background": 0, "needle": 1},
