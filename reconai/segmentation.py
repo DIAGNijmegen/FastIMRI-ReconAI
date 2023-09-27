@@ -39,7 +39,7 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: 
     nnunet2_find_best_configuration(configs, folds, debug)
 
 
-def test(in_dir: Path, nnunet_dir: Path, debug: bool = False):
+def test(in_dir: Path, nnunet_dir: Path, out_dir: Path, debug: bool = False):
     pass
 
 

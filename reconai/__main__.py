@@ -23,7 +23,14 @@ def cli():
 @click.option('--wandb_api', type=str, required=True, help='wandb api key')
 def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
     params = TrainParameters(in_dir, out_dir, config)
-    setup_wandb(params, api_key=wandb_api, group='train_debug' if params.meta.debug else 'train')
+    if wandb_api:
+        wandb.login(key=wandb_api)
+        wandb.init(project='FastIMRI-ReconAI',
+                   group='train_debug' if params.meta.debug else 'train',
+                   name=params.meta.name,
+                   config=params.as_dict())
+        wandb.define_metric('epoch')
+
     train_reconstruction(params)
     wandb.finish()
 
@@ -60,15 +67,8 @@ def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path
 @click.option('--out_dir', type=Path, required=False,
               help='Output directory to contain inferences')
 @click.option('--debug', is_flag=True, hidden=True, default=False)
-def reconai_test_segmentation(in_dir: Path, nnunet_dir: Path, debug: bool = False):
-    test_segmentation(in_dir, nnunet_dir, debug)
-
-
-def setup_wandb(params: Parameters, api_key: str, group: str = ''):
-    if api_key:
-        wandb.login(key=api_key)
-        wandb.init(project='FastIMRI-ReconAI', group=group, name=params.meta.name, config=params.as_dict())
-        wandb.define_metric('epoch')
+def reconai_test_segmentation(in_dir: Path, nnunet_dir: Path, out_dir: Path, debug: bool = False):
+    test_segmentation(in_dir, nnunet_dir, out_dir, debug)
 
 
 if __name__ == '__main__':
