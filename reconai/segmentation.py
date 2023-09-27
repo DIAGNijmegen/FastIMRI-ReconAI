@@ -40,6 +40,7 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: 
 
 
 def test(in_dir: Path, nnunet_dir: Path, out_dir: Path, debug: bool = False):
+    out_dir.mkdir(parents=True, exist_ok=False)
     pass
 
 

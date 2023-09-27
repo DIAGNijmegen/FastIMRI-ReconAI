@@ -3,18 +3,14 @@ from pathlib import Path
 
 from click.testing import CliRunner
 
-from conftest import run_click
+from conftest import run_click, prepare_output_dir
 from reconai.__main__ import reconai_train_segmentation, reconai_test_segmentation
 
 runner = CliRunner()
 
 
 def test_train_segmentation():
-    raw, preprocessed, results = 'nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results'
-    for name in [raw, preprocessed, results]:
-        if (directory := Path(f'./tests/output/{name}')).exists():
-            shutil.rmtree(directory)
-
+    prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results', replace_with_expected=False)
     run_click(reconai_train_segmentation, '--debug',
               in_dir='./tests/input/images',
               annotation_dir='./tests/input/annotations',
@@ -22,12 +18,7 @@ def test_train_segmentation():
 
 
 def test_train_segmentation_existing():
-    raw, preprocessed, results = 'nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results'
-    for name in [raw, preprocessed, results]:
-        if (directory := Path(f'./tests/output/{name}')).exists():
-            shutil.rmtree(directory)
-        shutil.copytree(f'./tests/output_expected/{name}', f'./tests/output/{name}')
-
+    prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results', replace_with_expected=True)
     run_click(reconai_train_segmentation, '--debug', in_dir='./tests/output/nnUNet_raw')
 
     fold_0 = Path(r'nnUNet_results\Dataset111_FastIMRI\nnUNetTrainer_FastIMRI_debug__nnUNetPlans__2d\fold_0')
@@ -40,12 +31,9 @@ def test_test_segmentation():
                 r'/nnUNetTrainer_FastIMRI_debug__nnUNetPlans__2d/fold_0/checkpoint_best.pth').exists(), (
         FileNotFoundError('run ./tests/test_segmentation.py/test_train_segmentation_existing() to fix'))
 
-    raw, preprocessed, results = 'nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results'
-    for name in [raw, preprocessed, results]:
-        if (directory := Path(f'./tests/output/{name}')).exists():
-            shutil.rmtree(directory)
-        shutil.copytree(f'./tests/output_expected/{name}', f'./tests/output/{name}')
-
+    prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results', 'nnUNet_predictions',
+                       replace_with_expected=True)
     run_click(reconai_test_segmentation, '--debug',
-              in_dir='./tests/output/nnUNet_results',
+              in_dir='./tests/input/images',
+              nnunet_dir='./tests/output/nnUNet_results',
               out_dir='./tests/output/nnUNet_predictions')

@@ -62,9 +62,9 @@ def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path
 @cli.command(name='test_segmentation')
 @click.option('--in_dir', type=Path, required=True,
               help='Images data directory.')
-@click.option('--nnunet_dir', type=Path, required=False,
+@click.option('--nnunet_dir', type=Path, required=True,
               help='nnUNet_results directory.')
-@click.option('--out_dir', type=Path, required=False,
+@click.option('--out_dir', type=Path, required=True,
               help='Output directory to contain inferences')
 @click.option('--debug', is_flag=True, hidden=True, default=False)
 def reconai_test_segmentation(in_dir: Path, nnunet_dir: Path, out_dir: Path, debug: bool = False):
