@@ -21,9 +21,9 @@ def run_click(func: Callable | BaseCommand, *args, **kwargs):
     assert result.exit_code == 0
 
 
-def prepare_output_dir(*dirnames_to_remove: str, replace_with_expected: bool = False):
-    for name in dirnames_to_remove:
-        if (directory := Path(f'./tests/output/{name}')).exists():
-            shutil.rmtree(directory)
-        if replace_with_expected and (directory_expected := Path(f'./tests/output_expected/{name}')).exists():
-            shutil.copytree(directory_expected, f'./tests/output/{name}')
+def prepare_output_dir(*dirnames_to_copy: str):
+    for path in Path('./tests/output').iterdir():
+        shutil.rmtree(path)
+    for path_expected in Path('./tests/output_expected').iterdir():
+        if path_expected.name in dirnames_to_copy:
+            shutil.copytree(path_expected, f'./tests/output/{path_expected.name}')

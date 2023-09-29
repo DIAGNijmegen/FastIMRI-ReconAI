@@ -171,10 +171,9 @@ class TrainParameters(Parameters):
 class TestParameters(Parameters):
     in_dir_: InitVar[Path] = None
     model_dir: InitVar[Path] = None
-    nnunet_dir: InitVar[Path] = None
     model_name: InitVar[str] = None
 
-    def __post_init__(self, in_dir_: Path, model_dir: Path, nnunet_dir: Path, model_name: str):
+    def __post_init__(self, in_dir_: Path, model_dir: Path, model_name: str):
         super().__post_init__()
 
         if model_name:
@@ -189,7 +188,7 @@ class TestParameters(Parameters):
                 if file.suffix == '.json':
                     with open(file, 'r') as f:
                         stats = json.load(f)
-                        losses[file] = stats['loss_validate']
+                        losses[file] = stats['loss_validate'][1]
             if not losses:
                 raise FileNotFoundError(f'no models found in {model_dir}')
             self._model = min(losses, key=lambda k: losses[k])
@@ -203,10 +202,6 @@ class TestParameters(Parameters):
 
     def mkoutdir(self):
         self.out_dir.mkdir()
-
-    @property
-    def nnunet(self) -> None:
-        return None
 
     @property
     def npz(self) -> Path:

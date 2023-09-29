@@ -1,4 +1,5 @@
 import json
+import subprocess
 import re
 from copy import deepcopy
 from datetime import datetime
@@ -10,16 +11,24 @@ import torch
 import torch.optim as torch_optim
 import torch.utils.data as torch_data
 import wandb
+import SimpleITK as sitk
 from PIL import Image
 
 from reconai import version
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
-from reconai.parameters import TestParameters
-from reconai.parameters import TrainParameters
+from reconai.parameters import TestParameters, TrainParameters
+from reconai.segmentation import test as segment, nnunet2_verify_results_dir
 from reconai.print import print_log
 from reconai.random import rng
+
+
+def get_gpu_memory():
+    command = "nvidia-smi --query-gpu=memory.free --format=csv"
+    memory_free_info = subprocess.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
+    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+    return memory_free_values
 
 
 def view(x: torch.Tensor):
@@ -106,14 +115,13 @@ def train(params: TrainParameters):
             stats = {'fold': fold,
                      'epoch': epoch,
                      'epoch_time': (epoch_end - epoch_start).total_seconds(),
-                     'loss_train': evaluator_train.criterion_value('loss'),
-                     'loss_validate': (validate_loss := evaluator_validate.criterion_value('loss')),
-                     'ssim_validate': evaluator_validate.criterion_value('ssim'),
-                     'mse_validate': evaluator_validate.criterion_value('mse'),
-                     'time_validate': evaluator_validate.criterion_value('time')
+                     'loss_train': evaluator_train.criterion_stats('loss'),
+                     'loss_validate': evaluator_validate.criterion_stats('loss'),
+                     'ssim_validate': evaluator_validate.criterion_stats('ssim'),
+                     'mse_validate': evaluator_validate.criterion_stats('mse'),
+                     'time_validate': evaluator_validate.criterion_stats('time')
                      }
 
-            print_log(*[f'{key:<13}: {value:<20}' for key, value in stats.items()])
             wandb.log(stats)
 
             def save_model(path: Path):
@@ -122,6 +130,8 @@ def train(params: TrainParameters):
                     json.dump(stats, f, indent=4)
 
             save_model(params.out_dir / f'reconai_{fold}.npz')
+
+            _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
             if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
                 save_model(params.out_dir / f'reconai_{fold}_best.npz')
@@ -133,7 +143,7 @@ def train(params: TrainParameters):
     print_log(f'completed training in {(end - start).total_seconds()} seconds, at {end}')
 
 
-def test(params: TestParameters):
+def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
     print_log(f'reconai version {version}', params.meta.name)
     version_re = r'(\d+)\.(\d+)\.(\d+)'
     version_r, params_version_r = re.match(version_re, version), re.match(version_re, params.meta.version)
@@ -146,6 +156,25 @@ def test(params: TestParameters):
 
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
+
+    nnunet_out: Path | None = None
+    nnunet_enabled = nnunet_dir and annotations_dir
+    if nnunet_enabled:
+        print_log('nnUNet enabled')
+        assert nnunet_dir, 'nnUNet base directory is not set, but annotations directory is'
+        assert annotations_dir, 'annotations directory is not set, but nnUNet base directory is'
+        nnunet2_verify_results_dir(nnunet_dir)
+
+        if annotations_dir.exists():
+            nnunet2_images = {file.stem[:-5] + file.suffix for file in params.in_dir.iterdir() if file.suffix == '.mha'}
+            nnunet2_annotations = {file.name for file in annotations_dir.iterdir() if file.suffix == '.mha'}
+            assert nnunet2_images == nnunet2_annotations, f'{params.in_dir} and {annotations_dir} contents do not match'
+            print_log(f'{params.in_dir} and {annotations_dir} contents match')
+        else:
+            print(f'segmenting {params.in_dir} to {annotations_dir}...')
+            segment(params.in_dir, nnunet_dir, annotations_dir)
+            print_log('nnUNet complete; run this command again with exact same parameters to use')
+            return
 
     dataset_test = Dataset(params.in_dir, normalize=params.data.normalize)
 
@@ -168,7 +197,10 @@ def test(params: TestParameters):
     print_log(f'model parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}',
               f'data: {len(dataset_test)} items',
               f'saving results to {params.out_dir.resolve()}')
+
     params.mkoutdir()
+    if nnunet_enabled:
+        (nnunet_out := params.out_dir / 'nnunet').mkdir()
 
     rng(params.data.seed)
     torch.manual_seed(params.data.seed)
@@ -185,19 +217,43 @@ def test(params: TestParameters):
                 pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
                 evaluator.calculate(pred, gnd[i:j], path.stem)
 
+                if nnunet_enabled:
+                    sitk_image = sitk.GetImageFromArray(pred.squeeze().cpu().numpy().transpose(2, 0, 1))
+                    sitk.WriteImage(sitk_image, nnunet_out / path.name)
+
                 for s in range(params.data.sequence_length):
                     t = s + 1
                     pred_single = pred[..., s:t]
-                    evaluator_single.calculate(pred_single, gnd[i:j, ..., s:t], f'{path.stem}_{s}')
+                    evaluator_single.calculate(pred_single, gnd[i:j, ..., s:t], f'{path.stem}_slice_{s}')
                     img = Image.fromarray((pred_single.squeeze() * 255).byte().cpu().numpy())
                     img.save(params.out_dir / f'{path.stem}_{s}.png')
-                    # save segmentation also
 
-        stats = {'loss_test': evaluator.criterion_value('loss'),
-                 'ssim_test': evaluator.criterion_value('ssim'),
-                 'mse_test': evaluator.criterion_value('mse'),
-                 'time_test': evaluator.criterion_value('time'),
-                 'dataset_test': evaluator.criterion_value_per_key | evaluator_single.criterion_value_per_key}
+    del network
+    torch.cuda.empty_cache()
 
-        with open(params.out_dir / 'stats.json', 'w') as f:
-            json.dump(stats, f, indent=4)
+    stats = {'loss_test': evaluator.criterion_stats('loss'),
+             'ssim_test': evaluator.criterion_stats('ssim'),
+             'mse_test': evaluator.criterion_stats('mse'),
+             'time_test': evaluator.criterion_stats('time'),
+             'dataset_test': evaluator_single.criterion_value_per_key}
+
+    if nnunet_enabled:
+        print_log('calculating DICE scores...')
+        segment(nnunet_out, nnunet_dir, nnunet_out)
+
+        gnd_segmentations = {a.name: a for a in annotations_dir.iterdir() if a.suffix == '.mha'}
+        pred_segmentations = {a.name: a for a in nnunet_out.iterdir() if a.suffix == '.mha' and not a.stem.endswith('_0000')}
+
+        assert gnd_segmentations.keys() == pred_segmentations.keys()
+        for name, gnd_path in gnd_segmentations.items():
+            pred_path = pred_segmentations[name]
+            gnd = sitk.GetArrayFromImage(sitk.ReadImage(gnd_path.as_posix()))
+            pred = sitk.GetArrayFromImage(sitk.ReadImage(pred_path.as_posix()))
+            evaluator.calculate_dice(pred, gnd, key=f'{name[:-4]}_0000')
+
+        stats['dice_test'] = evaluator.criterion_stats('dice')
+    stats['dataset_test'] |= evaluator.criterion_value_per_key
+
+    with open(params.out_dir / 'stats.json', 'w') as f:
+        json.dump(stats, f, indent=4)
+    print_log(f'complete; test results are in {params.out_dir}')

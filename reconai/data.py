@@ -1,5 +1,3 @@
-import json
-import shutil
 from pathlib import Path
 from typing import List
 
@@ -10,10 +8,9 @@ import torch.utils.data
 from torch.autograd import Variable
 
 import reconai.math.compressed_sensing as cs
+from reconai.math.kspace import get_rand_exp_decay_mask
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
-from reconai.math.kspace import get_rand_exp_decay_mask
-from reconai import version
 
 
 class Dataset(torch.utils.data.Dataset):

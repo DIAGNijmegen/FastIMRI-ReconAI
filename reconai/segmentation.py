@@ -17,10 +17,10 @@ nnUNet_dataset_name = f'Dataset{nnUNet_dataset_id}_FastIMRI'
 def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: bool = False):
     raw, preprocessed, results = nnunet2_dirnames()
 
-    existing = in_dir.name == raw and not annotation_dir and not out_dir
+    existing = not annotation_dir and not out_dir
     if existing:
-        nnunet2_validate_dir(in_dir)
-        out_dir = in_dir.parent
+        nnunet2_verify_raw_dir(in_dir)
+        out_dir = in_dir
     else:
         nnunet_prepare_data(in_dir, annotation_dir, out_dir)
 
@@ -40,14 +40,15 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: 
 
 
 def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
-    nnunet2_environ_set(nnunet_dir.parent)
+    nnunet2_environ_set(nnunet_dir)
 
     from nnunetv2.inference.predict_from_raw_data import predict_entry_point
 
-    nnunet_copy(in_dir, out_dir_input := out_dir / 'input', '_0000')
-    (out_dir_output := out_dir / 'output').mkdir(exist_ok=False)
+    nnunet2_verify_results_dir(nnunet_dir)
+    assert all([file.name.endswith('_0000.mha') for file in in_dir.iterdir() if file.suffix == '.mha']), (
+        NameError(f'not all files in {in_dir} end with _0000.mha'))
 
-    with open(nnunet_dir / nnUNet_dataset_name / 'inference_information.json', 'r') as f:
+    with open(nnunet_dir / 'nnUNet_results' / nnUNet_dataset_name / 'inference_information.json', 'r') as f:
         inference_information = json.load(f)
     assert inference_information['dataset_name_or_id'] == nnUNet_dataset_name
 
@@ -55,7 +56,7 @@ def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
     config, plans, trainer = selected_model['configuration'], selected_model['plans_identifier'], selected_model['trainer']
     folds = Path(inference_information['best_model_or_ensemble']['some_plans_file']).parent.name[-1]
 
-    sys.argv = [argv_0, '-d', nnUNet_dataset_name, '-i', out_dir_input.as_posix(), '-o', out_dir_output.as_posix(),
+    sys.argv = [argv_0, '-d', nnUNet_dataset_name, '-i', in_dir.as_posix(), '-o', out_dir.as_posix(),
                 '-f', *folds, '-c', config, '-tr', trainer, '-p', plans]
     predict_entry_point()
 
@@ -119,13 +120,18 @@ def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug:
     find_best_configuration_entry_point()
 
 
-def nnunet2_validate_dir(in_dir: Path):
-    nnUNet_raw = in_dir
+def nnunet2_verify_results_dir(base_dir: Path):
+    nnUNet_results = base_dir / 'nnUNet_results'
+    dataset = nnUNet_results / nnUNet_dataset_name
+    assert dataset.exists()
+    assert (dataset / 'inference_information.json').exists()
+
+
+def nnunet2_verify_raw_dir(base_dir: Path):
+    nnUNet_raw = base_dir / 'nnUNet_raw'
     dataset = nnUNet_raw / nnUNet_dataset_name
 
-    assert nnUNet_raw.name == 'nnUNet_raw'
     assert nnUNet_raw.exists()
-    assert dataset.name == nnUNet_dataset_name
     assert dataset.exists()
 
     assert (dataset_json := dataset / 'dataset.json').exists()

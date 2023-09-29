@@ -44,6 +44,7 @@ def complex_psnr(x, y, peak='normalized'):
     else:
         return 10*np.log10(1./mse_val)
 
+
 def ssim(gt, pred, transpose=True):
     """ Compute Structural Similarity Index Metric (SSIM). """
     if len(gt.shape) == 2:
@@ -55,6 +56,7 @@ def ssim(gt, pred, transpose=True):
         return compare_ssim(gt, pred, channel_axis=2, data_range=gt.max() - gt.min())
     else:
         raise NotImplementedError("Only for 2D and 3D data")
+
 
 # Deprecated SSIM function, left here because we might want to look at it sometime
 # func ssim uses 'skimage' package to compute SSIM
@@ -95,4 +97,3 @@ def ssim_2(img1, img2):
             return ssim(np.squeeze(img1), np.squeeze(img2))
     else:
         raise ValueError('Wrong input image dimensions.')
-

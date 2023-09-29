@@ -1,10 +1,10 @@
 data:
-  batch_size: 10
+  batch_size: 2
   shape_x: 256
   shape_y: 256
   sequence_length: 5
   sequence_seed: 11
-  normalize: 567.0
+  normalize: 632.0
   undersampling: 2
   seed: 11
 model:
@@ -15,7 +15,7 @@ model:
   layers: 5
   bcrnn: true
 train:
-  epochs: 3
+  epochs: 5
   folds: 1
   loss:
     mse: 0.0
@@ -25,9 +25,9 @@ train:
   lr_gamma: 0.95
   lr_decay_end: 45
 meta:
-  name: 20230830T1030_CRNN-MRI_R2_E3_DEBUG
-  date: 20230830T1030
-  in_dir: tests/input/data
-  out_dir: tests/output/20230830T1030_CRNN-MRI_R2_E3_DEBUG
+  name: 20230929T1456_CRNN-MRI_R2_E5_DEBUG
+  date: 20230929T1456
+  in_dir: tests/input/images
+  out_dir: tests/output/20230929T1456_CRNN-MRI_R2_E5_DEBUG
   debug: true
-  version: 1.1.1
+  version: 1.1.2

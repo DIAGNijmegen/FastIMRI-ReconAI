@@ -10,7 +10,7 @@ runner = CliRunner()
 
 
 def test_train_segmentation():
-    prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results', replace_with_expected=False)
+    prepare_output_dir()
     run_click(reconai_train_segmentation, '--debug',
               in_dir='./tests/input/images',
               annotation_dir='./tests/input/annotations',
@@ -18,8 +18,8 @@ def test_train_segmentation():
 
 
 def test_train_segmentation_existing():
-    prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results', replace_with_expected=True)
-    run_click(reconai_train_segmentation, '--debug', in_dir='./tests/output/nnUNet_raw')
+    prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed')
+    run_click(reconai_train_segmentation, '--debug', in_dir='./tests/output')
 
     fold_0 = Path(r'nnUNet_results\Dataset111_FastIMRI\nnUNetTrainer_FastIMRI_debug__nnUNetPlans__2d\fold_0')
     for pth in ['checkpoint_best.pth', 'checkpoint_final.pth']:
@@ -31,9 +31,8 @@ def test_test_segmentation():
                 r'/nnUNetTrainer_FastIMRI_debug__nnUNetPlans__2d/fold_0/checkpoint_best.pth').exists(), (
         FileNotFoundError('run ./tests/test_segmentation.py/test_train_segmentation_existing() to fix'))
 
-    prepare_output_dir('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results', 'nnUNet_predictions',
-                       replace_with_expected=True)
+    prepare_output_dir('nnUNet_results')
     run_click(reconai_test_segmentation,
-              in_dir='./tests/input/images',
-              nnunet_dir='./tests/output/nnUNet_results',
+              in_dir='./tests/input/images_nnunet',
+              nnunet_dir='./tests/output/',
               out_dir='./tests/output/nnUNet_predictions')
