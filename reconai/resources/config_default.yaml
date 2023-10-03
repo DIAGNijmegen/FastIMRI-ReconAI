@@ -3,7 +3,6 @@ data:
   shape_y: 256
   shape_x: 256
   sequence_length: 5
-  sequence_seed: 11
   normalize: 1961.06
   undersampling: 8
   seed: 11

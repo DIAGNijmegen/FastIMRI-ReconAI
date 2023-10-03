@@ -20,7 +20,6 @@ class Parameters:
         :param shape_x: image columns to crop or zero-fill to
         :param shape_y: image rows to crop or zero-fill to
         :param sequence_length: length of T
-        :param sequence_seed: seed for sequence generator
         :param normalize: image normalize divisor
         :param undersampling: how many k-lines to synthetically remove
         :param seed: seed to Gaussian random k-space masks
@@ -29,7 +28,6 @@ class Parameters:
         shape_x: int = 256
         shape_y: int = 256
         sequence_length: int = 5
-        sequence_seed: int = 11
         normalize: float = 1961.06
         undersampling: int = 8
         seed: int = 11
