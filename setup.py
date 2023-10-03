@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 version = "1.1.3"
 
@@ -19,7 +19,7 @@ if __name__ == '__main__':
         author='C.R. Noordman',
         author_email='stan.noordman@radboudumc.nl',
         description='',
-        packages=['reconai'],
+        packages=find_packages(),
         package_data={"reconai.resources": ["*.yaml"]},
         install_requires=[
             'pytest~=7.2.2',
