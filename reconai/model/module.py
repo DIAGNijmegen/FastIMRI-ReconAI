@@ -26,11 +26,8 @@ class Module(nn.Module):
         self.cuda_available = True if torch.cuda.is_available() else False
 
     def init_hidden(self, size: List[int]):
-        if self.cuda_available:
-            return Variable(torch.zeros(size, device='cuda')).type(self.TensorType)
-            # return Variable(torch.zeros(size)).type(self.TensorType).cuda()
-        else:
-            return Variable(torch.zeros(size)).type(self.TensorType).cpu()
+        # He initialization
+        return torch.nn.init.kaiming_uniform_(Variable(torch.zeros(size, device='cuda')).type(self.TensorType))
 
     @staticmethod
     def conv_block(n_ch, nd, nf=32, ks=3, dilation=1, bn=False, nl='lrelu', conv_dim=2, n_out=None):

@@ -1,14 +1,12 @@
 from pathlib import Path
-from importlib import resources
 
-from reconai.config import load, load_str
-
-
-def test_config():
-    load(Path(str(resources.path('reconai.resources', 'config_default.yaml'))))
+from reconai.parameters import TrainParameters
 
 
-def test_arbitrary_valid_yaml():
-    load_str('')
-    load_str('experiment:')
-    load_str('data:\n shape_x: 256')
+def test_parameters():
+    in_dir, out_dir = Path('./input'), Path('./output')
+    p = TrainParameters(in_dir, out_dir)
+    assert p.data.shape_x == 256
+    p = TrainParameters(in_dir, out_dir, 'data:\n shape_x: 56')
+    assert p.data.shape_x == 56
+    assert p.as_dict()['data']['shape_x'] == 56

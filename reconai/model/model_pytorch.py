@@ -1,6 +1,5 @@
 import logging
 import pathlib
-import time
 
 import torch
 import numpy as np
@@ -107,6 +106,7 @@ class BCRNNlayer(Module):
 
         return output
 
+
 class CRNNlayer(Module):
     """
     Convolutional RNN layer
@@ -157,7 +157,7 @@ class CRNNMRI(Module):
 
     """
 
-    def __init__(self, n_ch: int, nf: int, ks: int, nc: int, nd: int, single_crnn: bool = False):
+    def __init__(self, n_ch: int, nf: int, ks: int, nc: int, nd: int, bcrnn: bool = True):
         """
         Parameters
         ----------
@@ -183,12 +183,12 @@ class CRNNMRI(Module):
         def conv2d():
             return nn.Conv2d(nf, nf, ks, padding=ks // 2).type(self.TensorType)
 
-        if single_crnn:
-            self.bcrnn = CRNNlayer(n_ch, nf, ks)
-            logging.info('using single CRNN layer')
-        else:
+        if bcrnn:
             self.bcrnn = BCRNNlayer(n_ch, nf, ks)
             logging.info('using BCRNN layer')
+        else:
+            self.bcrnn = CRNNlayer(n_ch, nf, ks)
+            logging.info('using single CRNN layer')
 
         self.conv1_x = conv2d()
         self.conv1_h = conv2d()
@@ -212,13 +212,11 @@ class CRNNMRI(Module):
         Parameters
         ----------
         x: torch.Tensor
-            input in image domain, of shape (n, 2, nx, ny, n_seq)
+            input in image domain, of shape (1, 1, y, x, s)
         k: torch.Tensor
-            initially sampled elements in k-space
+            initially sampled elements in k-space, of shape (1, 2, y, x, s)
         m: torch.Tensor
-            corresponding nonzero location
-        gnd: torch.Tensor
-            groundtruth
+            corresponding nonzero location, of shape (1, 1, y, x, s)
         test: bool, optional
             True: the model is in test mode, False: train mode
 
@@ -236,7 +234,7 @@ class CRNNMRI(Module):
         # hid_init = self.hid_in_test
 
         for j in range(self.nd - 1):
-            net['t0_x%d' % j] = hid_init
+            net[f't0_x{j}'] = hid_init
 
         k = torch.complex(k[:, 0, ...], k[:, 1, ...]).unsqueeze(0)  # 0.00013 s
 
@@ -291,17 +289,11 @@ class CRNNMRI(Module):
             x = net[ti_out]
             out[ti_out] = x
 
-            # logging.debug(f'it {i} @ {mem_info()}')
-            # clean up o=i-1
             if test:
-                to_delete = [key for key in net if f't{o}' in key]
-
-                for elt in to_delete:
+                for elt in [key for key in net if f't{o}' in key]:
                     del net[elt]
 
                 torch.cuda.empty_cache()
-            # t_end_loop = time.time()
-            # logging.info(f'1 loop: {t_end_loop - t_start_loop}')
 
         return net[ti_out], out
 

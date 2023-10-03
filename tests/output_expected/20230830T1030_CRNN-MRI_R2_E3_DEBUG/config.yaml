@@ -1,0 +1,33 @@
+data:
+  batch_size: 2
+  shape_x: 256
+  shape_y: 256
+  sequence_length: 5
+  sequence_seed: 11
+  normalize: 632.0
+  undersampling: 2
+  seed: 11
+model:
+  iterations: 2
+  filters: 16
+  kernelsize: 3
+  channels: 1
+  layers: 5
+  bcrnn: true
+train:
+  epochs: 5
+  folds: 1
+  loss:
+    mse: 0.0
+    ssim: 1.0
+    dice: 0.0
+  lr: 0.001
+  lr_gamma: 0.95
+  lr_decay_end: 45
+meta:
+  name: 20230929T1456_CRNN-MRI_R2_E5_DEBUG
+  date: 20230929T1456
+  in_dir: tests/input/images
+  out_dir: tests/output/20230929T1456_CRNN-MRI_R2_E5_DEBUG
+  debug: true
+  version: 1.1.2

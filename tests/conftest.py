@@ -1,10 +1,29 @@
-# noinspection PyUnresolvedReferences
+import shutil
+from typing import Callable
+from pathlib import Path
 
-# Use this file to share fixtures across multiple files.
-# They can be accessed via @pytest.mark.usefixtures("<name of fixture>")
+from click import BaseCommand
+from click.testing import CliRunner
 
-# flake8: noqa
-from .test_data import batcher, sequences, dataloader
-from reconai.data.sequencebuilder import SequenceBuilder
+runner = CliRunner()
 
-SequenceBuilder.MAX_WORKERS = 1
+
+def run_click(func: Callable | BaseCommand, *args, **kwargs):
+    args = list(args)
+    for key, value in kwargs.items():
+        args.append(f'--{key}')
+        if value:
+            args.append(value)
+
+    result = runner.invoke(func, args)
+    if result.exception:
+        raise result.exception
+    assert result.exit_code == 0
+
+
+def prepare_output_dir(*dirnames_to_copy: str):
+    for path in Path('./tests/output').iterdir():
+        shutil.rmtree(path)
+    for path_expected in Path('./tests/output_expected').iterdir():
+        if path_expected.name in dirnames_to_copy:
+            shutil.copytree(path_expected, f'./tests/output/{path_expected.name}')

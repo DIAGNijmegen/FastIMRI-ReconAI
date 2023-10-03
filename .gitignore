@@ -159,8 +159,11 @@ cython_debug/
 
 RUMC.db
 *.pickle
+*.pth
 data
-!reconai/data
 result
 .idea
 reconai/model/train-ignite.py
+/wandb
+/tests/output
+secrets.json
