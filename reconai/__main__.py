@@ -6,9 +6,11 @@ import wandb
 from .parameters import TrainParameters, TestParameters
 from .reconstruction import train as train_reconstruction, test as test_reconstruction
 from .segmentation import train as train_segmentation, test as test_segmentation
+from reconai import version
 
 
 @click.group()
+@click.version_option(version)
 def cli():
     pass
 
