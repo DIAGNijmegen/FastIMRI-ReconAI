@@ -1,13 +1,12 @@
-import importlib
 import json
 from dataclasses import dataclass, field, InitVar, is_dataclass
 from datetime import datetime
-from importlib import resources
 from pathlib import Path
 
 from strictyaml import load as yaml_load, YAML
 
 from reconai import version
+from .resources import config_debug
 
 
 @dataclass
@@ -139,7 +138,7 @@ class TrainParameters(Parameters):
         if isinstance(yaml_file, str):
             yaml = yaml_file
         elif not yaml_file:
-            yaml = importlib.resources.read_text('reconai.resources', 'config_debug.yaml')
+            yaml = config_debug
             debug = True
         else:
             with open(yaml_file, 'r') as f:

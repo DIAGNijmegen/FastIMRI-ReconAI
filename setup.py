@@ -19,6 +19,7 @@ if __name__ == '__main__':
         author='C.R. Noordman',
         author_email='stan.noordman@radboudumc.nl',
         description='',
+        package_data={"reconai.resources": ["*.yaml"]},
         install_requires=[
             'pytest~=7.2.2',
             'numpy~=1.24.0',
