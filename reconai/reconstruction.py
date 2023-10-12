@@ -44,7 +44,7 @@ def train(params: TrainParameters):
         raise Exception('Can only run in Cuda')
 
     dataset_full = Dataset(params.in_dir)
-    if params.data.normalize <= 0 or True:
+    if params.data.normalize <= 0:
         for sample in DataLoader(dataset_full, shuffle=False, batch_size=1000):
             params.data.normalize = float(np.percentile(sample['data'], 95))
             break
@@ -92,10 +92,14 @@ def train(params: TrainParameters):
                 optimizer.zero_grad(set_to_none=True)
                 for i in range(len(batch['paths'])):
                     j = i + 1
-                    pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
-                    evaluator_train.calculate(pred, gnd[i:j])
-                    evaluator_train.loss.backward()
-
+                    try:
+                        pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
+                        evaluator_train.calculate(pred, gnd[i:j])
+                        evaluator_train.loss.backward()
+                    except:
+                        print('pred', pred.min())
+                        print('gnd', gnd.min())
+                        print(batch['paths'][i])
                     torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
                     optimizer.step()
 
