@@ -130,17 +130,17 @@ def train(params: TrainParameters):
             wandb.log(stats)
             print_log(json.dumps(stats, indent=2))
 
-            def save_model(path: Path, **kwargs):
+            def save_model(path: Path, model_stats: dict):
                 torch.save(model, path)
                 with open(path.with_suffix('.json'), 'w') as f:
-                    json.dump(**kwargs, f, indent=4)
+                    json.dump(model_stats, f, indent=4)
 
-            save_model(params.out_dir / f'reconai_{fold}.npz', **stats)
+            save_model(params.out_dir / f'reconai_{fold}.npz', stats)
 
             _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
             if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
-                save_model(params.out_dir / f'reconai_{fold}_best.npz', **stats)
+                save_model(params.out_dir / f'reconai_{fold}_best.npz', stats)
 
             if params.train.lr_decay_end == -1 or epoch < params.train.lr_decay_end:
                 scheduler.step()
