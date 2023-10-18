@@ -26,14 +26,14 @@ def test_train_reconstruction():
 def test_test_reconstruction():
     prepare_output_dir('20230830T1030_CRNN-MRI_R2_E3_DEBUG')
     run_click(reconai_test_reconstruction,
-              in_dir='./tests/input/images_nnunet',
+              in_dir='./tests/input/images',
               model_dir='./tests/output/20230830T1030_CRNN-MRI_R2_E3_DEBUG')
 
 
 def test_test_reconstruction_nnunet():
     prepare_output_dir('20230830T1030_CRNN-MRI_R2_E3_DEBUG', 'nnUNet_results')
     run_click(reconai_test_reconstruction,
-              in_dir='./tests/input/images_nnunet',
+              in_dir='./tests/input/images',
               model_dir='./tests/output/20230830T1030_CRNN-MRI_R2_E3_DEBUG',
               nnunet_dir='./tests/output',
               annotations_dir='./tests/output/images_test_annotations')
@@ -42,7 +42,7 @@ def test_test_reconstruction_nnunet():
 def test_test_reconstruction_nnunet_with_annotations():
     prepare_output_dir('20230830T1030_CRNN-MRI_R2_E3_DEBUG', 'nnUNet_results', 'images_test_annotations')
     run_click(reconai_test_reconstruction,
-              in_dir='./tests/input/images_nnunet',
+              in_dir='./tests/input/images',
               model_dir='./tests/output/20230830T1030_CRNN-MRI_R2_E3_DEBUG',
               nnunet_dir='./tests/output',
               annotations_dir='./tests/output/images_test_annotations')

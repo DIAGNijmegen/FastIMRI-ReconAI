@@ -47,6 +47,7 @@ def train(params: TrainParameters):
     if params.data.normalize <= 0 or True:
         for sample in DataLoader(dataset_full, shuffle=False, batch_size=1000):
             params.data.normalize = float(np.percentile(sample['data'], 95))
+            print(f'data:\n  normalize: {params.data.normalize}')
             break
 
     dataset_full.normalize = params.data.normalize
@@ -123,18 +124,19 @@ def train(params: TrainParameters):
                      }
 
             wandb.log(stats)
+            print_log(json.dumps(stats, indent=2))
 
-            def save_model(path: Path):
+            def save_model(path: Path, **kwargs):
                 torch.save(model, path)
                 with open(path.with_suffix('.json'), 'w') as f:
-                    json.dump(stats, f, indent=4)
+                    json.dump(**kwargs, f, indent=4)
 
-            save_model(params.out_dir / f'reconai_{fold}.npz')
+            save_model(params.out_dir / f'reconai_{fold}.npz', **stats)
 
             _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
             if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
-                save_model(params.out_dir / f'reconai_{fold}_best.npz')
+                save_model(params.out_dir / f'reconai_{fold}_best.npz', **stats)
 
             if params.train.lr_decay_end == -1 or epoch < params.train.lr_decay_end:
                 scheduler.step()

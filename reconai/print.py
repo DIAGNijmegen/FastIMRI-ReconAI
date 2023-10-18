@@ -12,4 +12,4 @@ def print_log(*messages: str):
     for msg in messages:
         dt = str(datetime.now() - start)
         print(f'{dt:<10} | {msg}')
-    print('           |')
+    print()
