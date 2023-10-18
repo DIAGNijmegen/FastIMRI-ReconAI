@@ -26,7 +26,7 @@ class Evaluation:
         def __str__(self):
             return f'{self.name} ({self._loss_weight})'
 
-        def calculate(self, pred: np.ndarray, gnd: np.ndarray):
+        def calculate(self, pred: torch.Tensor, gnd: torch.Tensor):
             self._result: torch.Tensor = self._criterion(pred, gnd)
             result = self._result.item()
 
@@ -117,10 +117,11 @@ class Evaluation:
         if key:
             self._keys[key] = self._keys.get(key, {}) | {'dice': crit_dice.result.item()}
 
-    def calculate(self, pred, gnd, key: str = None):
+    def calculate(self, pred: torch.Tensor, gnd: torch.Tensor, key: str = None):
         """
         Calculate all criterions.
         """
+        pred, gnd = torch.nan_to_num(pred, nan=0.0), torch.nan_to_num(gnd, nan=0.0)
         for crit in self._criterions:
             if self._loss_only and not crit.loss_weight and crit.name != 'loss':  # 0 or None
                 continue
