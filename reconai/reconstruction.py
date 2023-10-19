@@ -93,14 +93,10 @@ def train(params: TrainParameters):
                 optimizer.zero_grad(set_to_none=True)
                 for i in range(len(batch['paths'])):
                     j = i + 1
-                    try:
-                        pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
-                        evaluator_train.calculate(pred, gnd[i:j])
-                        evaluator_train.loss.backward()
-                    except:
-                        print('pred', pred.min())
-                        print('gnd', gnd.min())
-                        print(batch['paths'][i])
+                    pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
+                    evaluator_train.calculate(pred, gnd[i:j])
+                    evaluator_train.loss.backward()
+
                     torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
                     optimizer.step()
 
@@ -126,6 +122,9 @@ def train(params: TrainParameters):
                      'mse_validate': evaluator_validate.criterion_stats('mse'),
                      'time_validate': evaluator_validate.criterion_stats('time')
                      }
+            for key in [k for k, v in stats.items() if isinstance(v, tuple)]:
+                value = stats.pop(key)
+                stats |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
 
             wandb.log(stats)
             print_log(json.dumps(stats, indent=2))
@@ -242,6 +241,9 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
              'mse_test': evaluator.criterion_stats('mse'),
              'time_test': evaluator.criterion_stats('time'),
              'dataset_test': evaluator_single.criterion_value_per_key}
+    for key in [k for k, v in stats.items() if isinstance(v, tuple)]:
+        value = stats.pop(key)
+        stats |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
 
     if nnunet_enabled:
         print_log('calculating DICE scores...')
