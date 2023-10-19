@@ -90,9 +90,9 @@ def train(params: TrainParameters):
             network.train()
             for batch in dataloader_train:
                 im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
-                optimizer.zero_grad(set_to_none=True)
                 for i in range(len(batch['paths'])):
                     j = i + 1
+                    optimizer.zero_grad()
                     pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
                     evaluator_train.calculate(pred, gnd[i:j])
                     evaluator_train.loss.backward()
