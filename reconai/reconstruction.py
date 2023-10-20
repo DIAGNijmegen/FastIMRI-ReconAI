@@ -98,17 +98,21 @@ def train(params: TrainParameters):
             steps = steps_excess if steps_excess > 0 else steps_end
 
             network.train()
-            for batch in DataLoader(dataset_train, batch_size=params.train.batch_size, indices=indices):
-                im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
-                for i in range(len(batch['paths'])):
-                    j = i + 1
-                    optimizer.zero_grad()
-                    pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
-                    evaluator_train.calculate(pred, gnd[i:j])
-                    evaluator_train.loss.backward()
+            try:
+                for batch in DataLoader(dataset_train, batch_size=params.train.batch_size, indices=indices):
+                    im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
+                    for i in range(len(batch['paths'])):
+                        j = i + 1
+                        optimizer.zero_grad()
+                        pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
+                        evaluator_train.calculate(pred, gnd[i:j])
+                        evaluator_train.loss.backward()
 
-                    torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
-                    optimizer.step()
+                        torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
+                        optimizer.step()
+            except IndexError:
+                print(f'steps: {steps}, steps_end: {steps_end}, steps_excess: {steps_excess}')
+                print(indices)
 
             network.eval()
             with torch.no_grad():
