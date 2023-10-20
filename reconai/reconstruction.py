@@ -79,6 +79,9 @@ def train(params: TrainParameters):
         dataset_train, dataset_validate = torch_data.random_split(dataset, [dataset_split[0], sum(dataset_split[1:])])
         dataloader_train = DataLoader(dataset_train, batch_size=params.data.batch_size)
         dataloader_validate = DataLoader(dataset_validate, batch_size=params.data.batch_size)
+        # load a set amount (in parameters.py) per epoch, to keep training steps consistent no matter input dataset size
+        # parameters.train.steps
+        # also write code to continue training similar to nnunet...
 
         validate_loss_best = np.inf
         for epoch in range(params.train.epochs):
