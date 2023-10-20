@@ -45,7 +45,7 @@ def train(params: TrainParameters):
 
     dataset_full = Dataset(params.in_dir)
     if params.data.normalize <= 0:
-        for sample in DataLoader(dataset_full, shuffle=False, batch_size=1000):
+        for sample in DataLoader(dataset_full, batch_size=1000):
             params.data.normalize = float(np.percentile(sample['data'], 95))
             print(f'data:\n  normalize: {params.data.normalize}')
             break
@@ -71,18 +71,20 @@ def train(params: TrainParameters):
     folds = params.train.folds
     start = datetime.now()
     print_log(f'starting {folds}-fold training at {start}')
-    for fold, dataset in enumerate(torch_data.random_split(dataset_full, [len(dataset_full) // folds] * folds)):
+
+    dataset_fold = torch_data.random_split(dataset_full, [1 / folds] * folds)
+
+    for fold in range(folds):
         rng(params.data.seed)
         torch.manual_seed(params.data.seed)
 
-        dataset_split = [1 / folds] * folds if folds > 1 else [0.8, 0.2]
-        dataset_train, dataset_validate = torch_data.random_split(dataset, [dataset_split[0], sum(dataset_split[1:])])
-        dataloader_train = DataLoader(dataset_train, batch_size=params.data.batch_size)
-        dataloader_validate = DataLoader(dataset_validate, batch_size=params.data.batch_size)
-        # load a set amount (in parameters.py) per epoch, to keep training steps consistent no matter input dataset size
-        # parameters.train.steps
-        # also write code to continue training similar to nnunet...
+        if folds > 1:
+            dataset_train = torch_data.ConcatDataset(ds for f, ds in enumerate(dataset_fold) if f != fold)
+            dataset_validate = dataset_fold[fold]
+        else:
+            dataset_train, dataset_validate = torch_data.random_split(dataset_full, [0.8, 0.2])
 
+        steps = 0
         validate_loss_best = np.inf
         for epoch in range(params.train.epochs):
             epoch_start = datetime.now()
@@ -90,8 +92,13 @@ def train(params: TrainParameters):
             evaluator_train = Evaluation(params, loss_only=True)
             evaluator_validate = Evaluation(params)
 
+            steps_end = steps + params.train.steps
+            steps_excess = steps_end % len(dataset_train) if steps_end > len(dataset_train) else 0
+            indices = list(range(steps, steps_end - steps_excess)) + list(range(0, steps_excess))
+            steps = steps_excess if steps_excess > 0 else steps_end
+
             network.train()
-            for batch in dataloader_train:
+            for batch in DataLoader(dataset_train, batch_size=params.train.batch_size, indices=indices):
                 im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
                 for i in range(len(batch['paths'])):
                     j = i + 1
@@ -105,7 +112,7 @@ def train(params: TrainParameters):
 
             network.eval()
             with torch.no_grad():
-                for batch in dataloader_validate:
+                for batch in DataLoader(dataset_validate, batch_size=params.train.batch_size, indices=params.train.steps):
                     im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
                     for i in range(len(batch['paths'])):
                         j = i + 1

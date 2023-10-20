@@ -15,8 +15,6 @@ class Parameters:
     class Data:
         """Parameters related to the dataset
 
-        :param split_regex: first capture group is how to split mhas into cases (eg. '.*_(.*)_')
-        :param filter_regex: result _is_ loaded
         :param shape_x: image columns to crop or zero-fill to
         :param shape_y: image rows to crop or zero-fill to
         :param sequence_length: length of T
@@ -24,7 +22,6 @@ class Parameters:
         :param undersampling: how many k-lines to synthetically remove
         :param seed: seed to Gaussian random k-space masks
         """
-        batch_size: int = 10
         shape_x: int = 256
         shape_y: int = 256
         sequence_length: int = 5
@@ -56,6 +53,8 @@ class Parameters:
 
         :param epochs: number of epochs
         :param folds: number of folds
+        :param steps: number of training steps per epoch (that is, number of images to forward/backward)
+        :param batch_size: batch size
         :param lr: learning rate
         :param lr_gamma: learning rate decay per epoch
         :param lr_decay_end: set lr_gamma to 1 after n epochs. -1 for never.
@@ -79,6 +78,8 @@ class Parameters:
 
         epochs: int = 5
         folds: int = 3
+        steps: int = 0
+        batch_size: int = 10
         loss: Loss = field(default_factory=Loss)
         lr: float = 0.001
         lr_gamma: float = 0.95

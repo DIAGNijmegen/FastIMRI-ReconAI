@@ -52,8 +52,12 @@ class Dataset(torch.utils.data.Dataset):
 
 
 class DataLoader(torch.utils.data.DataLoader):
-    def __init__(self, dataset: Dataset, batch_size: int = 1, shuffle: bool = True):
-        super().__init__(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=8, pin_memory=True)
+    def __init__(self, dataset: Dataset, batch_size: int = 1, indices: list[int] | int = 0):
+        if isinstance(indices, int):
+            sampler = torch.utils.data.RandomSampler(dataset, num_samples=indices if indices > 0 else None)
+        else:
+            sampler = torch.utils.data.SubsetRandomSampler(list(indices))
+        super().__init__(dataset, batch_size=batch_size, sampler=sampler, num_workers=8, pin_memory=True)
 
     def __iter__(self):
         return super().__iter__()
