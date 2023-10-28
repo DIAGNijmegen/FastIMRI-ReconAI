@@ -137,8 +137,9 @@ def train(params: TrainParameters):
                 stats |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
 
             print_log(json.dumps(stats, indent=2))
+            train_loss_min, _, _ = evaluator_train.criterion_stats('loss')
             _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
-            if validate_loss > 0.5:
+            if train_loss_min > 0.666 and epoch == 0:
                 seed += 1
                 rng(seed)
                 torch.manual_seed(seed)
