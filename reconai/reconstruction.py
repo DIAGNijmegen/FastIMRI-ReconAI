@@ -139,11 +139,12 @@ def train(params: TrainParameters):
             print_log(json.dumps(stats, indent=2))
             train_loss_min, _, _ = evaluator_train.criterion_stats('loss')
             _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
-            if train_loss_min > 0.666 and epoch == 0:
+            if train_loss_min > 0.666:
                 seed += 1
                 rng(seed)
                 torch.manual_seed(seed)
                 print_log(f'exploded loss: {validate_loss}; retrying fold {fold} with seed {seed}')
+                epoch = 0
                 continue
 
             wandb.log(stats)
