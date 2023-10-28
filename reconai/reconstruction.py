@@ -74,9 +74,10 @@ def train(params: TrainParameters):
 
     dataset_fold = torch_data.random_split(dataset_full, [1 / folds] * folds)
 
+    seed = params.data.seed
     for fold in range(folds):
-        rng(params.data.seed)
-        torch.manual_seed(params.data.seed)
+        rng(seed)
+        torch.manual_seed(seed)
 
         if folds > 1:
             dataset_train = torch_data.ConcatDataset(ds for f, ds in enumerate(dataset_fold) if f != fold)
@@ -85,8 +86,9 @@ def train(params: TrainParameters):
             dataset_train, dataset_validate = torch_data.random_split(dataset_full, [0.8, 0.2])
 
         steps = 0
+        epoch = 0
         validate_loss_best = np.inf
-        for epoch in range(params.train.epochs):
+        while epoch < params.train.epochs:
             epoch_start = datetime.now()
 
             evaluator_train = Evaluation(params, loss_only=True)
@@ -98,21 +100,17 @@ def train(params: TrainParameters):
             steps = steps_excess if steps_excess > 0 else steps_end
 
             network.train()
-            try:
-                for batch in DataLoader(dataset_train, batch_size=params.train.batch_size, indices=indices):
-                    im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
-                    for i in range(len(batch['paths'])):
-                        j = i + 1
-                        optimizer.zero_grad()
-                        pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
-                        evaluator_train.calculate(pred, gnd[i:j])
-                        evaluator_train.loss.backward()
+            for batch in DataLoader(dataset_train, batch_size=params.train.batch_size, indices=indices):
+                im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
+                for i in range(len(batch['paths'])):
+                    j = i + 1
+                    optimizer.zero_grad()
+                    pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
+                    evaluator_train.calculate(pred, gnd[i:j])
+                    evaluator_train.loss.backward()
 
-                        torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
-                        optimizer.step()
-            except IndexError:
-                print(f'steps: {steps}, steps_end: {steps_end}, steps_excess: {steps_excess}')
-                print(indices)
+                    torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
+                    optimizer.step()
 
             network.eval()
             with torch.no_grad():
@@ -124,12 +122,10 @@ def train(params: TrainParameters):
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
                         evaluator_validate.calculate(pred, gnd[i:j])
 
-            epoch_end = datetime.now()
-
             model = network.state_dict()
             stats = {'fold': fold,
                      'epoch': epoch,
-                     'epoch_time': (epoch_end - epoch_start).total_seconds(),
+                     'epoch_time': (datetime.now() - epoch_start).total_seconds(),
                      'loss_train': evaluator_train.criterion_stats('loss'),
                      'loss_validate': evaluator_validate.criterion_stats('loss'),
                      'ssim_validate': evaluator_validate.criterion_stats('ssim'),
@@ -140,8 +136,16 @@ def train(params: TrainParameters):
                 value = stats.pop(key)
                 stats |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
 
-            wandb.log(stats)
             print_log(json.dumps(stats, indent=2))
+            _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
+            if validate_loss > 0.5:
+                seed += 1
+                rng(seed)
+                torch.manual_seed(seed)
+                print_log(f'exploded loss: {validate_loss}; retrying fold {fold} with seed {seed}')
+                continue
+
+            wandb.log(stats)
 
             def save_model(path: Path, model_stats: dict):
                 torch.save(model, path)
@@ -150,13 +154,13 @@ def train(params: TrainParameters):
 
             save_model(params.out_dir / f'reconai_{fold}.npz', stats)
 
-            _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
             if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
                 save_model(params.out_dir / f'reconai_{fold}_best.npz', stats)
 
             if params.train.lr_decay_end == -1 or epoch < params.train.lr_decay_end:
                 scheduler.step()
+            epoch += 1
 
     end = datetime.now()
     print_log(f'completed training in {(end - start).total_seconds()} seconds, at {end}')
