@@ -88,6 +88,7 @@ def train(params: TrainParameters):
         steps = 0
         epoch = 0
         validate_loss_best = np.inf
+        last_5_loss = []
         while epoch < params.train.epochs:
             epoch_start = datetime.now()
 
@@ -139,12 +140,18 @@ def train(params: TrainParameters):
             print_log(json.dumps(stats, indent=2))
             train_loss_min, _, _ = evaluator_train.criterion_stats('loss')
             _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
-            if train_loss_min > 0.666:
+            if len(last_5_loss) < 5:
+                last_5_loss.append(train_loss_min)
+            else:
+                last_5_loss = last_5_loss[1:5] + [train_loss_min]
+
+            if len(last_5_loss) == 5 and np.polyfit(range(5), last_5_loss, 1)[0] > 0 and np.mean(last_5_loss) > 0.66:
                 seed += 1
                 rng(seed)
                 torch.manual_seed(seed)
                 print_log(f'exploded loss: {validate_loss}; retrying fold {fold} with seed {seed}')
                 epoch = 0
+                last_5_loss = []
                 continue
 
             wandb.log(stats)
