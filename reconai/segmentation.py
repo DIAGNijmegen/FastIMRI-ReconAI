@@ -165,7 +165,7 @@ def nnunet_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
     assert next(data_dir.iterdir()).suffix == '.mha'
     data_dir_files, annotation_dir_files = {file.name for file in data_dir.iterdir()}, {file.name for file in
                                                                                         annotations_dir.iterdir()}
-    assert data_dir_files == annotation_dir_files, data_dir_files.symmetric_difference(annotation_dir_files)
+    assert annotation_dir_files.issubset(data_dir_files), data_dir_files.symmetric_difference(annotation_dir_files)
 
     nnunet_copy(data_dir, dataset / 'imagesTr', '_0000')
     nnunet_copy(annotations_dir, dataset / 'labelsTr')
