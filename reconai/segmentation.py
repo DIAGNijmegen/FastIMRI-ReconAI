@@ -185,4 +185,4 @@ def nnunet_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
 def nnunet_copy(source: Path, target: Path, suffix: str = ''):
     target.mkdir(parents=True, exist_ok=False)
     for file in source.iterdir():
-        shutil.copy(file, target / (file.stem + suffix + file.suffix))
+        shutil.copyfile(file, target / (file.stem + suffix + file.suffix))
