@@ -4,11 +4,11 @@ import re
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import torch.optim as torch_optim
 import torch.utils.data as torch_data
 import wandb
 import SimpleITK as sitk
@@ -36,6 +36,17 @@ def view(x: torch.Tensor):
     plt.show()
 
 
+def train_optimizer_scheduler(params: TrainParameters, network: CRNNMRI) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.SequentialLR]:
+    optimizer = torch.optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
+
+    warmup = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1/params.train.lr_warmup, total_iters=params.train.lr_warmup)
+    decay = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.train.lr_gamma)
+    # plateau = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, cooldown=5, verbose=True)
+
+    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, [warmup, decay], milestones=[params.train.lr_warmup])
+    return optimizer, scheduler
+
+
 def train(params: TrainParameters):
     print_log(f'reconai version {version}', params.meta.name)
     print(str(params))
@@ -59,9 +70,7 @@ def train(params: TrainParameters):
                       nd=params.model.layers,
                       bcrnn=params.model.bcrnn
                       ).cuda()
-
-    optimizer = torch_optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
-    scheduler = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.train.lr_gamma)
+    optimizer, scheduler = train_optimizer_scheduler(params, network)
 
     print_log(f'trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}',
               f'data: {len(dataset_full)} items',
@@ -140,18 +149,19 @@ def train(params: TrainParameters):
             print_log(json.dumps(stats, indent=2))
             train_loss_min, _, _ = evaluator_train.criterion_stats('loss')
             _, validate_loss, _ = evaluator_validate.criterion_stats('loss')
+
             if len(last_5_loss) < 5:
                 last_5_loss.append(train_loss_min)
             else:
                 last_5_loss = last_5_loss[1:5] + [train_loss_min]
 
             if len(last_5_loss) == 5 and np.polyfit(range(5), last_5_loss, 1)[0] > 0 and np.mean(last_5_loss) > 0.66:
+                print_log(f'exploded loss: {validate_loss}; retrying fold {fold} with seed {seed}')
                 seed += 1
                 rng(seed)
                 torch.manual_seed(seed)
-                print_log(f'exploded loss: {validate_loss}; retrying fold {fold} with seed {seed}')
-                epoch = 0
-                last_5_loss = []
+                epoch, last_5_loss = 0, []
+                optimizer, scheduler = train_optimizer_scheduler(params, network)
                 continue
 
             wandb.log(stats)
@@ -167,8 +177,7 @@ def train(params: TrainParameters):
                 validate_loss_best = validate_loss
                 save_model(params.out_dir / f'reconai_{fold}_best.npz', stats)
 
-            if params.train.lr_decay_end == -1 or epoch < params.train.lr_decay_end:
-                scheduler.step()
+            scheduler.step(epoch)
             epoch += 1
 
     end = datetime.now()

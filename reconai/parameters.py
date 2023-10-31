@@ -83,7 +83,7 @@ class Parameters:
         loss: Loss = field(default_factory=Loss)
         lr: float = 0.001
         lr_gamma: float = 0.95
-        lr_decay_end: int = 3
+        lr_warmup: int = 0
 
     @dataclass
     class Meta:
