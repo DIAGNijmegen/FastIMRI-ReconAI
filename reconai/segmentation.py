@@ -5,6 +5,9 @@ import json
 import pkg_resources
 from pathlib import Path
 
+import nnunetv2.experiment_planning.experiment_planners.default_experiment_planner
+shutil.copy = shutil.copyfile
+
 
 from . import version
 
