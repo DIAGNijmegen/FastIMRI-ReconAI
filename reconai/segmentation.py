@@ -73,6 +73,11 @@ def nnunet2_environ_set(base_dir: Path):
     for name in nnunet2_dirnames():
         os.environ[name] = (base_dir / name).resolve().as_posix()
 
+    import distutils.file_util
+    def copy_file(src, dst, preserve_mode=1, preserve_times=1, update=False,
+                  link=None, verbose=True, dry_run=False):
+        distutils.file_util.copy_file(src, dst, preserve_mode=False, preserve_times=False, update=update, link=link, verbose=verbose, dry_run=dry_run)
+    distutils.file_util.copy_file = copy_file
     import nnunetv2.experiment_planning.experiment_planners.default_experiment_planner
     shutil.copy = shutil.copyfile
 
