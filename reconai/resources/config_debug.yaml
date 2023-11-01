@@ -14,14 +14,12 @@ model:
   layers: 5
 
 train:
-  epochs: 5
+  epochs: 3
   folds: 1
-  steps: 10
-  batch_size: 2
   loss:
     mse: 0
     ssim: 1
     dice: 0
   lr: 0.001
   lr_gamma: 0.95
-  lr_decay_end: 45
+  lr_warmup: 5

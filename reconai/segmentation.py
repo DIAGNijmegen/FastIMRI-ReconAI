@@ -5,10 +5,6 @@ import json
 import pkg_resources
 from pathlib import Path
 
-import nnunetv2.experiment_planning.experiment_planners.default_experiment_planner
-shutil.copy = shutil.copyfile
-
-
 from . import version
 
 
@@ -70,10 +66,15 @@ def nnunet2_dirnames() -> tuple[str, str, str]:
 
 def nnunet2_environ_set(base_dir: Path):
     """
-    Environment paths are set when importing nnunet2 for the first time
+    Environment paths are set when importing nnunet2 for the first time.
+    Also, monkeypatches shutil.copy where necessary
     """
+    assert 'nnunetv2' not in globals(), ImportError('nnunetv2 is already imported! environ is not yet set.')
     for name in nnunet2_dirnames():
         os.environ[name] = (base_dir / name).resolve().as_posix()
+
+    import nnunetv2.experiment_planning.experiment_planners.default_experiment_planner
+    shutil.copy = shutil.copyfile
 
 
 def nnunet2_plan_and_preprocess(existing: bool):
