@@ -79,7 +79,13 @@ def nnunet2_environ_set(base_dir: Path):
                   link=None, verbose=True, dry_run=False):
         distutils_file_util_copy_file(src, dst, preserve_mode=False, preserve_times=False, update=update, link=link, verbose=verbose, dry_run=dry_run)
     distutils.file_util.copy_file = copy_file_
+    import numpy
+    numpy_load = numpy.load
+    def load_(file, mmap_mode=None, allow_pickle=False, fix_imports=True):
+        numpy_load(file, mmap_mode=mmap_mode, allow_pickle=True, fix_imports=fix_imports)
+    numpy.load = load_
     import nnunetv2.experiment_planning.experiment_planners.default_experiment_planner
+    import nnunetv2.training.nnUNetTrainer.nnUNetTrainer
     shutil.copy = shutil.copyfile
 
 
