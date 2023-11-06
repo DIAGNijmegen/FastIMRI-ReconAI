@@ -3,28 +3,29 @@ import os
 import sys
 import json
 import pkg_resources
+import subprocess
 from pathlib import Path
 
 from . import version
 
 
 argv_0 = sys.argv[0]
+nnUNet_dirnames = ('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results')
 nnUNet_dataset_id = '111'
 nnUNet_dataset_name = f'Dataset{nnUNet_dataset_id}_FastIMRI'
+nnUNet_environ = dict(os.environ.copy())
 
 
 def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: bool = False):
-    raw, preprocessed, results = nnunet2_dirnames()
-
     existing = not annotation_dir and not out_dir
     if existing:
         nnunet2_verify_raw_dir(in_dir)
         out_dir = in_dir
     else:
-        nnunet_prepare_data(in_dir, annotation_dir, out_dir)
+        nnunet2_prepare_data(in_dir, annotation_dir, out_dir)
 
     # out_dir is the parent of nnUNet_raw
-    preprocess_dir = out_dir / preprocessed
+    preprocess_dir = out_dir / nnUNet_dirnames[1]
     if preprocess_dir.exists() and not existing:
         shutil.rmtree(preprocess_dir)
 
@@ -40,9 +41,6 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: 
 
 def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
     nnunet2_environ_set(nnunet_dir)
-
-    from nnunetv2.inference.predict_from_raw_data import predict_entry_point
-
     nnunet2_verify_results_dir(nnunet_dir)
     assert all([file.name.endswith('_0000.mha') for file in in_dir.iterdir() if file.suffix == '.mha']), (
         NameError(f'not all files in {in_dir} end with _0000.mha'))
@@ -57,7 +55,7 @@ def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
 
     sys.argv = [argv_0, '-d', nnUNet_dataset_name, '-i', in_dir.as_posix(), '-o', out_dir.as_posix(),
                 '-f', *folds, '-c', config, '-tr', trainer, '-p', plans]
-    predict_entry_point()
+    nnunet2_command('nnUNetv2_predict', *sys.argv)
 
 
 def nnunet2_dirnames() -> tuple[str, str, str]:
@@ -65,38 +63,16 @@ def nnunet2_dirnames() -> tuple[str, str, str]:
 
 
 def nnunet2_environ_set(base_dir: Path):
-    """
-    Environment paths are set when importing nnunet2 for the first time.
-    Also, monkeypatches shutil.copy where necessary
-    """
-    assert 'nnunetv2' not in globals(), ImportError('nnunetv2 is already imported! environ is not yet set.')
-    for name in nnunet2_dirnames():
-        os.environ[name] = (base_dir / name).resolve().as_posix()
-
-    import distutils.file_util
-    distutils_file_util_copy_file = distutils.file_util.copy_file
-    def copy_file_(src, dst, preserve_mode=1, preserve_times=1, update=False,
-                  link=None, verbose=True, dry_run=False):
-        distutils_file_util_copy_file(src, dst, preserve_mode=False, preserve_times=False, update=update, link=link, verbose=verbose, dry_run=dry_run)
-    distutils.file_util.copy_file = copy_file_
-    import numpy
-    numpy_load = numpy.load
-    def load_(file, mmap_mode=None, allow_pickle=False, fix_imports=True):
-        numpy_load(file, mmap_mode=mmap_mode, allow_pickle=True, fix_imports=fix_imports)
-    numpy.load = load_
-    import nnunetv2.experiment_planning.experiment_planners.default_experiment_planner
-    import nnunetv2.training.nnUNetTrainer.nnUNetTrainer
-    shutil.copy = shutil.copyfile
+    for name in nnUNet_dirnames:
+        nnUNet_environ[name] = (base_dir / name).resolve().as_posix()
 
 
 def nnunet2_plan_and_preprocess(existing: bool):
-    from nnunetv2.experiment_planning.plan_and_preprocess_entrypoints import plan_and_preprocess_entry
-
     argv_existing = ['--verify_dataset_integrity'] if not existing else []
-    sys.argv = [argv_0, '-d', nnUNet_dataset_id] + argv_existing
+    sys.argv = ['-d', nnUNet_dataset_id] + argv_existing
 
     print('plan and preprocessing')
-    plan_and_preprocess_entry()
+    nnunet2_command('nnUNetv2_plan_and_preprocess', *sys.argv)
 
 
 def nnunet2_train(configs: list[str], folds: list[str], existing: bool, debug: bool = False):
@@ -123,17 +99,15 @@ class nnUNetTrainer_FastIMRI_debug(nnUNetTrainer):
             sys.argv = [argv_0, nnUNet_dataset_id, config, fold, '--npz'] + argv_existing + argv_debug
 
             print(f'training config {config}, fold {fold}')
-            run_training_entry()
+            nnunet2_command('nnUNetv2_train', *sys.argv)
 
 
 def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug: bool = False):
-    from nnunetv2.evaluation.find_best_configuration import find_best_configuration_entry_point
-
     argv_debug = ['-tr', 'nnUNetTrainer_FastIMRI_debug'] if debug else []
     sys.argv = [argv_0, nnUNet_dataset_id, '-c', *configs, '-f', *folds] + argv_debug
 
     print('finding best configuration')
-    find_best_configuration_entry_point()
+    nnunet2_command('nnUNetv2_find_best_configuration', *sys.argv)
 
 
 def nnunet2_verify_results_dir(base_dir: Path):
@@ -172,7 +146,7 @@ def nnunet2_verify_raw_dir(base_dir: Path):
     assert dataset_content['numTraining'] == len(images)
 
 
-def nnunet_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
+def nnunet2_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
     nnUNet_raw = out_dir / 'nnUNet_raw'
     assert not nnUNet_raw.exists()
 
@@ -183,8 +157,8 @@ def nnunet_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
                                                                                         annotations_dir.iterdir()}
     assert annotation_dir_files.issubset(data_dir_files), data_dir_files.symmetric_difference(annotation_dir_files)
 
-    nnunet_copy(data_dir, dataset / 'imagesTr', '_0000')
-    nnunet_copy(annotations_dir, dataset / 'labelsTr')
+    nnunet2_copy(data_dir, dataset / 'imagesTr', '_0000')
+    nnunet2_copy(annotations_dir, dataset / 'labelsTr')
 
     with open(dataset / 'dataset.json', 'w') as j:
         json.dump({
@@ -198,7 +172,11 @@ def nnunet_prepare_data(data_dir: Path, annotations_dir: Path, out_dir: Path):
         }, j, indent=4)
 
 
-def nnunet_copy(source: Path, target: Path, suffix: str = ''):
+def nnunet2_copy(source: Path, target: Path, suffix: str = ''):
     target.mkdir(parents=True, exist_ok=False)
     for file in source.iterdir():
         shutil.copyfile(file, target / (file.stem + suffix + file.suffix))
+
+
+def nnunet2_command(cmd: str, *args, **kwargs):
+    return subprocess.run([cmd] + list(args), env=nnUNet_environ)
