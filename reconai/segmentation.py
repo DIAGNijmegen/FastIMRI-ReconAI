@@ -9,7 +9,6 @@ from pathlib import Path
 from . import version
 
 
-argv_0 = sys.argv[0]
 nnUNet_dirnames = ('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results')
 nnUNet_dataset_id = '111'
 nnUNet_dataset_name = f'Dataset{nnUNet_dataset_id}_FastIMRI'
@@ -53,9 +52,9 @@ def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
     config, plans, trainer = selected_model['configuration'], selected_model['plans_identifier'], selected_model['trainer']
     folds = Path(inference_information['best_model_or_ensemble']['some_plans_file']).parent.name[-1]
 
-    sys.argv = [argv_0, '-d', nnUNet_dataset_name, '-i', in_dir.as_posix(), '-o', out_dir.as_posix(),
-                '-f', *folds, '-c', config, '-tr', trainer, '-p', plans]
-    nnunet2_command('nnUNetv2_predict', *sys.argv)
+    args = ['-d', nnUNet_dataset_name, '-i', in_dir.as_posix(), '-o', out_dir.as_posix(),
+            '-f', *folds, '-c', config, '-tr', trainer, '-p', plans]
+    nnunet2_command('nnUNetv2_predict', *args)
 
 
 def nnunet2_dirnames() -> tuple[str, str, str]:
@@ -69,17 +68,15 @@ def nnunet2_environ_set(base_dir: Path):
 
 def nnunet2_plan_and_preprocess(existing: bool):
     argv_existing = ['--verify_dataset_integrity'] if not existing else []
-    sys.argv = ['-d', nnUNet_dataset_id] + argv_existing
+    args = ['-d', nnUNet_dataset_id] + argv_existing
 
     print('plan and preprocessing')
-    nnunet2_command('nnUNetv2_plan_and_preprocess', *sys.argv)
+    nnunet2_command('nnUNetv2_plan_and_preprocess', *args)
 
 
 def nnunet2_train(configs: list[str], folds: list[str], existing: bool, debug: bool = False):
-    from nnunetv2.run.run_training import run_training_entry
-
-    argv_existing = ['--c'] if existing else []
-    argv_debug = ['-tr', 'nnUNetTrainer_FastIMRI_debug'] if debug else []
+    args_existing = ['--c'] if existing else []
+    args_debug = ['-tr', 'nnUNetTrainer_FastIMRI_debug'] if debug else []
 
     nnunet_trainer_path = Path(pkg_resources.get_distribution('nnunetv2').location) / 'nnunetv2/training/nnUNetTrainer'
     if debug:
@@ -96,18 +93,18 @@ class nnUNetTrainer_FastIMRI_debug(nnUNetTrainer):
 
     for config in configs:
         for fold in folds:
-            sys.argv = [argv_0, nnUNet_dataset_id, config, fold, '--npz'] + argv_existing + argv_debug
+            args = [nnUNet_dataset_id, config, fold, '--npz'] + args_existing + args_debug
 
             print(f'training config {config}, fold {fold}')
-            nnunet2_command('nnUNetv2_train', *sys.argv)
+            nnunet2_command('nnUNetv2_train', *args)
 
 
 def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug: bool = False):
-    argv_debug = ['-tr', 'nnUNetTrainer_FastIMRI_debug'] if debug else []
-    sys.argv = [argv_0, nnUNet_dataset_id, '-c', *configs, '-f', *folds] + argv_debug
+    args_debug = ['-tr', 'nnUNetTrainer_FastIMRI_debug'] if debug else []
+    args = [nnUNet_dataset_id, '-c', *configs, '-f', *folds] + args_debug
 
     print('finding best configuration')
-    nnunet2_command('nnUNetv2_find_best_configuration', *sys.argv)
+    nnunet2_command('nnUNetv2_find_best_configuration', *args)
 
 
 def nnunet2_verify_results_dir(base_dir: Path):
@@ -178,5 +175,10 @@ def nnunet2_copy(source: Path, target: Path, suffix: str = ''):
         shutil.copyfile(file, target / (file.stem + suffix + file.suffix))
 
 
-def nnunet2_command(cmd: str, *args, **kwargs):
-    return subprocess.run([cmd] + list(args), env=nnUNet_environ)
+def nnunet2_command(cmd: str, *args):
+    process = subprocess.run([cmd] + list(args), env=nnUNet_environ)
+    if process.returncode != 0:
+        print("An error occurred while running the subprocess.")
+        print("Error output:", process.stderr)
+    else:
+        print(process.stdout)

@@ -1,12 +1,13 @@
 from setuptools import setup, find_packages
 
-version = '1.3.7'
+version = '1.4.0'
 
 if __name__ == '__main__':
     try:
         import torch
     except ModuleNotFoundError as e:
         e.msg += '\nMake sure PyTorch and CUDA are installed!'
+        e.msg += '\npip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121'
         raise e
     if not torch.has_cuda:
         raise ModuleNotFoundError('Make sure CUDA is installed!')
@@ -24,7 +25,6 @@ if __name__ == '__main__':
         install_requires=[
             'pytest~=7.2.2',
             'numpy~=1.24.0',
-            'torch~=2.0.1',
             'matplotlib~=3.6.2',
             'SimpleITK~=2.2.1',
             'scipy~=1.10.1',

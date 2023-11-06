@@ -6,9 +6,9 @@
         "background": 0,
         "needle": 1
     },
-    "numTraining": 7,
+    "numTraining": 14,
     "file_ending": ".mha",
     "overwrite_image_reader_writer": "SimpleITKIO",
     "dataset_name": "imri_xyt",
-    "release": "1.1.2"
+    "release": "1.3.7"
 }

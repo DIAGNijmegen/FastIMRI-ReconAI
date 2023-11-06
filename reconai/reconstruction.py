@@ -4,7 +4,6 @@ import re
 from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -246,7 +245,7 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
     rng(params.data.seed)
     torch.manual_seed(params.data.seed)
     with torch.no_grad():
-        dataloader_test = DataLoader(dataset_test, batch_size=params.data.batch_size)
+        dataloader_test = DataLoader(dataset_test, batch_size=params.train.batch_size)
 
         for batch in dataloader_test:
             im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
