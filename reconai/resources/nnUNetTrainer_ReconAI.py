@@ -10,7 +10,6 @@ class nnUNetTrainer_ReconAI(nnUNetTrainer):
     @staticmethod
     def sync():
         if nnUNet_sync := os.environ.get('nnUNet_sync'):
-            Path(nnUNet_sync).mkdir(parents=True)
             if os.name == 'nt':
                 subprocess.run(['robocopy', os.environ.get('nnUNet_base'), nnUNet_sync, '/E', '/SL', '/XD', nnUNet_sync])
             else:
