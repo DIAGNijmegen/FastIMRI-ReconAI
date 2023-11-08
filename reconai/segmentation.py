@@ -7,6 +7,7 @@ from importlib.metadata import distribution
 from importlib.resources import files
 
 from . import version
+from .print import print_version
 
 
 nnUNet_dirnames = ('nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results')
@@ -16,6 +17,8 @@ nnUNet_environ = dict(os.environ.copy())
 
 
 def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, folds: int, debug: bool = False):
+    print_version()
+
     existing = not annotation_dir and not out_dir
     if existing:
         nnunet2_verify_raw_dir(in_dir)
@@ -38,6 +41,8 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
 
 
 def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
+    print_version()
+
     nnunet2_environ_set(nnunet_dir)
     nnunet2_verify_results_dir(nnunet_dir)
     assert all([file.name.endswith('_0000.mha') for file in in_dir.iterdir() if file.suffix == '.mha']), (

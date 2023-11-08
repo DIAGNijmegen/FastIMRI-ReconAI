@@ -19,7 +19,7 @@ from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import TestParameters, TrainParameters
 from reconai.segmentation import test as segment, nnunet2_verify_results_dir
-from reconai.print import print_log
+from reconai.print import print_log, print_version
 from reconai.random import rng
 
 
@@ -47,8 +47,8 @@ def train_optimizer_scheduler(params: TrainParameters, network: CRNNMRI) -> tupl
 
 
 def train(params: TrainParameters):
-    print_log(f'reconai version {version}', params.meta.name)
-    print(str(params))
+    print_version(params.meta.name)
+    print_log(str(params))
 
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
@@ -57,7 +57,7 @@ def train(params: TrainParameters):
     if params.data.normalize <= 0:
         for sample in DataLoader(dataset_full, batch_size=1000):
             params.data.normalize = float(np.percentile(sample['data'], 95))
-            print(f'data:\n  normalize: {params.data.normalize}')
+            print_log(f'data:\n  normalize: {params.data.normalize}')
             break
 
     dataset_full.normalize = params.data.normalize
@@ -184,7 +184,8 @@ def train(params: TrainParameters):
 
 
 def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
-    print_log(f'reconai version {version}', params.meta.name)
+    print_version(params.meta.name)
+
     version_re = r'(\d+)\.(\d+)\.(\d+)'
     version_r, params_version_r = re.match(version_re, version), re.match(version_re, params.meta.version)
     for v in [1, 2]:
