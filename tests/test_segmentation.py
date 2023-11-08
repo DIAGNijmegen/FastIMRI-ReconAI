@@ -14,7 +14,8 @@ def test_train_segmentation():
     run_click(reconai_train_segmentation, '--debug',
               in_dir='./tests/input/images',
               annotation_dir='./tests/input/annotations',
-              out_dir='./tests/output/')
+              out_dir='./tests/output/',
+              sync_dir='./tests/output/rsync/')
 
 
 def test_train_segmentation_existing():

@@ -62,9 +62,11 @@ def reconai_test_reconstruction(in_dir: Path, model_dir: Path, nnunet_dir: Path,
               help='Output directory to contain nnUNet directories. (if in_dir is not nnUNet)')
 @click.option('--folds', type=int, required=False, default=5,
               help='Number of folds.')
+@click.option('--sync_dir', type=Path, required=True,
+              help='Sync out_dir to sync_dir')
 @click.option('--debug', is_flag=True, hidden=True, default=False)
-def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: bool = False):
-    train_segmentation(in_dir, annotation_dir, out_dir, folds, debug)
+def reconai_train_segmentation(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, sync_dir: Path, debug: bool = False):
+    train_segmentation(in_dir, annotation_dir, out_dir, sync_dir, folds, debug)
 
 
 @cli.command(name='test_segmentation')

@@ -1,10 +1,10 @@
 import shutil
 import os
-import sys
 import json
-import pkg_resources
 import subprocess
 from pathlib import Path
+from importlib.metadata import distribution
+from importlib.resources import files
 
 from . import version
 
@@ -15,7 +15,7 @@ nnUNet_dataset_name = f'Dataset{nnUNet_dataset_id}_FastIMRI'
 nnUNet_environ = dict(os.environ.copy())
 
 
-def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: bool = False):
+def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, folds: int, debug: bool = False):
     existing = not annotation_dir and not out_dir
     if existing:
         nnunet2_verify_raw_dir(in_dir)
@@ -28,8 +28,7 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, folds: int, debug: 
     if preprocess_dir.exists() and not existing:
         shutil.rmtree(preprocess_dir)
 
-    nnunet2_environ_set(out_dir)
-
+    nnunet2_environ_set(out_dir, sync_dir)
     nnunet2_plan_and_preprocess(existing)
     nnunet2_train(configs := ['2d'] if debug else ['2d', '3d_fullres'],
                   folds := ['0'] if debug else [str(f) for f in range(folds)],
@@ -61,14 +60,17 @@ def nnunet2_dirnames() -> tuple[str, str, str]:
     return 'nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results'
 
 
-def nnunet2_environ_set(base_dir: Path):
+def nnunet2_environ_set(base_dir: Path, sync_dir: Path = None):
+    nnUNet_environ['nnUNet_base'] = base_dir.resolve().as_posix()
     for name in nnUNet_dirnames:
         nnUNet_environ[name] = (base_dir / name).resolve().as_posix()
+    if sync_dir:
+        nnUNet_environ['nnUNet_sync'] = sync_dir.resolve().as_posix()
 
 
 def nnunet2_plan_and_preprocess(existing: bool):
-    argv_existing = ['--verify_dataset_integrity'] if not existing else []
-    args = ['-d', nnUNet_dataset_id] + argv_existing
+    args_existing = ['--verify_dataset_integrity'] if not existing else []
+    args = ['-d', nnUNet_dataset_id] + args_existing
 
     print('plan and preprocessing')
     nnunet2_command('nnUNetv2_plan_and_preprocess', *args)
@@ -76,33 +78,26 @@ def nnunet2_plan_and_preprocess(existing: bool):
 
 def nnunet2_train(configs: list[str], folds: list[str], existing: bool, debug: bool = False):
     args_existing = ['--c'] if existing else []
-    args_debug = ['-tr', 'nnUNetTrainer_FastIMRI_debug'] if debug else []
+    args_trainer = ['-tr', 'nnUNetTrainer_debug' if debug else 'nnUNetTrainer_ReconAI']
 
-    nnunet_trainer_path = Path(pkg_resources.get_distribution('nnunetv2').location) / 'nnunetv2/training/nnUNetTrainer'
-    if debug:
-        nnUNetTrainer_FastIMRI_debug = '''
-from .nnUNetTrainer import nnUNetTrainer
-
-class nnUNetTrainer_FastIMRI_debug(nnUNetTrainer):
-    def __init__(self, plans, configuration, fold, dataset_json, unpack_dataset, device):
-        super().__init__(plans, configuration, fold, dataset_json, unpack_dataset, device)
-        self.num_epochs = 3
-        '''
-        with open(nnunet_trainer_path / 'nnUNetTrainer_FastIMRI_debug.py', 'w') as f:
-            f.write(nnUNetTrainer_FastIMRI_debug)
+    nnunetv2_dir = distribution('nnunetv2').locate_file('nnunetv2/training/nnUNetTrainer')
+    for resource in files('reconai.resources').iterdir():
+        if resource.name.startswith('nnUNetTrainer'):
+            with resource.open('r') as src:
+                with open(Path(nnunetv2_dir) / resource.name, 'w') as dst:
+                    dst.write(src.read())
 
     for config in configs:
         for fold in folds:
-            args = [nnUNet_dataset_id, config, fold, '--npz'] + args_existing + args_debug
-
+            args = [nnUNet_dataset_id, config, fold, '--npz'] + args_existing + args_trainer
             print(f'training config {config}, fold {fold}')
             nnunet2_command('nnUNetv2_train', *args)
 
 
 def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug: bool = False):
-    args_debug = ['-tr', 'nnUNetTrainer_FastIMRI_debug'] if debug else []
-    args = [nnUNet_dataset_id, '-c', *configs, '-f', *folds] + args_debug
+    args_trainer = ['-tr', 'nnUNetTrainer_debug' if debug else 'nnUNetTrainer_ReconAI']
 
+    args = [nnUNet_dataset_id, '-c', *configs, '-f', *folds] + args_trainer
     print('finding best configuration')
     nnunet2_command('nnUNetv2_find_best_configuration', *args)
 
@@ -178,7 +173,6 @@ def nnunet2_copy(source: Path, target: Path, suffix: str = ''):
 def nnunet2_command(cmd: str, *args):
     process = subprocess.run([cmd] + list(args), env=nnUNet_environ)
     if process.returncode != 0:
-        print("An error occurred while running the subprocess.")
-        print("Error output:", process.stderr)
+        raise RuntimeError(f'An error occurred while running the subprocess.\n{process.stderr}')
     else:
         print(process.stdout)
