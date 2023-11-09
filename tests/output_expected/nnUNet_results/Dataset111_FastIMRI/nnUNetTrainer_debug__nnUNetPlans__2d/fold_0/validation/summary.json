@@ -1,0 +1,74 @@
+{
+    "foreground_mean": {
+        "Dice": 0.7675508302745856,
+        "FN": 617.3333333333334,
+        "FP": 612.3333333333334,
+        "IoU": 0.6231970008603894,
+        "TN": 324417.6666666667,
+        "TP": 2032.6666666666667,
+        "n_pred": 2645.0,
+        "n_ref": 2650.0
+    },
+    "mean": {
+        "1": {
+            "Dice": 0.7675508302745856,
+            "FN": 617.3333333333334,
+            "FP": 612.3333333333334,
+            "IoU": 0.6231970008603894,
+            "TN": 324417.6666666667,
+            "TP": 2032.6666666666667,
+            "n_pred": 2645.0,
+            "n_ref": 2650.0
+        }
+    },
+    "metric_per_case": [
+        {
+            "metrics": {
+                "1": {
+                    "Dice": 0.7518142235123367,
+                    "FN": 564,
+                    "FP": 291,
+                    "IoU": 0.6023255813953489,
+                    "TN": 325530,
+                    "TP": 1295,
+                    "n_pred": 1586,
+                    "n_ref": 1859
+                }
+            },
+            "prediction_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_results\\Dataset111_FastIMRI\\nnUNetTrainer_debug__nnUNetPlans__2d\\fold_0\\validation\\12307_91ce2f016223fb7d4e89f74896fe530519eba66f2798447e454f64e4e0b3caf7_coronal_0000.mha",
+            "reference_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_preprocessed\\Dataset111_FastIMRI\\gt_segmentations\\12307_91ce2f016223fb7d4e89f74896fe530519eba66f2798447e454f64e4e0b3caf7_coronal_0000.mha"
+        },
+        {
+            "metrics": {
+                "1": {
+                    "Dice": 0.7557641861107276,
+                    "FN": 638,
+                    "FP": 1131,
+                    "IoU": 0.6074123391034176,
+                    "TN": 323174,
+                    "TP": 2737,
+                    "n_pred": 3868,
+                    "n_ref": 3375
+                }
+            },
+            "prediction_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_results\\Dataset111_FastIMRI\\nnUNetTrainer_debug__nnUNetPlans__2d\\fold_0\\validation\\16967_a0925205a3b3d48fb02b68875dd9cf9976315a528ec720c380f7332c4aca3a49_coronal_0000.mha",
+            "reference_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_preprocessed\\Dataset111_FastIMRI\\gt_segmentations\\16967_a0925205a3b3d48fb02b68875dd9cf9976315a528ec720c380f7332c4aca3a49_coronal_0000.mha"
+        },
+        {
+            "metrics": {
+                "1": {
+                    "Dice": 0.7950740812006927,
+                    "FN": 650,
+                    "FP": 415,
+                    "IoU": 0.6598530820824018,
+                    "TN": 324549,
+                    "TP": 2066,
+                    "n_pred": 2481,
+                    "n_ref": 2716
+                }
+            },
+            "prediction_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_results\\Dataset111_FastIMRI\\nnUNetTrainer_debug__nnUNetPlans__2d\\fold_0\\validation\\48686_99f2355576580fd3041d87dc954192baf20076391bab02643bf97ded0cd6caff_sagittal_0000.mha",
+            "reference_file": "C:/Repos/FastIMRI-ReconAI/tests/output/nnUNet_preprocessed\\Dataset111_FastIMRI\\gt_segmentations\\48686_99f2355576580fd3041d87dc954192baf20076391bab02643bf97ded0cd6caff_sagittal_0000.mha"
+        }
+    ]
+}

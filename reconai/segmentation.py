@@ -43,6 +43,10 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
 def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
     print_version()
 
+    nnunet2_segment(in_dir, nnunet_dir, out_dir)
+
+
+def nnunet2_segment(in_dir: Path, nnunet_dir: Path, out_dir: Path):
     nnunet2_environ_set(nnunet_dir)
     nnunet2_verify_results_dir(nnunet_dir)
     assert all([file.name.endswith('_0000.mha') for file in in_dir.iterdir() if file.suffix == '.mha']), (

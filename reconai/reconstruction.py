@@ -18,7 +18,7 @@ from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import TestParameters, TrainParameters
-from reconai.segmentation import test as segment, nnunet2_verify_results_dir
+from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir
 from reconai.print import print_log, print_version
 from reconai.random import rng
 
@@ -207,13 +207,13 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
         nnunet2_verify_results_dir(nnunet_dir)
 
         if annotations_dir.exists():
-            nnunet2_images = {file.stem[:-5] + file.suffix for file in params.in_dir.iterdir() if file.suffix == '.mha'}
+            nnunet2_images = {file.stem + file.suffix for file in params.in_dir.iterdir() if file.suffix == '.mha'}
             nnunet2_annotations = {file.name for file in annotations_dir.iterdir() if file.suffix == '.mha'}
             assert nnunet2_images == nnunet2_annotations, f'{params.in_dir} and {annotations_dir} contents do not match'
             print_log(f'{params.in_dir} and {annotations_dir} contents match')
         else:
             print(f'segmenting {params.in_dir} to {annotations_dir}...')
-            segment(params.in_dir, nnunet_dir, annotations_dir)
+            nnunet2_segment(params.in_dir, nnunet_dir, annotations_dir)
             print_log('nnUNet complete; run this command again with exact same parameters to use')
             return
 
@@ -259,6 +259,7 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
                 evaluator.calculate(pred, gnd[i:j], path.stem)
 
                 if nnunet_enabled:
+                    # prepare images as mha for nnunet
                     sitk_image = sitk.GetImageFromArray(pred.squeeze().cpu().numpy().transpose(2, 0, 1))
                     sitk.WriteImage(sitk_image, nnunet_out / path.name)
 
@@ -283,17 +284,21 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
 
     if nnunet_enabled:
         print_log('calculating DICE scores...')
-        segment(nnunet_out, nnunet_dir, nnunet_out)
+        nnunet2_segment(nnunet_out, nnunet_dir, nnunet_out)
 
-        gnd_segmentations = {a.name: a for a in annotations_dir.iterdir() if a.suffix == '.mha'}
-        pred_segmentations = {a.name: a for a in nnunet_out.iterdir() if a.suffix == '.mha' and not a.stem.endswith('_0000')}
+        gnd_segmentations = {a.stem: a for a in annotations_dir.iterdir() if a.suffix == '.mha'}
+        pred_segmentations = {f'{a.stem}_0000': a for a in nnunet_out.iterdir() if a.suffix == '.mha' and not a.stem.endswith('_0000')}
 
         assert gnd_segmentations.keys() == pred_segmentations.keys()
-        for name, gnd_path in gnd_segmentations.items():
-            pred_path = pred_segmentations[name]
+        for stem, gnd_path in gnd_segmentations.items():
+            pred_path = pred_segmentations[stem]
             gnd = sitk.GetArrayFromImage(sitk.ReadImage(gnd_path.as_posix()))
             pred = sitk.GetArrayFromImage(sitk.ReadImage(pred_path.as_posix()))
-            evaluator.calculate_dice(pred, gnd, key=f'{name[:-4]}_0000')
+            evaluator.calculate_dice(pred, gnd, key=stem)
+            for suffix, segmentation in [('gnd', gnd), ('pred', pred)]:
+                for s in range(params.data.sequence_length):
+                    img = Image.fromarray((segmentation[s] * 255).astype(np.uint8))
+                    img.save(params.out_dir / f'{stem}_{s}_{suffix}.png')
 
         stats['dice_test'] = evaluator.criterion_stats('dice')
     stats['dataset_test'] |= evaluator.criterion_value_per_key

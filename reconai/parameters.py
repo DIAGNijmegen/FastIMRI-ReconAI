@@ -186,7 +186,7 @@ class TestParameters(Parameters):
                 if file.suffix == '.json':
                     with open(file, 'r') as f:
                         stats = json.load(f)
-                        losses[file] = stats['loss_validate'][1]
+                        losses[file] = stats['loss_validate_mean']
             if not losses:
                 raise FileNotFoundError(f'no models found in {model_dir}')
             self._model = min(losses, key=lambda k: losses[k])
