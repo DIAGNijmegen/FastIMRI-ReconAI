@@ -17,7 +17,8 @@ class nnUNetTrainer_ReconAI(nnUNetTrainer):
 
     def on_epoch_end(self):
         super().on_epoch_end()
-        self.sync()
+        if self.current_epoch % 100 == 0:
+            self.sync()
 
     def on_train_end(self):
         super().on_train_end()

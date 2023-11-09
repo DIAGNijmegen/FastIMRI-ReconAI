@@ -38,6 +38,12 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
                   existing,
                   debug)
     nnunet2_find_best_configuration(configs, folds, debug)
+    if sync_dir:
+        sync = sync_dir.resolve().as_posix()
+        if os.name == 'nt':
+            subprocess.run(['robocopy', os.environ.get('nnUNet_base'), sync, '/E', '/SL', '/XD', sync])
+        else:
+            subprocess.run(["rsync", "-rl", os.environ.get('nnUNet_base'), sync])
 
 
 def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
@@ -114,7 +120,7 @@ def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug:
 def nnunet2_verify_results_dir(base_dir: Path):
     nnUNet_results = base_dir / 'nnUNet_results'
     dataset = nnUNet_results / nnUNet_dataset_name
-    assert dataset.exists()
+    assert dataset.exists(), f'{dataset} does not exist?'
     assert (dataset / 'inference_information.json').exists()
 
 
