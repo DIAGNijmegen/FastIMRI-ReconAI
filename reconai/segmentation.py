@@ -39,11 +39,11 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
                   debug)
     nnunet2_find_best_configuration(configs, folds, debug)
     if sync_dir:
-        sync = sync_dir.resolve().as_posix()
+        nnUNet_base, nnUNet_sync = (d.resolve().as_posix() for d in (out_dir, sync_dir))
         if os.name == 'nt':
-            subprocess.run(['robocopy', os.environ.get('nnUNet_base'), sync, '/E', '/SL', '/XD', sync])
+            subprocess.run(['robocopy', nnUNet_base, nnUNet_sync, '/E', '/SL', '/XD', nnUNet_sync])
         else:
-            subprocess.run(["rsync", "-rl", os.environ.get('nnUNet_base'), sync])
+            subprocess.run(["rsync", "-rl", nnUNet_base, nnUNet_sync])
 
 
 def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):

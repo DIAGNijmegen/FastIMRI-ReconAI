@@ -1,4 +1,5 @@
 import json
+import shutil
 from dataclasses import dataclass, field, InitVar, is_dataclass
 from datetime import datetime
 from pathlib import Path
@@ -199,7 +200,9 @@ class TestParameters(Parameters):
         self.meta.out_dir = (model_dir / f'test_{self._model.stem}').as_posix()
 
     def mkoutdir(self):
-        self.out_dir.mkdir()
+        if self.out_dir.exists():
+            shutil.rmtree(self.out_dir)
+        self.out_dir.mkdir(parents=True)
 
     @property
     def npz(self) -> Path:
