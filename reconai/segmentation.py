@@ -193,7 +193,7 @@ def nnunet2_copy(source: Path, target: Path, suffix: str = ''):
 
 def nnunet2_command(cmd: str, *args):
     print([cmd] + list(args))
-    process = subprocess.run([cmd] + list(args), env=nnUNet_environ)
+    process = subprocess.run([cmd] + list(args), env=nnUNet_environ, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     if process.returncode != 0:
         raise RuntimeError(f'An error occurred while running the subprocess.\n{process.stderr}\n{process.stdout}')
     else:
