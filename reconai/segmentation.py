@@ -2,6 +2,7 @@ import shutil
 import os
 import json
 import subprocess
+import re
 from pathlib import Path
 from importlib.metadata import distribution
 from importlib.resources import files
@@ -65,8 +66,10 @@ def nnunet2_segment(in_dir: Path, nnunet_dir: Path, out_dir: Path):
     try:
         selected_model = inference_information['best_model_or_ensemble']['selected_model_or_models'][0]
         config, plans, trainer = selected_model['configuration'], selected_model['plans_identifier'], selected_model['trainer']
-        folds = Path(inference_information['best_model_or_ensemble']['some_plans_file']).parent.name[-1]
-    except:
+        folds = re.search(r'(\d)[\\/]+plans.json',
+                          Path(inference_information['best_model_or_ensemble']['some_plans_file']).as_posix()).group(1)
+    except Exception as e:
+        print(e)
         raise KeyError(inference_information)
 
     args = ['-d', nnUNet_dataset_name, '-i', in_dir.as_posix(), '-o', out_dir.as_posix(),

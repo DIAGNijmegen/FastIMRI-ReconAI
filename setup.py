@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = '1.4.5'
+version = '1.4.6'
 
 if __name__ == '__main__':
     try:

@@ -10,5 +10,5 @@
     "file_ending": ".mha",
     "overwrite_image_reader_writer": "SimpleITKIO",
     "dataset_name": "imri_xyt",
-    "release": "1.4.2"
+    "release": "1.4.5"
 }
