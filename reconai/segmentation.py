@@ -32,7 +32,7 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
     if preprocess_dir.exists() and not existing:
         shutil.rmtree(preprocess_dir)
 
-    nnunet2_environ_set(out_dir, sync_dir)
+    nnunet2_prepare_nnunet(out_dir, sync_dir)
     nnunet2_plan_and_preprocess(existing)
     nnunet2_train(configs := ['2d'] if debug else ['2d', '3d_fullres'],
                   folds := ['0'] if debug else [str(f) for f in range(folds)],
@@ -54,7 +54,7 @@ def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
 
 
 def nnunet2_segment(in_dir: Path, nnunet_dir: Path, out_dir: Path):
-    nnunet2_environ_set(nnunet_dir)
+    nnunet2_prepare_nnunet(nnunet_dir)
     nnunet2_verify_results_dir(nnunet_dir)
     assert all([file.name.endswith('_0000.mha') for file in in_dir.iterdir() if file.suffix == '.mha']), (
         NameError(f'not all files in {in_dir} end with _0000.mha'))
@@ -81,12 +81,19 @@ def nnunet2_dirnames() -> tuple[str, str, str]:
     return 'nnUNet_raw', 'nnUNet_preprocessed', 'nnUNet_results'
 
 
-def nnunet2_environ_set(base_dir: Path, sync_dir: Path = None):
+def nnunet2_prepare_nnunet(base_dir: Path, sync_dir: Path = None):
     nnUNet_environ['nnUNet_base'] = base_dir.resolve().as_posix()
     for name in nnUNet_dirnames:
         nnUNet_environ[name] = (base_dir / name).resolve().as_posix()
     if sync_dir:
         nnUNet_environ['nnUNet_sync'] = sync_dir.resolve().as_posix()
+
+    nnunetv2_dir = distribution('nnunetv2').locate_file('nnunetv2/training/nnUNetTrainer')
+    for resource in files('reconai.resources').iterdir():
+        if resource.name.startswith('nnUNetTrainer'):
+            with resource.open('r') as src:
+                with open(Path(nnunetv2_dir) / resource.name, 'w') as dst:
+                    dst.write(src.read())
 
 
 def nnunet2_plan_and_preprocess(existing: bool):
@@ -100,13 +107,6 @@ def nnunet2_plan_and_preprocess(existing: bool):
 def nnunet2_train(configs: list[str], folds: list[str], existing: bool, debug: bool = False):
     args_existing = ['--c'] if existing else []
     args_trainer = ['-tr', 'nnUNetTrainer_debug' if debug else 'nnUNetTrainer_ReconAI']
-
-    nnunetv2_dir = distribution('nnunetv2').locate_file('nnunetv2/training/nnUNetTrainer')
-    for resource in files('reconai.resources').iterdir():
-        if resource.name.startswith('nnUNetTrainer'):
-            with resource.open('r') as src:
-                with open(Path(nnunetv2_dir) / resource.name, 'w') as dst:
-                    dst.write(src.read())
 
     for config in configs:
         for fold in folds:
