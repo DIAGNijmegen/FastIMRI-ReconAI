@@ -32,9 +32,9 @@ class DataConsistencyInKspace(Module):
         if batch != 1 or n_ch != 1:
             raise NotImplementedError("Only implemented batchsize 1 and n_ch 1")
 
-        x = x.permute(0, 1, 4, 2, 3).squeeze()
-        k0 = k0.permute(0, 1, 4, 2, 3).squeeze()
-        mask = mask.permute(0, 1, 4, 2, 3).squeeze()
+        x = x.permute(0, 1, 4, 2, 3).squeeze(dim=(0,1))
+        k0 = k0.permute(0, 1, 4, 2, 3).squeeze(dim=(0,1))
+        mask = mask.permute(0, 1, 4, 2, 3).squeeze(dim=(0,1))
 
         x_res = torch.empty(size=(sequence_length, height, width), dtype=torch.float32, device="cuda")
         for i in range(sequence_length):

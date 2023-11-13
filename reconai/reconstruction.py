@@ -53,7 +53,7 @@ def train(params: TrainParameters):
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
-    dataset_full = Dataset(params.in_dir)
+    dataset_full = Dataset(params.in_dir, sequence_len=params.data.sequence_length)
     if params.data.normalize <= 0:
         for sample in DataLoader(dataset_full, batch_size=1000):
             params.data.normalize = float(np.percentile(sample['data'], 95))
@@ -278,9 +278,6 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
              'mse_test': evaluator.criterion_stats('mse'),
              'time_test': evaluator.criterion_stats('time'),
              'dataset_test': evaluator_single.criterion_value_per_key}
-    for key in [k for k, v in stats.items() if isinstance(v, tuple)]:
-        value = stats.pop(key)
-        stats |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
 
     if nnunet_enabled:
         print_log('calculating DICE scores...')
@@ -301,6 +298,10 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
                     img.save(params.out_dir / f'{stem}_{s}_{suffix}.png')
 
         stats['dice_test'] = evaluator.criterion_stats('dice')
+
+    for key in [k for k, v in stats.items() if isinstance(v, tuple)]:
+        value = stats.pop(key)
+        stats |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
     stats['dataset_test'] |= evaluator.criterion_value_per_key
 
     with open(params.out_dir / 'stats.json', 'w') as f:

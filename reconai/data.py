@@ -14,15 +14,24 @@ from reconai.model.module import Module
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, data_dir: Path, *, normalize: float = 0, as_float32: bool = True):
+    def __init__(self, data_dir: Path, *, normalize: float = 0, as_float32: bool = True, sequence_len: int = 5):
         self._data_paths: List[Path] = [item.resolve() for item in data_dir.iterdir() if
                                         item.suffix in ['.npy', '.mha']]
-        self._data_len = len(self._data_paths)
-        if self._data_len == 0:
-            raise ValueError(f'no .mha files found at {data_dir}!')
 
         self._as_float32 = as_float32
         self._normalize = normalize
+        if len(self._data_paths) == 0:
+            raise ValueError(f'no .mha files found at {data_dir}!')
+
+        z = self._image(self._data_paths[0]).shape[0]
+        if sequence_len > 1:
+            self._data_len = len(self._data_paths)
+            self._s = (z - sequence_len) // 2
+            self._e = self._s + sequence_len
+        else:
+            self._data_paths = self._data_paths * z
+            self._data_len = len(self._data_paths)
+            self._s, self._e = z, z
 
     @property
     def normalize(self) -> float:
@@ -37,12 +46,19 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         file = str(self._data_paths[idx])
-        ifr = sitk.ImageFileReader()
-        ifr.SetFileName(file)
-        img = sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64')
-        return {"paths": str(file), "data": self.__normalize(img)}
+        img = self._image(file)
+        if self._s == self._e:
+            i = int(idx // (len(self) / self._s))
+            return {"paths": file, "data": self._normal(img)[i:i+1]}
+        else:
+            return {"paths": file, "data": self._normal(img)[self._s:self._e]}
 
-    def __normalize(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
+    def _image(self, file: Path | str):
+        ifr = sitk.ImageFileReader()
+        ifr.SetFileName(str(file))
+        return sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64')
+
+    def _normal(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
         if self._normalize > 0:
             norm = np.zeros(img.shape) + self._normalize
             if maximum_1:
