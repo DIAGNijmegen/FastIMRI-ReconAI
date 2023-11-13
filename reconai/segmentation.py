@@ -62,9 +62,12 @@ def nnunet2_segment(in_dir: Path, nnunet_dir: Path, out_dir: Path):
         inference_information = json.load(f)
     assert inference_information['dataset_name_or_id'] == nnUNet_dataset_name
 
-    selected_model = inference_information['best_model_or_ensemble']['selected_model_or_models'][0]
-    config, plans, trainer = selected_model['configuration'], selected_model['plans_identifier'], selected_model['trainer']
-    folds = Path(inference_information['best_model_or_ensemble']['some_plans_file']).parent.name[-1]
+    try:
+        selected_model = inference_information['best_model_or_ensemble']['selected_model_or_models'][0]
+        config, plans, trainer = selected_model['configuration'], selected_model['plans_identifier'], selected_model['trainer']
+        folds = Path(inference_information['best_model_or_ensemble']['some_plans_file']).parent.name[-1]
+    except:
+        raise KeyError(inference_information)
 
     args = ['-d', nnUNet_dataset_name, '-i', in_dir.as_posix(), '-o', out_dir.as_posix(),
             '-f', *folds, '-c', config, '-tr', trainer, '-p', plans]
