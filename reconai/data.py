@@ -49,9 +49,9 @@ class Dataset(torch.utils.data.Dataset):
         img = self._image(file)
         if self._s == self._e:
             i = int(idx // (len(self) / self._s))
-            return {"paths": file, "data": self._normal(img)[i:i+1]}
+            return {"paths": file, "data": self._normal(img)[i:i+1], "slice": i}
         else:
-            return {"paths": file, "data": self._normal(img)[self._s:self._e]}
+            return {"paths": file, "data": self._normal(img)[self._s:self._e], "slice": -1}
 
     def _image(self, file: Path | str):
         ifr = sitk.ImageFileReader()

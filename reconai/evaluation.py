@@ -158,4 +158,4 @@ class Evaluation:
     def _dice(pred, gnd) -> torch.Tensor:
         intersection = np.sum(pred[gnd == 1]) * 2.0
         dice = intersection / (np.sum(pred) + np.sum(gnd))
-        return torch.tensor(dice)
+        return torch.tensor(0) if np.isnan(dice) else torch.tensor(dice)

@@ -45,10 +45,11 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
 @click.option('--nnunet_dir', type=Path, required=False,
               help='Directory containing nnUNet directories.')
 @click.option('--annotations_dir', type=Path, required=False,
-              help='Annotation data directory. If this directory does not exist, it will be inferenced from in_dir.')
+              help='Annotation data directory.')
 @click.option('--model_name', type=str, required=False,
               help='Use a specific model by name')
 def reconai_test_reconstruction(in_dir: Path, model_dir: Path, nnunet_dir: Path, annotations_dir: Path, model_name: str):
+    assert not ((nnunet_dir is None) ^ (annotations_dir is None)), '--nnunet_dir AND --annotations_dir need be defined'
     params = TestParameters(in_dir, model_dir, model_name)
     test_reconstruction(params, nnunet_dir, annotations_dir)
 

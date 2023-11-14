@@ -1,0 +1,20 @@
+{
+    "fold": 0,
+    "epoch": 2,
+    "epoch_time": 14.614506,
+    "loss_train_min": 0,
+    "loss_train_mean": 0,
+    "loss_train_max": 0,
+    "loss_validate_min": 0.0780184268951416,
+    "loss_validate_mean": 0.1058465763926506,
+    "loss_validate_max": 0.1461085081100464,
+    "ssim_validate_min": 0.8538914918899536,
+    "ssim_validate_mean": 0.8941534161567688,
+    "ssim_validate_max": 0.9219815731048584,
+    "mse_validate_min": 0.0007066469406709075,
+    "mse_validate_mean": 0.001046059071086347,
+    "mse_validate_max": 0.0016410003881901503,
+    "time_validate_min": 7.498000144958496,
+    "time_validate_mean": 24.34607696533203,
+    "time_validate_max": 68.4990005493164
+}

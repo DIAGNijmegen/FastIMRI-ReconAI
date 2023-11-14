@@ -217,7 +217,7 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
             print_log('nnUNet complete; run this command again with exact same parameters to use')
             return
 
-    dataset_test = Dataset(params.in_dir, normalize=params.data.normalize)
+    dataset_test = Dataset(params.in_dir, normalize=params.data.normalize, sequence_len=params.data.sequence_length)
 
     network = CRNNMRI(n_ch=params.model.channels,
                       nf=params.model.filters,
@@ -227,10 +227,10 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
                       bcrnn=params.model.bcrnn
                       ).cuda()
 
-    evaluator = Evaluation(params)
+    evaluator_volume = Evaluation(params)
     params_1 = deepcopy(params)
     params_1.data.sequence_length = 1
-    evaluator_single = Evaluation(params_1)
+    evaluator_slice = Evaluation(params_1)
 
     network.load_state_dict(torch.load(params.npz))
     network.eval()
@@ -254,56 +254,78 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
             for i in range(len(paths)):
                 j = i + 1
                 path = Path(paths[i])
-                evaluator.start_timer()
+                for e in evaluator_volume, evaluator_slice:
+                    e.start_timer()
                 pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
-                evaluator.calculate(pred, gnd[i:j], path.stem)
+                evaluator_volume.calculate(pred, gnd[i:j], key=path.stem[:-5])
+
+                if params.data.sequence_length > 1:
+                    for s in range(params.data.sequence_length):
+                        t = s + 1
+                        pred_single = pred[..., s:t]
+                        key = f'{path.stem[:-5]}_{s}'
+                        evaluator_slice.calculate(pred_single, gnd[i:j, ..., s:t], key=key)
+                        img = Image.fromarray((pred_single.squeeze() * 255).byte().cpu().numpy())
+                        img.save(params.out_dir / f'{key}.png')
+                else:
+                    key = f'{path.stem[:-5]}_{batch["slice"][i]}'
+                    evaluator_slice.calculate(pred, gnd[i:j, ...], key=key)
+                    img = Image.fromarray((pred.squeeze() * 255).byte().cpu().numpy())
+                    img.save(params.out_dir / f'{key}.png')
 
                 if nnunet_enabled:
                     # prepare images as mha for nnunet
-                    sitk_image = sitk.GetImageFromArray(pred.squeeze().cpu().numpy().transpose(2, 0, 1))
-                    sitk.WriteImage(sitk_image, nnunet_out / path.name)
-
-                for s in range(params.data.sequence_length):
-                    t = s + 1
-                    pred_single = pred[..., s:t]
-                    evaluator_single.calculate(pred_single, gnd[i:j, ..., s:t], f'{path.stem}_slice_{s}')
-                    img = Image.fromarray((pred_single.squeeze() * 255).byte().cpu().numpy())
-                    img.save(params.out_dir / f'{path.stem}_{s}.png')
+                    sitk_image = sitk.GetImageFromArray(pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1))
+                    sitk.WriteImage(sitk_image,
+                                    nnunet_out / (path.name if params.data.sequence_length > 1 else f'{key}_0000.mha'))
 
     del network
     torch.cuda.empty_cache()
 
-    stats = {'loss_test': evaluator.criterion_stats('loss'),
-             'ssim_test': evaluator.criterion_stats('ssim'),
-             'mse_test': evaluator.criterion_stats('mse'),
-             'time_test': evaluator.criterion_stats('time'),
-             'dataset_test': evaluator_single.criterion_value_per_key}
+    stats = {'summary': {'loss_test': evaluator_volume.criterion_stats('loss'),
+                         'ssim_test': evaluator_volume.criterion_stats('ssim'),
+                         'mse_test': evaluator_volume.criterion_stats('mse'),
+                         'time_test': evaluator_volume.criterion_stats('time')}}
+    stats_summary = stats['summary']
 
     if nnunet_enabled:
         print_log('calculating DICE scores...')
-        nnunet2_segment(nnunet_out, nnunet_dir, nnunet_out)
+        (nnunet_out_segment := nnunet_out / 'segmentations').mkdir()
+        nnunet2_segment(nnunet_out, nnunet_dir, nnunet_out_segment)
 
         gnd_segmentations = {a.stem: a for a in annotations_dir.iterdir() if a.suffix == '.mha'}
-        pred_segmentations = {f'{a.stem}_0000': a for a in nnunet_out.iterdir() if a.suffix == '.mha' and not a.stem.endswith('_0000')}
+        for stem, path_gnd in gnd_segmentations.items():
+            for path_pred in nnunet_out_segment.iterdir():
+                if path_pred.stem.split('_')[:3] == path_gnd.stem.split('_')[:3]:
+                    gnd = sitk.GetArrayFromImage(sitk.ReadImage(path_gnd.as_posix()))
+                    pred = sitk.GetArrayFromImage(sitk.ReadImage(path_pred.as_posix()))
 
-        assert gnd_segmentations.keys() == pred_segmentations.keys()
-        for stem, gnd_path in gnd_segmentations.items():
-            pred_path = pred_segmentations[stem]
-            gnd = sitk.GetArrayFromImage(sitk.ReadImage(gnd_path.as_posix()))
-            pred = sitk.GetArrayFromImage(sitk.ReadImage(pred_path.as_posix()))
-            evaluator.calculate_dice(pred, gnd, key=stem)
-            for suffix, segmentation in [('gnd', gnd), ('pred', pred)]:
-                for s in range(params.data.sequence_length):
-                    img = Image.fromarray((segmentation[s] * 255).astype(np.uint8))
-                    img.save(params.out_dir / f'{stem}_{s}_{suffix}.png')
+                    if params.data.sequence_length == 1:
+                        s = int(re.search(r'_(\d+)\.mha', path_pred.name).group(1))
+                        gnd = gnd[s:s+1, ...]
 
-        stats['dice_test'] = evaluator.criterion_stats('dice')
+                    evaluator_volume.calculate_dice(pred, gnd, key=path_pred.stem)
+                    for suffix, segmentation in [('gnd', gnd), ('pred', pred)]:
+                        if params.data.sequence_length > 1:
+                            for s in range(params.data.sequence_length):
+                                evaluator_slice.calculate_dice(pred[s], gnd[s], key=f'{path_pred.stem}_{s}')
+                                img = Image.fromarray((segmentation[s] * 255).astype(np.uint8))
+                                img.save(params.out_dir / f'{path_pred.stem}_{s}_{suffix}.png')
+                        else:
+                            evaluator_slice.calculate_dice(pred, gnd, key=path_pred.stem)
+                            img = Image.fromarray((segmentation[0] * 255).astype(np.uint8))
+                            img.save(params.out_dir / f'{path_pred.stem}_{suffix}.png')
 
-    for key in [k for k, v in stats.items() if isinstance(v, tuple)]:
-        value = stats.pop(key)
-        stats |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
-    stats['dataset_test'] |= evaluator.criterion_value_per_key
+        stats_summary['dice_test'] = evaluator_volume.criterion_stats('dice')
+
+    for key in [k for k, v in stats_summary.items() if isinstance(v, tuple)]:
+        value = stats_summary.pop(key)
+        stats_summary |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
+
+    if params.data.sequence_length > 1:
+        stats |= evaluator_volume.criterion_value_per_key
+    stats |= evaluator_slice.criterion_value_per_key
 
     with open(params.out_dir / 'stats.json', 'w') as f:
-        json.dump(stats, f, indent=4)
+        json.dump(stats, f, indent=2)
     print_log(f'complete; test results are in {params.out_dir}')
