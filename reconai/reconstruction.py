@@ -282,11 +282,7 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
     del network
     torch.cuda.empty_cache()
 
-    stats = {'summary': {'loss_test': evaluator_volume.criterion_stats('loss'),
-                         'ssim_test': evaluator_volume.criterion_stats('ssim'),
-                         'mse_test': evaluator_volume.criterion_stats('mse'),
-                         'time_test': evaluator_volume.criterion_stats('time')}}
-    stats_summary = stats['summary']
+    stats = {}
 
     if nnunet_enabled:
         print_log('calculating DICE scores...')
@@ -315,12 +311,6 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
                             evaluator_slice.calculate_dice(pred, gnd, key=path_pred.stem)
                             img = Image.fromarray((segmentation[0] * 255).astype(np.uint8))
                             img.save(params.out_dir / f'{path_pred.stem}_{suffix}.png')
-
-        stats_summary['dice_test'] = evaluator_volume.criterion_stats('dice')
-
-    for key in [k for k, v in stats_summary.items() if isinstance(v, tuple)]:
-        value = stats_summary.pop(key)
-        stats_summary |= {f'{key}_min': value[0], f'{key}_mean': value[1], f'{key}_max': value[2]}
 
     if params.data.sequence_length > 1:
         stats |= evaluator_volume.criterion_value_per_key

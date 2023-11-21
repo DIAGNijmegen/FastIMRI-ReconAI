@@ -33,7 +33,7 @@ def test_test_reconstruction(single: bool):
               model_dir=f'./tests/output/{crnn}')
 
 
-@pytest.mark.parametrize('single', [True])
+@pytest.mark.parametrize('single', [True, False])
 def test_test_reconstruction_nnunet(single: bool):
     crnn = '20231113T1603_CRNN-MRI_R2_E3_DEBUG_1' if single else '20230830T1030_CRNN-MRI_R2_E3_DEBUG'
     prepare_output_dir(crnn, 'nnUNet_results')
