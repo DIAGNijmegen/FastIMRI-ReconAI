@@ -44,6 +44,8 @@ def test_test_segmentation():
 
 def test_hough_line_transform():
     annotations_dir = Path('./tests/input/annotations')
+    output_dir = Path('./tests/output/houghlines')
+    output_dir.mkdir(parents=True, exist_ok=True)
     results = []
     for file in annotations_dir.iterdir():
         if file.suffix == '.mha':
@@ -53,7 +55,7 @@ def test_hough_line_transform():
 
             target_gnd = np.array(facts['inner_index'][:2])
             angle_gnd = facts['angle']
-            target_pred, angle_pred = hough_line_prediction(annotation)
+            target_pred, angle_pred = hough_line_prediction(annotation, show=output_dir / file.with_suffix('.png'))
 
             if target_pred is None:
                 continue
@@ -63,4 +65,3 @@ def test_hough_line_transform():
 
             results.append((target_error, angle_error))
 
-    pass

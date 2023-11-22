@@ -12,10 +12,9 @@ import matplotlib.pyplot as plt
 
 
 angles = np.linspace(0, np.pi, 720, endpoint=False)
-angle_norm = lambda a: a - 2 * np.pi * np.floor(a / (2 * np.pi))
 
 
-def hough_line_prediction(blob: np.ndarray, show: bool = False) -> tuple[np.ndarray | None, float]:
+def hough_line_prediction(blob: np.ndarray, show: Path = None) -> tuple[np.ndarray | None, float]:
     bz, by, bx = blob.shape
     blob = blob[bz // 2, ...]
     blob_center = np.array([by // 2, bx // 2])
@@ -27,8 +26,8 @@ def hough_line_prediction(blob: np.ndarray, show: bool = False) -> tuple[np.ndar
     peaks = np.array(hough_line_peaks(h, theta, d)).transpose()
 
     _, peak_angle, peak_dist = peaks[0]
-    angle_pred = np.tan(peak_angle) + np.pi / 2
     x0, y0 = peak_dist * np.array([np.cos(peak_angle), np.sin(peak_angle)])
+    angle_pred = np.tan(peak_angle) + np.pi / 2
 
     target_walk, target_hit = [], []
     for dist in range(-len(blob), len(blob)):
@@ -39,15 +38,16 @@ def hough_line_prediction(blob: np.ndarray, show: bool = False) -> tuple[np.ndar
                 target_walk.append((x, y))
                 target_hit.append(bool(blob[y, x]))
 
-    target_pred: tuple[tuple | None, float] = (None, np.inf)
+    target_pred: tuple | None = None
+    target_dist: float = np.inf
     for i, (x, y) in enumerate(target_walk):
         if 0 < i < len(target_walk) - 1:
             if target_hit[i] and (not target_hit[i - 1] or not target_hit[i + 1]):
                 # it's an edge
                 dist_pred = np.linalg.norm(blob_center - np.array([y, x]))
-                if dist_pred < target_pred[1]:
-                    target_pred = ((x, y), dist_pred)
-    target_pred: tuple = target_pred[0]
+                if dist_pred < target_dist:
+                    target_pred = (x, y)
+                    target_dist = dist_pred
     # issue on the third instance!
 
     if show:
@@ -78,9 +78,12 @@ def hough_line_prediction(blob: np.ndarray, show: bool = False) -> tuple[np.ndar
         ax[2].add_patch(plt.Circle((x0, y0), 1, color='r'))
         for p in target_walk:
             ax[2].add_patch(plt.Circle((p[0], p[1]), 0.25, color='r'))
-        ax[2].add_patch(plt.Circle(target_pred, 1.5, color='g'))
+        if target_pred:
+            ax[2].add_patch(plt.Circle(target_pred, 1.5, color='g'))
+        ax[2].text(blob.shape[0] // 2, blob.shape[1] // 2, f'peak_angle: {np.rad2deg(peak_angle):.3f}\nangle_pred: {np.rad2deg(angle_pred):.3f}', fontsize=12, color='white', ha='right', va='bottom')
 
         plt.tight_layout()
         plt.show()
+        plt.savefig(show.as_posix())
 
-    return np.array(target_pred), -angle_pred
+    return np.array(target_pred) if target_pred else None, -angle_pred
