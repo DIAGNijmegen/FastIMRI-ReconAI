@@ -5,7 +5,7 @@ from pathlib import Path
 from click.testing import CliRunner
 from conftest import run_click, prepare_output_dir
 from reconai.__main__ import reconai_train_segmentation, reconai_test_segmentation
-from reconai.math.houghline import hough_line_prediction
+from reconai.predict import predict_target, Prediction
 import SimpleITK as sitk
 import numpy as np
 
@@ -43,25 +43,30 @@ def test_test_segmentation():
 
 
 def test_hough_line_transform():
-    annotations_dir = Path('./tests/input/annotations')
+    prepare_output_dir()
+
     output_dir = Path('./tests/output/houghlines')
     output_dir.mkdir(parents=True, exist_ok=True)
+
     results = []
-    for file in annotations_dir.iterdir():
-        if file.suffix == '.mha':
+    for i, file in enumerate(Path('./tests/input/annotations').iterdir()):
+        if file.suffix == '.mha' :
             annotation = sitk.GetArrayFromImage(sitk.ReadImage(file.as_posix()))
             with open(file.with_suffix('.json'), 'r') as f:
                 facts = json.load(f)
 
             target_gnd = np.array(facts['inner_index'][:2])
-            angle_gnd = facts['angle']
-            target_pred, angle_pred = hough_line_prediction(annotation, show=output_dir / file.with_suffix('.png'))
+            angle_gnd = facts['angle'] % (np.pi / 2)
+            pred = predict_target(annotation)
+            if pred:  # gnd_angle is not correct wrt image space
+                pred.set_ground_truth(*target_gnd, angle_gnd)
+                pred.show(save=output_dir / (f'{i}_' + file.with_suffix('.png').name))
 
-            if target_pred is None:
-                continue
+                target_error = np.linalg.norm((target_gnd - pred.target).astype(np.float32))
+                angle_error = np.abs(angle_gnd - pred.angle)
 
-            target_error = np.linalg.norm((target_gnd - target_pred).astype(np.float32))
-            angle_error = np.abs(angle_gnd) - np.abs(angle_pred)
+                results.append((target_error, angle_error))
 
-            results.append((target_error, angle_error))
+
+    pass
 
