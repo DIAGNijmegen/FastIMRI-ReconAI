@@ -50,13 +50,13 @@ def test_hough_line_transform():
 
     results = []
     for i, file in enumerate(Path('./tests/input/annotations').iterdir()):
-        if file.suffix == '.mha' :
+        if file.suffix == '.mha':
             annotation = sitk.GetArrayFromImage(sitk.ReadImage(file.as_posix()))
             with open(file.with_suffix('.json'), 'r') as f:
                 facts = json.load(f)
 
             target_gnd = np.array(facts['inner_index'][:2])
-            angle_gnd = facts['angle'] % (np.pi / 2)
+            angle_gnd = facts['angle']
             pred = predict_target(annotation)
             if pred:  # gnd_angle is not correct wrt image space
                 pred.set_ground_truth(*target_gnd, angle_gnd)

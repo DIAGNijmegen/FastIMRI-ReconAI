@@ -25,7 +25,7 @@ class Prediction:
 
     @property
     def angle(self) -> float:
-        return float(self._a % (np.pi / 2))
+        return float(self._a)
 
     def set_ground_truth(self, x: int, y: int, angle: float):
         self._gnd = (x, y, angle)
@@ -39,12 +39,12 @@ class Prediction:
 
         pred_gnd = [(self._x, self._y, self._a, 'b')] + ([(*self._gnd, 'g')] if self._gnd else [])
         for x, y, a, color in pred_gnd:
-            x1, y1 = x + np.cos(a), y + np.sin(a)
+            x1, y1 = x + np.cos(a), y - np.sin(a)
             axes.axline((x1, y1), (x, y), color=color)
             axes.add_patch(plt.Circle((x, y), 3, color=color))
             axes.text(0, 10 if color == 'b' else 20, f'{np.rad2deg(a):.3f}', fontsize=12, color=color)
 
-        plt.title(save.name)
+        plt.title(save.name[:20])
         if save:
             plt.savefig(save.as_posix())
         else:
@@ -66,23 +66,26 @@ def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
         x1, y1 = x0 + x1, y0 + y1
 
         # walk in both directions, see if we hit the segmentation
-        walk_dir = np.arctan2(y1 - y0, x1 - x0)
+        dy, dx = y1 - y0, x1 - x0
+        walk_dir = np.arctan2(dy, dx)
         start = np.array([x0, y0])
         walk = [np.round(start + step * np.array([np.cos(walk_dir), np.sin(walk_dir)])) for step in range(-shape[0] * 2, shape[1] * 2)]
         hit = []
         for w in walk:
             x, y = int(w[0]), int(w[1])
             hit.append(bool(blob[y, x]) if 0 <= x < shape[0] and 0 <= y < shape[1] else False)
-
         # no hits, this hough line is bad
         if not np.any(hit):
             continue
 
-
         # heuristic: add the edge closest to the center of the image
         edges = [walk[h] for h in range(1, len(hit) - 1) if hit[h] and (not hit[h - 1] or not hit[h + 1])]
         target_pred.append(edges[np.argmin(np.linalg.norm(shape // 2 - edges, axis=1))])
-        angle_pred.append(walk_dir)
+
+        angle = np.arctan2(-dy, dx)
+        if -dy < 0:
+            angle += np.pi
+        angle_pred.append(angle % (np.pi * 2))
 
         # fig, axes = plt.subplots(1, 1, figsize=(6, 6))
         #
