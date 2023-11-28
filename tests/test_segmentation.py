@@ -9,6 +9,10 @@ from reconai.predict import predict_target, Prediction
 import SimpleITK as sitk
 import numpy as np
 
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+
 runner = CliRunner()
 
 
@@ -48,25 +52,42 @@ def test_hough_line_transform():
     output_dir = Path('./tests/output/houghlines')
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    results = []
+    strategies = ['hough_line_transform']
+    results = {}
     for i, file in enumerate(Path('./tests/input/annotations').iterdir()):
         if file.suffix == '.mha':
             annotation = sitk.GetArrayFromImage(sitk.ReadImage(file.as_posix()))
             with open(file.with_suffix('.json'), 'r') as f:
                 facts = json.load(f)
 
-            target_gnd = np.array(facts['inner_index'][:2])
+            target_gnd = np.array(facts['inner'][:2])
             angle_gnd = facts['angle']
-            pred = predict_target(annotation)
-            if pred:  # gnd_angle is not correct wrt image space
-                pred.set_ground_truth(*target_gnd, angle_gnd)
-                pred.show(save=output_dir / (f'{i}_' + file.with_suffix('.png').name))
+            for strategy in strategies:
+                pred = predict_target(annotation, strategy=strategy)
+                if pred:  # gnd_angle is not correct wrt image space
+                    pred.set_ground_truth(*target_gnd, angle_gnd)
+                    pred.show(save=output_dir / (f'{i}_{strategy}_' + file.with_suffix('.png').name))
 
-                target_error = np.linalg.norm((target_gnd - pred.target).astype(np.float32))
-                angle_error = np.abs(angle_gnd - pred.angle)
+                    target_error = np.linalg.norm((target_gnd - pred.target).astype(np.float32))
+                    angle_error = np.abs(angle_gnd - pred.angle)
+                    results[strategy] = results.get(strategy, []) + [(target_error, np.rad2deg(angle_error))]
 
-                results.append((target_error, angle_error))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
+    bar_width = 0.3
+    indices = np.arange(len(results[strategies[0]]))
 
-    pass
+    for i, label in enumerate(['Error in mm', 'Error in degrees']):
+        for j, (strategy, errors) in enumerate(results.items()):
+            axes[i].bar(indices - bar_width * (len(strategies) - 1) / 2 + j * bar_width, [e[i] for e in errors], bar_width, label=strategy)
+
+        axes[i].set_xlabel('Annotation')
+        axes[i].set_ylabel(label)
+        axes[i].set_title(f'{label} per Strategy')
+        axes[i].set_xticks(indices)
+        axes[i].legend()
+
+    # Displaying the plot
+    plt.tight_layout()
+    fig.savefig((output_dir / 'results.png').as_posix())
 
