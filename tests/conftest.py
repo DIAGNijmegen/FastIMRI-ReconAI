@@ -1,3 +1,4 @@
+import os
 import shutil
 from typing import Callable
 from pathlib import Path
@@ -23,7 +24,11 @@ def run_click(func: Callable | BaseCommand, *args, **kwargs):
 
 def prepare_output_dir(*dirnames_to_copy: str):
     for path in Path('./tests/output').iterdir():
-        shutil.rmtree(path)
+        if path.is_dir():
+            shutil.rmtree(path)
+        else:
+            os.remove(path)
+
     for path_expected in Path('./tests/output_expected').iterdir():
         if path_expected.name in dirnames_to_copy:
             shutil.copytree(path_expected, f'./tests/output/{path_expected.name}')

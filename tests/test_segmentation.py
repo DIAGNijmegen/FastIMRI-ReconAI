@@ -46,14 +46,14 @@ def test_test_segmentation():
               out_dir='./tests/output/nnUNet_predictions')
 
 
-def test_hough_line_transform():
+def test_predict():
     prepare_output_dir()
 
-    output_dir = Path('./tests/output/houghlines')
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir = Path('./tests/output')
+    output_dir.mkdir(exist_ok=True)
 
-    strategies = ['hough_line_transform']
-    results = {}
+    strategies = ['pca', 'hough_line_transform']
+    results = {strat: [] for strat in strategies}
     for i, file in enumerate(Path('./tests/input/annotations').iterdir()):
         if file.suffix == '.mha':
             annotation = sitk.GetArrayFromImage(sitk.ReadImage(file.as_posix()))
@@ -70,7 +70,9 @@ def test_hough_line_transform():
 
                     target_error = np.linalg.norm((target_gnd - pred.target).astype(np.float32))
                     angle_error = np.abs(angle_gnd - pred.angle)
-                    results[strategy] = results.get(strategy, []) + [(target_error, np.rad2deg(angle_error))]
+                    results[strategy].append((target_error, np.rad2deg(angle_error)))
+                else:
+                    results[strategy].append((-1, -1))
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 

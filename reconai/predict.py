@@ -44,15 +44,49 @@ class Prediction:
             axes.add_patch(plt.Circle((x, y), 3, color=color))
             axes.text(0, 10 if color == 'b' else 20, f'{np.rad2deg(a):.3f}', fontsize=12, color=color)
 
-        plt.title(save.name[:20])
+        plt.title(save.name[:50])
         if save:
             plt.savefig(save.as_posix())
         else:
             plt.show()
 
 
-def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
+def walk_along_angle(blob: np.ndarray, start_x: int, start_y: int, direction: float) -> np.ndarray:
     shape = np.array(blob.shape)
+    start = np.array([start_x, start_y])
+    walk = [np.round(start + step * np.array([np.cos(direction), np.sin(direction)])) for step in
+            range(-shape[0] * 2, shape[1] * 2)]
+
+    hit = []
+    for w in walk:
+        x, y = int(w[0]), int(w[1])
+        hit.append(bool(blob[y, x]) if 0 <= x < shape[0] and 0 <= y < shape[1] else False)
+
+    if not np.any(hit):
+        return np.array([start_x, start_y])
+
+    # heuristic: add the edge closest to the center of the image
+    edges = [walk[h] for h in range(1, len(hit) - 1) if hit[h] and (not hit[h - 1] or not hit[h + 1])]
+    return edges[np.argmin(np.linalg.norm(shape // 2 - edges, axis=1))]
+
+
+def predict_by_pca(blob: np.ndarray) -> Prediction | None:
+    indices = np.array(np.where(blob > 0))
+    center = np.mean(indices, axis=1, dtype=np.int32)
+    # center seems incorrect?
+
+    eigenvalues, eigenvectors = np.linalg.eig(np.cov(indices - center.reshape(2,1)))
+    y, x = eigenvectors[:, np.argmax(eigenvalues)]
+
+    # Calculate the angle of the major axis
+    angle_radians = np.arctan2(-y, x)
+    if -y < 0:
+        angle_radians += np.pi
+
+    return Prediction(blob, *walk_along_angle(blob, *center, np.arctan2(y, x)), angle=angle_radians)
+
+
+def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
     h, theta, d = hough_line(blob, theta=np.linspace(-np.pi / 2, np.pi / 2, 720, endpoint=False))
 
     target_pred = []
@@ -64,23 +98,9 @@ def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
         points = np.array([peak_angle, peak_angle + np.pi / 2])
         x0, x1, y0, y1 = peak_dist * np.array([np.cos(points), np.sin(points)]).flatten()
         x1, y1 = x0 + x1, y0 + y1
-
-        # walk in both directions, see if we hit the segmentation
         dy, dx = y1 - y0, x1 - x0
-        walk_dir = np.arctan2(dy, dx)
-        start = np.array([x0, y0])
-        walk = [np.round(start + step * np.array([np.cos(walk_dir), np.sin(walk_dir)])) for step in range(-shape[0] * 2, shape[1] * 2)]
-        hit = []
-        for w in walk:
-            x, y = int(w[0]), int(w[1])
-            hit.append(bool(blob[y, x]) if 0 <= x < shape[0] and 0 <= y < shape[1] else False)
-        # no hits, this hough line is bad
-        if not np.any(hit):
-            continue
 
-        # heuristic: add the edge closest to the center of the image
-        edges = [walk[h] for h in range(1, len(hit) - 1) if hit[h] and (not hit[h - 1] or not hit[h + 1])]
-        target_pred.append(edges[np.argmin(np.linalg.norm(shape // 2 - edges, axis=1))])
+        target_pred.append(walk_along_angle(blob, x0, y0, np.arctan2(dy, dx)))
 
         angle = np.arctan2(-dy, dx)
         if -dy < 0:
@@ -102,6 +122,8 @@ def predict_target(blob: np.ndarray, strategy: str = 'hough_line_transform') -> 
     match strategy:
         case 'hough_line_transform':
             return predict_by_hough_line_transform(blob)
+        case 'pca':
+            return predict_by_pca(blob)
         case _:
             raise ValueError(f'unknown strategy "{strategy}"')
 
