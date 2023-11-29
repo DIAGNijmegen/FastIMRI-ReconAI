@@ -1,7 +1,5 @@
 import json
 import subprocess
-import re
-from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
@@ -10,15 +8,11 @@ import numpy as np
 import torch
 import torch.utils.data as torch_data
 import wandb
-import SimpleITK as sitk
-from PIL import Image
 
-from reconai import version
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
-from reconai.parameters import TestParameters, TrainParameters
-from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir
+from reconai.parameters import TrainParameters
 from reconai.print import print_log, print_version
 from reconai.random import rng
 
@@ -115,7 +109,7 @@ def train(params: TrainParameters):
                     j = i + 1
                     optimizer.zero_grad()
                     pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j])
-                    evaluator_train.calculate(pred, gnd[i:j])
+                    evaluator_train.calculate_reconstruction(pred, gnd[i:j])
                     evaluator_train.loss.backward()
 
                     torch.nn.utils.clip_grad_norm_(network.parameters(), max_norm=1)
@@ -129,7 +123,7 @@ def train(params: TrainParameters):
                         j = i + 1
                         evaluator_validate.start_timer()
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
-                        evaluator_validate.calculate(pred, gnd[i:j])
+                        evaluator_validate.calculate_reconstruction(pred, gnd[i:j])
 
             model = network.state_dict()
             stats = {'fold': fold,

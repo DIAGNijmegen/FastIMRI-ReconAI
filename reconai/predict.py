@@ -1,23 +1,21 @@
 from pathlib import Path
 
-from skimage.transform import hough_line, hough_line_peaks
-from skimage.feature import canny
-from skimage.draw import line as draw_line
-from skimage import data
-import numpy as np
-
 import matplotlib
+import numpy as np
+from skimage.transform import hough_line, hough_line_peaks
+
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
+
+prediction_strategies = ['pca', 'hough_line_transform']
 
 
 class Prediction:
     def __init__(self, blob: np.ndarray, x: int, y: int, angle: float):
-        self._blob = blob
+        self._blob = blob.squeeze()
         self._x = int(x)
         self._y = int(y)
         self._a = angle
-        self._gnd: tuple | None = None
 
     @property
     def target(self) -> np.ndarray:
@@ -27,17 +25,22 @@ class Prediction:
     def angle(self) -> float:
         return float(self._a)
 
-    def set_ground_truth(self, x: int, y: int, angle: float):
-        self._gnd = (x, y, angle)
+    def error(self, x: int, y: int, angle: float, spacing: tuple[float, float] = (1, 1)) -> tuple[np.ndarray, float]:
+        gnd_target, gnd_angle = np.array([x, y]), np.array([angle])
 
-    def show(self, save: Path = None):
+        target_error = np.linalg.norm((np.multiply(gnd_target - self.target , spacing)).astype(np.float32))
+        angle_error = np.rad2deg(np.abs(gnd_angle - self.angle))
+        return target_error, float(angle_error)
+
+    def show(self, x: int, y: int, angle: float, save: Path = None):
+        gnd = (x, y, angle)
         fig, axes = plt.subplots(1, 1, figsize=(6, 6))
 
         axes.imshow(self._blob, cmap='gray')
         axes.set_axis_off()
         axes.set_title('Detected line')
 
-        pred_gnd = [(self._x, self._y, self._a, 'b')] + ([(*self._gnd, 'g')] if self._gnd else [])
+        pred_gnd = [(self._x, self._y, self._a, 'b'), (*gnd, 'g')]
         for x, y, a, color in pred_gnd:
             x1, y1 = x + np.cos(a), y - np.sin(a)
             axes.axline((x1, y1), (x, y), color=color)
@@ -113,16 +116,16 @@ def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
         return None
 
 
-def predict_target(blob: np.ndarray, strategy: str = 'pca') -> Prediction | None:
-    bz, by, bx = blob.shape
-    blob = blob[bz // 2, ...]
+def predict(blob: np.ndarray, strategy: str = 'pca') -> Prediction | None:
+    blob = blob.squeeze()
+    assert len(blob.shape) == 2, 'blob not a 2-dimensional array'
     if blob.max() == 0:
         return None
 
     match strategy:
         case 'hough_line_transform':
             return predict_by_hough_line_transform(blob)
-        case 'pca':
+        case 'pca' | None:
             return predict_by_pca(blob)
         case _:
             raise ValueError(f'unknown strategy "{strategy}"')

@@ -14,6 +14,7 @@ from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import TestParameters
 from reconai.print import print_log, print_version
+from reconai.predict import predict, prediction_strategies, Prediction
 from reconai.random import rng
 from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir
 
@@ -78,6 +79,7 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
     if nnunet_enabled:
         (nnunet_out := params.out_dir / 'nnunet').mkdir()
 
+    multiple = params.data.sequence_length > 1
     rng(params.data.seed)
     torch.manual_seed(params.data.seed)
     with torch.no_grad():
@@ -92,20 +94,16 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
                 for e in evaluator_volume, evaluator_slice:
                     e.start_timer()
                 pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
-                evaluator_volume.calculate(pred, gnd[i:j], key=path.stem[:-5])
+                evaluator_volume.calculate_reconstruction(pred, gnd[i:j], key=path.stem[:-5])
 
-                if params.data.sequence_length > 1:
-                    for s in range(params.data.sequence_length):
-                        t = s + 1
-                        pred_single = pred[..., s:t]
-                        key = f'{path.stem[:-5]}_{s}'
-                        evaluator_slice.calculate(pred_single, gnd[i:j, ..., s:t], key=key)
-                        img = Image.fromarray((pred_single.squeeze() * 255).byte().cpu().numpy())
-                        img.save(params.out_dir / f'{key}.png')
-                else:
-                    key = f'{path.stem[:-5]}_{batch["slice"][i]}'
-                    evaluator_slice.calculate(pred, gnd[i:j, ...], key=key)
-                    img = Image.fromarray((pred.squeeze() * 255).byte().cpu().numpy())
+                for s in range(params.data.sequence_length):
+                    t = s + 1
+                    pred_single = pred[..., s:t] if multiple else pred
+                    gnd_single = gnd[i:j, ..., s:t] if multiple else gnd[i:j, ...]
+                    key = f'{path.stem[:-5]}_{s}' if multiple else f'{path.stem[:-5]}_{batch["slice"][i]}'
+
+                    evaluator_slice.calculate_reconstruction(pred_single, gnd_single, key=key)
+                    img = Image.fromarray((pred_single.squeeze() * 255).byte().cpu().numpy())
                     img.save(params.out_dir / f'{key}.png')
 
                 if nnunet_enabled:
@@ -128,24 +126,44 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
         for stem, path_gnd in gnd_segmentations.items():
             for path_pred in nnunet_out_segment.iterdir():
                 if path_pred.stem.split('_')[:3] == path_gnd.stem.split('_')[:3]:
-                    gnd = sitk.GetArrayFromImage(sitk.ReadImage(path_gnd.as_posix()))
+                    gnd = sitk.GetArrayFromImage(mha := sitk.ReadImage(path_gnd.as_posix()))
                     pred = sitk.GetArrayFromImage(sitk.ReadImage(path_pred.as_posix()))
 
-                    if params.data.sequence_length == 1:
+                    s = -1
+                    if not multiple:
                         s = int(re.search(r'_(\d+)\.mha', path_pred.name).group(1))
                         gnd = gnd[s:s+1, ...]
 
                     evaluator_volume.calculate_dice(pred, gnd, key=path_pred.stem)
+
+                    if (path_gnd_json := path_gnd.with_suffix('.json')).exists():
+                        with open(path_gnd_json, 'r') as f:
+                            gnd_json = json.load(f)
+                        target_direction_gnd = (*gnd_json['inner'][:2], gnd_json['angle'])
+                        slice_gnd = gnd_json.get('slice', 2)  # when annotations are updated, change to ['slice']
+
+                        spacing = mha.GetSpacing()[:2]
+                        if multiple or slice_gnd == s:
+                            for strategy in prediction_strategies:
+                                pred_single = pred[slice_gnd] if multiple else pred
+                                key = f'{path_pred.stem}_{slice_gnd}' if multiple else path_pred.stem
+                                evaluator_slice.calculate_target_direction(pred_single, target_direction_gnd,
+                                                                           spacing=spacing, strategy=strategy, key=key)
+                                prediction = predict(pred_single, strategy=strategy)
+                                fn = f'{path_pred.stem}_{slice_gnd}_{strategy}.png' if multiple else f'{path_pred.stem}_{strategy}.png'
+                                if prediction:
+                                    prediction.show(*target_direction_gnd, save=params.out_dir / fn)
+                                else:
+                                    Prediction(pred_single, *target_direction_gnd).show(0, 0, 0, save=params.out_dir / fn)
+
                     for suffix, segmentation in [('gnd', gnd), ('pred', pred)]:
-                        if params.data.sequence_length > 1:
-                            for s in range(params.data.sequence_length):
-                                evaluator_slice.calculate_dice(pred[s], gnd[s], key=f'{path_pred.stem}_{s}')
-                                img = Image.fromarray((segmentation[s] * 255).astype(np.uint8))
-                                img.save(params.out_dir / f'{path_pred.stem}_{s}_{suffix}.png')
-                        else:
-                            evaluator_slice.calculate_dice(pred, gnd, key=path_pred.stem)
-                            img = Image.fromarray((segmentation[0] * 255).astype(np.uint8))
-                            img.save(params.out_dir / f'{path_pred.stem}_{suffix}.png')
+                        for s in range(params.data.sequence_length if multiple else 1):
+                            if suffix == 'pred':
+                                key = f'{path_pred.stem}_{s}' if multiple else path_pred.stem
+                                evaluator_slice.calculate_dice(pred[s], gnd[s], key=key)
+                            img = Image.fromarray((segmentation[s] * 255).astype(np.uint8))
+                            fn = f'{path_pred.stem}_{s}_{suffix}.png' if multiple else f'{path_pred.stem}_{suffix}.png'
+                            img.save(params.out_dir / fn)
 
     if params.data.sequence_length > 1:
         stats |= evaluator_volume.criterion_value_per_key

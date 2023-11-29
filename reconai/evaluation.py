@@ -6,6 +6,7 @@ import torch
 from piqa import SSIM
 
 from .parameters import Parameters
+from .predict import predict
 
 
 def tensor_zero(dtype: torch.dtype):
@@ -84,7 +85,9 @@ class Evaluation:
             Evaluation.Criterion('ssim', SSIM(n_channels=params.data.sequence_length).cuda(), params.train.loss.ssim),
             Evaluation.Criterion('dice', self._dice, params.train.loss.dice),
             Evaluation.Criterion('loss', self._weighted_loss),
-            Evaluation.Criterion('time', self._time)
+            Evaluation.Criterion('time', self._time),
+            Evaluation.Criterion('target', self._target_direction),
+            Evaluation.Criterion('direction', self._target_direction)
         ]
         self._getitem = {crit.name: c for c, crit in enumerate(self._criterions)}
 
@@ -117,7 +120,16 @@ class Evaluation:
         if key:
             self._keys[key] = self._keys.get(key, {}) | {'dice': crit_dice.result.item()}
 
-    def calculate(self, pred: torch.Tensor, gnd: torch.Tensor, key: str = None):
+    def calculate_target_direction(self, pred, gnd, spacing: tuple[float, float] = (1, 1), strategy: str = None, key: str = None):
+        prediction = predict(pred, strategy=strategy)
+        target, direction = prediction.error(*gnd, spacing=spacing)
+        for item, error in zip(['target', 'direction'], [target, direction]):
+            crit = self._criterions[self._getitem[item]]
+            crit.calculate(error, torch.tensor(0))
+            if key:
+                self._keys[key] = self._keys.get(key, {}) | {item: crit.result.item()}
+
+    def calculate_reconstruction(self, pred: torch.Tensor, gnd: torch.Tensor, key: str = None):
         """
         Calculate all criterions.
         """
@@ -126,7 +138,7 @@ class Evaluation:
             if self._loss_only and not crit.loss_weight and crit.name != 'loss':  # 0 or None
                 continue
 
-            if crit.name == 'dice':
+            if crit.name in ['dice', 'target', 'direction']:
                 continue
             elif crit.name == 'time' and self._start is None:
                 continue
@@ -159,3 +171,8 @@ class Evaluation:
         intersection = np.sum(pred[gnd == 1]) * 2.0
         dice = intersection / (np.sum(pred) + np.sum(gnd))
         return torch.tensor(0) if np.isnan(dice) else torch.tensor(dice)
+
+    @staticmethod
+    def _target_direction(pred, _) -> torch.Tensor:
+        return torch.tensor(pred)
+
