@@ -72,7 +72,7 @@ def walk_along_angle(blob: np.ndarray, start_x: int, start_y: int, direction: fl
 
 def predict_by_pca(blob: np.ndarray) -> Prediction | None:
     indices = np.array(np.where(blob > 0))
-    center = np.mean(indices, axis=1, dtype=np.int32)
+    center = np.flip(np.mean(indices, axis=1, dtype=np.int32))
     # center seems incorrect?
 
     eigenvalues, eigenvectors = np.linalg.eig(np.cov(indices - center.reshape(2,1)))
@@ -113,7 +113,7 @@ def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
         return None
 
 
-def predict_target(blob: np.ndarray, strategy: str = 'hough_line_transform') -> Prediction | None:
+def predict_target(blob: np.ndarray, strategy: str = 'pca') -> Prediction | None:
     bz, by, bx = blob.shape
     blob = blob[bz // 2, ...]
     if blob.max() == 0:
