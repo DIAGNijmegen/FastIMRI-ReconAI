@@ -4,7 +4,6 @@ import matplotlib
 import numpy as np
 from skimage.transform import hough_line, hough_line_peaks
 
-matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 
 prediction_strategies = ['pca', 'hough_line_transform']
