@@ -3,10 +3,11 @@ from pathlib import Path
 import click
 import wandb
 
-from .parameters import TrainParameters, TestParameters
-from .reconstruction import train as train_reconstruction, test as test_reconstruction
-from .segmentation import train as train_segmentation, test as test_segmentation
 from reconai import version
+from .parameters import TrainParameters, TestParameters
+from .reconstruction import train as train_reconstruction
+from .segmentation import train as train_segmentation
+from .test import test
 
 
 @click.group()
@@ -55,15 +56,21 @@ def reconai_train_segmentation(in_dir: Path, annotations_dir: Path, out_dir: Pat
     train_segmentation(in_dir, annotations_dir, out_dir, sync_dir, folds, gpus, debug)
 
 
-@cli.command(name='test_segmentation')
+@cli.command(name='test')
 @click.option('--in_dir', type=Path, required=True,
-              help='Images data directory.')
-@click.option('--nnunet_dir', type=Path, required=True,
+              help='Test data directory.')
+@click.option('--model_dir', type=Path, required=True,
+              help='Trained model directory.')
+@click.option('--nnunet_dir', type=Path, required=False,
               help='Directory containing nnUNet directories.')
-@click.option('--out_dir', type=Path, required=True,
-              help='Output directory to contain inferences')
-def reconai_test_segmentation(in_dir: Path, nnunet_dir: Path, out_dir: Path):
-    test_segmentation(in_dir, nnunet_dir, out_dir)
+@click.option('--annotations_dir', type=Path, required=False,
+              help='Annotation data directory.')
+@click.option('--model_name', type=str, required=False,
+              help='Use a specific model by name')
+def reconai_test_reconstruction(in_dir: Path, model_dir: Path, nnunet_dir: Path, annotations_dir: Path, model_name: str):
+    assert not ((nnunet_dir is None) ^ (annotations_dir is None)), '--nnunet_dir AND --annotations_dir need be defined'
+    params = TestParameters(in_dir, model_dir, model_name)
+    test(params, nnunet_dir, annotations_dir)
 
 
 if __name__ == '__main__':

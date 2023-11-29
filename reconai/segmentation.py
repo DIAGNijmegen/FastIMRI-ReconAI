@@ -47,12 +47,6 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
             subprocess.run(["rsync", "-rl", nnUNet_base, nnUNet_sync])
 
 
-def test(in_dir: Path, nnunet_dir: Path, out_dir: Path):
-    print_version()
-
-    nnunet2_segment(in_dir, nnunet_dir, out_dir)
-
-
 def nnunet2_segment(in_dir: Path, nnunet_dir: Path, out_dir: Path):
     nnunet2_prepare_nnunet(nnunet_dir)
     nnunet2_verify_results_dir(nnunet_dir)
