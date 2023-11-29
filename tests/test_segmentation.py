@@ -5,10 +5,9 @@ from pathlib import Path
 from click.testing import CliRunner
 from conftest import run_click, prepare_output_dir
 from reconai.__main__ import reconai_train_segmentation, reconai_test_segmentation
-from reconai.predict import predict_target, Prediction
+from reconai.predict import predict_target
 import SimpleITK as sitk
 import numpy as np
-
 import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -20,7 +19,7 @@ def test_train_segmentation():
     prepare_output_dir()
     run_click(reconai_train_segmentation, '--debug',
               in_dir='./tests/input/images',
-              annotation_dir='./tests/input/annotations',
+              annotations_dir='./tests/input/annotations',
               out_dir='./tests/output/',
               sync_dir='./tests/output/rsync/')
 

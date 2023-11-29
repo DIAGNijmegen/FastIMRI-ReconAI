@@ -46,11 +46,13 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
               help='Output directory to contain nnUNet directories. (if in_dir is not nnUNet)')
 @click.option('--folds', type=int, required=False, default=5,
               help='Number of folds.')
+@click.option('--gpus', type=int, required=False, default=1,
+              help='Number of GPUs')
 @click.option('--sync_dir', type=Path, required=True,
               help='Sync out_dir to sync_dir')
 @click.option('--debug', is_flag=True, hidden=True, default=False)
-def reconai_train_segmentation(in_dir: Path, annotations_dir: Path, out_dir: Path, folds: int, sync_dir: Path, debug: bool = False):
-    train_segmentation(in_dir, annotations_dir, out_dir, sync_dir, folds, debug)
+def reconai_train_segmentation(in_dir: Path, annotations_dir: Path, out_dir: Path, folds: int, gpus: int, sync_dir: Path, debug: bool = False):
+    train_segmentation(in_dir, annotations_dir, out_dir, sync_dir, folds, gpus, debug)
 
 
 @cli.command(name='test_segmentation')

@@ -17,7 +17,7 @@ nnUNet_dataset_name = f'Dataset{nnUNet_dataset_id}_FastIMRI'
 nnUNet_environ = dict(os.environ.copy())
 
 
-def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, folds: int, debug: bool = False):
+def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, folds: int, gpus: int, debug: bool = False):
     print_version()
 
     existing = not annotation_dir and not out_dir
@@ -36,7 +36,7 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
     nnunet2_plan_and_preprocess(existing)
     nnunet2_train(configs := ['2d'] if debug else ['2d', '3d_fullres'],
                   folds := ['0'] if debug else [str(f) for f in range(folds)],
-                  existing,
+                  gpus, existing,
                   debug)
     nnunet2_find_best_configuration(configs, folds, debug)
     if sync_dir:
@@ -100,13 +100,13 @@ def nnunet2_plan_and_preprocess(existing: bool):
     nnunet2_command('nnUNetv2_plan_and_preprocess', *args)
 
 
-def nnunet2_train(configs: list[str], folds: list[str], existing: bool, debug: bool = False):
+def nnunet2_train(configs: list[str], folds: list[str], gpus: int, existing: bool, debug: bool = False):
     args_existing = ['--c'] if existing else []
     args_trainer = ['-tr', 'nnUNetTrainer_debug' if debug else 'nnUNetTrainer_ReconAI']
 
     for config in configs:
         for fold in folds:
-            args = [nnUNet_dataset_id, config, fold, '--npz'] + args_existing + args_trainer
+            args = [nnUNet_dataset_id, config, fold, '--npz', '-num_gpus', str(gpus)] + args_existing + args_trainer
             print(f'training config {config}, fold {fold}')
             nnunet2_command('nnUNetv2_train', *args)
 
