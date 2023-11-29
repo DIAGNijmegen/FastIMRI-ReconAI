@@ -19,6 +19,7 @@ nnUNet_environ = dict(os.environ.copy())
 
 def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, folds: int, gpus: int, debug: bool = False):
     print_version()
+    print(f'syncing {out_dir} --> {sync_dir}')
 
     existing = not annotation_dir and not out_dir
     if existing:
