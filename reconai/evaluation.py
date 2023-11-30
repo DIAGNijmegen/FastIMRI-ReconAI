@@ -125,7 +125,10 @@ class Evaluation:
         target, direction = prediction.error(*gnd, spacing=spacing) if prediction else -1, -1
         for item, error in zip(['target', 'direction'], [target, direction]):
             crit = self._criterions[self._getitem[item]]
-            crit.calculate(error, torch.tensor(0))
+            try:
+                crit.calculate(error, torch.tensor(0))
+            except:
+                raise KeyError('\n'.join([str(error), str(target), str(direction)]))
             if key:
                 self._keys[key] = self._keys.get(key, {}) | {item: crit.result.item()}
 
