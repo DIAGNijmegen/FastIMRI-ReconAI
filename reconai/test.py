@@ -140,7 +140,7 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
                         with open(path_gnd_json, 'r') as f:
                             gnd_json = json.load(f)
                         target_direction_gnd = (*gnd_json['inner'][:2], gnd_json['angle'])
-                        slice_gnd = gnd_json.get('slice', 2)  # when annotations are updated, change to ['slice']
+                        slice_gnd = gnd_json['slice']
 
                         spacing = mha.GetSpacing()[:2]
                         if multiple or slice_gnd == s:

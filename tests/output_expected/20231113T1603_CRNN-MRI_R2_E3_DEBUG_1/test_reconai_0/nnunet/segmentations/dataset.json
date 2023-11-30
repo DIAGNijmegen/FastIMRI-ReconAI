@@ -1,0 +1,14 @@
+{
+    "channel_names": {
+        "0": "IMRI"
+    },
+    "labels": {
+        "background": 0,
+        "needle": 1
+    },
+    "numTraining": 14,
+    "file_ending": ".mha",
+    "overwrite_image_reader_writer": "SimpleITKIO",
+    "dataset_name": "imri_xyt",
+    "release": "1.4.5"
+}
