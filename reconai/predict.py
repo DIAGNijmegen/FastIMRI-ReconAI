@@ -27,7 +27,7 @@ class Prediction:
     def error(self, x: int, y: int, angle: float, spacing: tuple[float, float] = (1, 1)) -> tuple[np.ndarray, float]:
         gnd_target, gnd_angle = np.array([x, y]), np.array([angle])
 
-        target_error = np.linalg.norm((np.multiply(gnd_target - self.target , spacing)).astype(np.float32))
+        target_error = np.linalg.norm((np.multiply(gnd_target - self.target, spacing)).astype(np.float32))
         angle_error = np.rad2deg(np.abs(gnd_angle - self.angle))
         return target_error, float(angle_error)
 

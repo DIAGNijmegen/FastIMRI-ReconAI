@@ -147,8 +147,11 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
                             for strategy in prediction_strategies:
                                 pred_single = pred[slice_gnd] if multiple else pred
                                 key = f'{path_pred.stem}_{slice_gnd}' if multiple else path_pred.stem
-                                evaluator_slice.calculate_target_direction(pred_single, target_direction_gnd,
+                                try:
+                                    evaluator_slice.calculate_target_direction(pred_single, target_direction_gnd,
                                                                            spacing=spacing, strategy=strategy, key=key)
+                                except:
+                                    raise ValueError('\n'.join([str(pred_single.shape), str(target_direction_gnd)]))
                                 prediction = predict(pred_single, strategy=strategy)
                                 fn = f'{path_pred.stem}_{slice_gnd}_{strategy}.png' if multiple else f'{path_pred.stem}_{strategy}.png'
                                 if prediction:
