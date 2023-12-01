@@ -24,12 +24,12 @@ class Prediction:
     def angle(self) -> float:
         return float(self._a)
 
-    def error(self, x: int, y: int, angle: float, spacing: tuple[float, float] = (1, 1)) -> tuple[np.ndarray, float]:
+    def error(self, x: int, y: int, angle: float, spacing: tuple[float, float] = (1, 1)) -> tuple[float, float]:
         gnd_target, gnd_angle = np.array([x, y]), np.array([angle])
 
-        target_error = np.linalg.norm((np.multiply(gnd_target - self.target, spacing)).astype(np.float32))
+        target_error = np.linalg.norm((np.multiply(gnd_target - self.target, spacing)))
         angle_error = np.rad2deg(np.abs(gnd_angle - self.angle))
-        return target_error, float(angle_error)
+        return float(target_error), float(angle_error)
 
     def show(self, x: int, y: int, angle: float, save: Path = None):
         gnd = (x, y, angle)
@@ -51,6 +51,7 @@ class Prediction:
             plt.savefig(save.as_posix())
         else:
             plt.show()
+        plt.close()
 
 
 def walk_along_angle(blob: np.ndarray, start_x: int, start_y: int, direction: float) -> np.ndarray:
