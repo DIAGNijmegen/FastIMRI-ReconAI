@@ -174,5 +174,5 @@ class Evaluation:
 
     @staticmethod
     def _target_direction(pred, _) -> torch.Tensor:
-        return torch.tensor(pred)
+        return torch.tensor(pred, dtype=torch.float32)
 
