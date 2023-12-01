@@ -122,13 +122,10 @@ class Evaluation:
 
     def calculate_target_direction(self, pred, gnd, spacing: tuple[float, float] = (1, 1), strategy: str = None, key: str = None):
         prediction = predict(pred, strategy=strategy)
-        target, direction = prediction.error(*gnd, spacing=spacing) if prediction else -1, -1
+        target, direction = prediction.error(*gnd, spacing=spacing) if prediction else (-1, -1)
         for item, error in zip(['target', 'direction'], [target, direction]):
             crit = self._criterions[self._getitem[item]]
-            try:
-                crit.calculate(error, torch.tensor(0))
-            except:
-                raise KeyError('\n'.join([str(error), str(target), str(direction)]))
+            crit.calculate(error, torch.tensor(0))
             if key:
                 self._keys[key] = self._keys.get(key, {}) | {item: crit.result.item()}
 
