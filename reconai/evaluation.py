@@ -127,7 +127,7 @@ class Evaluation:
             crit = self._criterions[self._getitem[item]]
             crit.calculate(error, torch.tensor(0))
             if key:
-                self._keys[key] = self._keys.get(key, {}) | {item: crit.result.item()}
+                self._keys[key] = self._keys.get(key, {}) | {f'{item}_{strategy}': crit.result.item()}
 
     def calculate_reconstruction(self, pred: torch.Tensor, gnd: torch.Tensor, key: str = None):
         """
