@@ -10,6 +10,10 @@ from reconai import version
 from .resources import config_debug
 
 
+def now():
+    return datetime.now().strftime("%Y%m%dT%H%M")
+
+
 @dataclass
 class Parameters:
     @dataclass
@@ -146,7 +150,7 @@ class TrainParameters(Parameters):
         self._load_yaml(yaml)
 
         args = [
-            datetime.now().strftime("%Y%m%dT%H%M"),
+            now(),
             'CRNN-MRI' + '' if self.model.bcrnn else 'b',
             f'R{self.data.undersampling}',
             f'E{self.train.epochs}',
@@ -197,7 +201,7 @@ class TestParameters(Parameters):
         self._load_yaml(yaml)
 
         self.meta.in_dir = Path(in_dir_).as_posix()
-        self.meta.out_dir = (model_dir / f'test_{self._model.stem}').as_posix()
+        self.meta.out_dir = (model_dir / f'test_{self._model.stem}_{now()}').as_posix()
 
     def mkoutdir(self):
         if self.out_dir.exists():
