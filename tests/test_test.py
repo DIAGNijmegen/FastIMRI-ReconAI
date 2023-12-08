@@ -1,10 +1,12 @@
 import json
+import os
 from pathlib import Path
 
 import SimpleITK as sitk
 import matplotlib
 import numpy as np
 from click.testing import CliRunner
+import pytest
 
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
@@ -21,15 +23,18 @@ crnns = ['20231113T1603_CRNN-MRI_R2_E3_DEBUG_1', '20230830T1030_CRNN-MRI_R2_E3_D
 def test_test():
     prepare_output_dir(*crnns)
     for crnn in crnns:
-        run_click(reconai_test,
+        run_click(reconai_test, '--debug',
                   in_dir='./tests/input/images',
                   model_dir=f'./tests/output/{crnn}')
 
 
-def test_test_nnunet():
-    prepare_output_dir(*crnns, 'nnUNet_results')
+@pytest.mark.parametrize("inference_information", [False, True])
+def test_test_nnunet(inference_information):
+    prepare_output_dir(*crnns, 'nnUNet_preprocessed', 'nnUNet_results')
+    if not inference_information:
+        os.remove(f'./tests/output/nnUNet_results/Dataset111_FastIMRI/inference_information.json')
     for crnn in crnns:
-        run_click(reconai_test,
+        run_click(reconai_test, '--debug',
                   in_dir='./tests/input/images',
                   model_dir=f'./tests/output/{crnn}',
                   nnunet_dir='./tests/output',

@@ -16,10 +16,10 @@ from reconai.parameters import TestParameters
 from reconai.print import print_log, print_version
 from reconai.predict import predict, prediction_strategies, Prediction
 from reconai.random import rng
-from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir
+from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir, nnunet2_prepare_nnunet
 
 
-def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
+def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path, debug: bool = False):
     print_version(params.meta.name)
 
     version_re = r'(\d+)\.(\d+)\.(\d+)'
@@ -40,7 +40,8 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path):
         print_log('nnUNet enabled')
         assert nnunet_dir, 'nnUNet base directory is not set, but annotations directory is'
         assert annotations_dir, 'annotations directory is not set, but nnUNet base directory is'
-        nnunet2_verify_results_dir(nnunet_dir)
+        nnunet2_prepare_nnunet(nnunet_dir)
+        nnunet2_verify_results_dir(nnunet_dir, debug=debug)
 
         if annotations_dir.exists():
             nnunet2_images = {file.stem + file.suffix for file in params.in_dir.iterdir() if file.suffix == '.mha'}

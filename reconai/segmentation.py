@@ -106,6 +106,20 @@ def nnunet2_train(configs: list[str], folds: list[str], gpus: int, existing: boo
             nnunet2_command('nnUNetv2_train', *args)
 
 
+def nnunet2_verify_results_dir(base_dir: Path, debug: bool = False):
+    nnUNet_results = base_dir / 'nnUNet_results'
+    dataset_dir = nnUNet_results / nnUNet_dataset_name
+    assert dataset_dir.exists(), f'{dataset_dir} does not exist?'
+    if not (dataset_dir / 'inference_information.json').exists():
+        configs, folds = [], []
+        for config_dir in dataset_dir.iterdir():
+            if config_dir.is_dir():
+                configs.append(config_dir.name.split('__')[-1])
+                folds.extend([fold_dir.name.split('_')[-1] for fold_dir in config_dir.iterdir() if fold_dir.name.startswith('fold_')])
+
+        nnunet2_find_best_configuration(configs, folds, debug=debug)
+
+
 def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug: bool = False):
     args_trainer = ['-tr', 'nnUNetTrainer_debug' if debug else 'nnUNetTrainer_ReconAI']
 
@@ -113,12 +127,6 @@ def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug:
     print('finding best configuration')
     nnunet2_command('nnUNetv2_find_best_configuration', *args)
 
-
-def nnunet2_verify_results_dir(base_dir: Path):
-    nnUNet_results = base_dir / 'nnUNet_results'
-    dataset = nnUNet_results / nnUNet_dataset_name
-    assert dataset.exists(), f'{dataset} does not exist?'
-    assert (dataset / 'inference_information.json').exists()
 
 
 def nnunet2_verify_raw_dir(base_dir: Path):

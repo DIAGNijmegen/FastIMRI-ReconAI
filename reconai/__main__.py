@@ -67,10 +67,11 @@ def reconai_train_segmentation(in_dir: Path, annotations_dir: Path, out_dir: Pat
               help='Annotation data directory.')
 @click.option('--model_name', type=str, required=False,
               help='Use a specific model by name')
-def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, annotations_dir: Path, model_name: str):
+@click.option('--debug', is_flag=True, hidden=True, default=False)
+def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, annotations_dir: Path, model_name: str, debug: bool = False):
     assert not ((nnunet_dir is None) ^ (annotations_dir is None)), '--nnunet_dir AND --annotations_dir need be defined'
     params = TestParameters(in_dir, model_dir, model_name)
-    test(params, nnunet_dir, annotations_dir)
+    test(params, nnunet_dir, annotations_dir, debug)
 
 
 if __name__ == '__main__':
