@@ -175,8 +175,9 @@ class TestParameters(Parameters):
     in_dir_: InitVar[Path] = None
     model_dir: InitVar[Path] = None
     model_name: InitVar[str] = None
+    tag: InitVar[str] = None
 
-    def __post_init__(self, in_dir_: Path, model_dir: Path, model_name: str):
+    def __post_init__(self, in_dir_: Path, model_dir: Path, model_name: str, tag: str):
         super().__post_init__()
 
         if model_name:
@@ -201,7 +202,8 @@ class TestParameters(Parameters):
         self._load_yaml(yaml)
 
         self.meta.in_dir = Path(in_dir_).as_posix()
-        self.meta.out_dir = (model_dir / f'test_{self._model.stem}_{now()}').as_posix()
+        test_name = '_'.join([now(), self._model.stem] + ([tag] if tag else []))
+        self.meta.out_dir = (model_dir / test_name).as_posix()
 
     def mkoutdir(self):
         if self.out_dir.exists():
