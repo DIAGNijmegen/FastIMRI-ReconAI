@@ -109,21 +109,11 @@ def nnunet2_train(configs: list[str], folds: list[str], gpus: int, existing: boo
 def nnunet2_verify_results_dir(base_dir: Path, debug: bool = False):
     nnUNet_results = base_dir / 'nnUNet_results'
     dataset_dir = nnUNet_results / nnUNet_dataset_name
-    assert dataset_dir.exists(), f'{dataset_dir} does not exist?'
-    if not (dataset_dir / 'inference_information.json').exists():
-        configs, folds = [], []
-        for config_dir in dataset_dir.iterdir():
-            if config_dir.is_dir():
-                configs.append(config_dir.name.split('__')[-1])
-                folds.extend([fold_dir.name.split('_')[-1] for fold_dir in config_dir.iterdir() if fold_dir.name.startswith('fold_')])
-
-        nnunet2_find_best_configuration(configs, folds, debug=debug)
+    assert dataset_dir.exists(), \
+        f'{dataset_dir} does not exist? run\nreconai test_find_configuration --nnunet_dir {base_dir.as_posix()}'
 
 
 def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug: bool = False):
-    import shutil
-    shutil.copy = shutil.copyfile
-
     args_trainer = ['-tr', 'nnUNetTrainer_debug' if debug else 'nnUNetTrainer_ReconAI']
 
     args = [nnUNet_dataset_id, '-c', *configs, '-f', *folds] + args_trainer

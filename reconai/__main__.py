@@ -6,7 +6,7 @@ import wandb
 from reconai import version
 from .parameters import TrainParameters, TestParameters
 from .reconstruction import train as train_reconstruction
-from .segmentation import train as train_segmentation
+from .segmentation import train as train_segmentation, nnunet2_find_best_configuration, nnUNet_dataset_name
 from .test import test
 
 
@@ -74,6 +74,23 @@ def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, annotations_di
     assert not ((nnunet_dir is None) ^ (annotations_dir is None)), '--nnunet_dir AND --annotations_dir need be defined'
     params = TestParameters(in_dir, model_dir, model_name, tag)
     test(params, nnunet_dir, annotations_dir, debug)
+
+
+@cli.command(name='test_find_configuration')
+@click.option('--nnunet_dir', type=Path, required=True,
+              help='Directory containing nnUNet directories.')
+@click.option('--debug', is_flag=True, hidden=True, default=False)
+def reconai_test_find_configuration(nnunet_dir: Path, debug: bool = False):
+    nnUNet_results = nnunet_dir / 'nnUNet_results'
+    dataset_dir = nnUNet_results / nnUNet_dataset_name
+    configs, folds = [], []
+    for config_dir in dataset_dir.iterdir():
+        if config_dir.is_dir():
+            configs.append(config_dir.name.split('__')[-1])
+            folds.extend([fold_dir.name.split('_')[-1] for fold_dir in config_dir.iterdir() if
+                          fold_dir.name.startswith('fold_')])
+
+    nnunet2_find_best_configuration(configs, folds, debug=debug)
 
 
 if __name__ == '__main__':
