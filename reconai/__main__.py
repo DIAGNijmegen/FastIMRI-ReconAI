@@ -90,8 +90,9 @@ def reconai_test_find_configuration(nnunet_dir: Path, debug: bool = False):
             configs.append(config_dir.name.split('__')[-1])
             folds = folds.union([fold_dir.name.split('_')[-1] for fold_dir in config_dir.iterdir() if
                           fold_dir.name.startswith('fold_')])
+
     nnunet2_prepare_nnunet(nnunet_dir)
-    nnunet2_find_best_configuration(configs, list(folds), debug=debug)
+    nnunet2_find_best_configuration(['2d'], ['0'], debug=debug)
 
 
 if __name__ == '__main__':
