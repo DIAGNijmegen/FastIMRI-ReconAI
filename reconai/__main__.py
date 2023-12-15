@@ -6,7 +6,8 @@ import wandb
 from reconai import version
 from .parameters import TrainParameters, TestParameters
 from .reconstruction import train as train_reconstruction
-from .segmentation import train as train_segmentation, nnunet2_find_best_configuration, nnUNet_dataset_name
+from .segmentation import (train as train_segmentation,
+                           nnunet2_prepare_nnunet, nnunet2_find_best_configuration, nnUNet_dataset_name)
 from .test import test
 
 
@@ -89,7 +90,7 @@ def reconai_test_find_configuration(nnunet_dir: Path, debug: bool = False):
             configs.append(config_dir.name.split('__')[-1])
             folds.extend([fold_dir.name.split('_')[-1] for fold_dir in config_dir.iterdir() if
                           fold_dir.name.startswith('fold_')])
-
+    nnunet2_prepare_nnunet(nnunet_dir)
     nnunet2_find_best_configuration(configs, folds, debug=debug)
 
 
