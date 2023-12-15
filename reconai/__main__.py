@@ -84,14 +84,14 @@ def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, annotations_di
 def reconai_test_find_configuration(nnunet_dir: Path, debug: bool = False):
     nnUNet_results = nnunet_dir / 'nnUNet_results'
     dataset_dir = nnUNet_results / nnUNet_dataset_name
-    configs, folds = [], []
+    configs, folds = [], set()
     for config_dir in dataset_dir.iterdir():
         if config_dir.is_dir():
             configs.append(config_dir.name.split('__')[-1])
-            folds.extend([fold_dir.name.split('_')[-1] for fold_dir in config_dir.iterdir() if
+            folds = folds.union([fold_dir.name.split('_')[-1] for fold_dir in config_dir.iterdir() if
                           fold_dir.name.startswith('fold_')])
     nnunet2_prepare_nnunet(nnunet_dir)
-    nnunet2_find_best_configuration(configs, folds, debug=debug)
+    nnunet2_find_best_configuration(configs, list(folds), debug=debug)
 
 
 if __name__ == '__main__':
