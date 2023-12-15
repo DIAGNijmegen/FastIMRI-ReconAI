@@ -121,12 +121,14 @@ def nnunet2_verify_results_dir(base_dir: Path, debug: bool = False):
 
 
 def nnunet2_find_best_configuration(configs: list[str], folds: list[str], debug: bool = False):
+    import shutil
+    shutil.copy = shutil.copyfile
+
     args_trainer = ['-tr', 'nnUNetTrainer_debug' if debug else 'nnUNetTrainer_ReconAI']
 
     args = [nnUNet_dataset_id, '-c', *configs, '-f', *folds] + args_trainer
     print('finding best configuration')
     nnunet2_command('nnUNetv2_find_best_configuration', *args)
-
 
 
 def nnunet2_verify_raw_dir(base_dir: Path):
