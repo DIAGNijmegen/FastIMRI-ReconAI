@@ -76,9 +76,11 @@ def walk_along_angle(blob: np.ndarray, start_x: int, start_y: int, direction: fl
 def predict_by_pca(blob: np.ndarray) -> Prediction | None:
     indices = np.array(np.where(blob > 0))
     center = np.flip(np.mean(indices, axis=1, dtype=np.int32))
-    # center seems incorrect?
 
-    eigenvalues, eigenvectors = np.linalg.eig(np.cov(indices - center.reshape(2,1)))
+    try:
+        eigenvalues, eigenvectors = np.linalg.eig(np.cov(indices - center.reshape(2, 1)))
+    except np.linalg.LinAlgError:
+        return None
     y, x = eigenvectors[:, np.argmax(eigenvalues)]
 
     # Calculate the angle of the major axis
