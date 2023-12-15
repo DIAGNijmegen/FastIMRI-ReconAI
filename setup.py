@@ -6,11 +6,12 @@ if __name__ == '__main__':
     try:
         import torch
     except ModuleNotFoundError as e:
-        e.msg += '\nMake sure PyTorch and CUDA are installed!'
+        e.msg += '\nMake sure PyTorch is preinstalled!'
         e.msg += '\npip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121'
         raise e
+
     if not torch.has_cuda:
-        raise ModuleNotFoundError('Make sure CUDA is installed!')
+        print('WARNING: No CUDA installed!')
 
     setup(
         name='reconai',
