@@ -140,7 +140,7 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path, debug:
                     if (path_gnd_json := path_gnd.with_suffix('.json')).exists():
                         with open(path_gnd_json, 'r') as f:
                             gnd_json = json.load(f)
-                        target_direction_gnd = (*gnd_json['inner'][:2], gnd_json['angle'])
+                        target_direction_gnd: tuple = (*gnd_json['inner'][:2], gnd_json['angle'])
                         slice_gnd = gnd_json['slice']
 
                         spacing = mha.GetSpacing()[:2]
@@ -149,13 +149,11 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path, debug:
                                 pred_single = pred[slice_gnd] if multiple else pred
                                 key = f'{path_pred.stem}_{slice_gnd}' if multiple else path_pred.stem
                                 evaluator_slice.calculate_target_direction(pred_single, target_direction_gnd,
-                                                                       spacing=spacing, strategy=strategy, key=key)
-                                prediction = predict(pred_single, strategy=strategy)
+                                                                           spacing=spacing, strategy=strategy, key=key)
+
+                                prediction = predict(pred_single, target_direction_gnd, strategy=strategy)
                                 fn = f'{path_pred.stem}_{slice_gnd}_{strategy}.png' if multiple else f'{path_pred.stem}_{strategy}.png'
-                                if prediction:
-                                    prediction.save(params.out_dir / fn, *target_direction_gnd)
-                                else:
-                                    Prediction(pred_single, *target_direction_gnd).save(params.out_dir / fn, 0, 0, 0)
+                                prediction.save(params.out_dir / fn)
 
                     for suffix, segmentation in [('gnd', gnd), ('pred', pred)]:
                         for s in range(params.data.sequence_length if multiple else 1):

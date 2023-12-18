@@ -11,39 +11,37 @@ prediction_strategies = ['pca', 'hough_line_transform']
 
 
 class Prediction:
-    def __init__(self, blob: np.ndarray, x: int, y: int, angle: float):
+    def __init__(self, blob: np.ndarray, gnd: tuple[int, int, float], pred: tuple[int, int, float]):
         self._blob = blob.squeeze()
-        self._x = int(x)
-        self._y = int(y)
-        self._a = angle
+        self._gnd_target = np.array(gnd[:2], np.int32)
+        self._gnd_angle = np.array(gnd[-1], np.int32)
+        self._pred_target = np.array(pred[:2], np.int32)
+        self._pred_angle = np.array(pred[-1], np.int32)
+        self._failed = sum(pred) == 0
 
     @property
-    def target(self) -> np.ndarray:
-        return np.array([self._x, self._y], np.int32)
+    def failed(self) -> bool:
+        return self._failed
 
-    @property
-    def angle(self) -> float:
-        return float(self._a)
+    def error(self, spacing: tuple[float, float] = (1, 1)) -> tuple[float, float]:
+        if self._failed:
+            return -1, -1
 
-    def error(self, x: int, y: int, angle: float, spacing: tuple[float, float] = (1, 1)) -> tuple[float, float]:
-        gnd_target, gnd_angle = np.array([x, y]), np.array([angle])
-
-        target_error = np.linalg.norm((np.multiply(gnd_target - self.target, spacing)))
-        angle_error = np.rad2deg(np.abs(gnd_angle - self.angle))
+        target_error = np.linalg.norm((np.multiply(self._gnd_target - self._pred_target, spacing)))
+        angle_error = np.rad2deg(np.abs(self._gnd_angle - self._pred_angle))
         return float(target_error), float(angle_error)
 
-    def save(self, file: Path, x: int, y: int, angle: float, debug: bool = False):
+    def save(self, file: Path, debug: bool = False):
         if debug:
             blob = (self._blob * 255).astype(np.uint8)
             sitk.WriteImage(sitk.GetImageFromArray(blob), file.parent / f'{file.stem}_blob{file.suffix}')
 
-        gnd = np.zeros_like(self._blob, dtype=np.uint8)
-        gnd[y, x] = 255
-        sitk.WriteImage(sitk.GetImageFromArray(gnd), file.parent / f'{file.stem}_gnd{file.suffix}')
-
-        pred = np.zeros_like(self._blob, dtype=np.uint8)
-        pred[self._y, self._x] = 255
-        sitk.WriteImage(sitk.GetImageFromArray(pred), file.parent / f'{file.stem}_pred{file.suffix}')
+        for target, name in [(self._gnd_target, 'gnd'), (self._pred_target, 'pred')]:
+            x, y = target
+            arr = np.zeros_like(self._blob, dtype=np.uint8)
+            if name == 'gnd' or not self._failed:
+                arr[y, x] = 255
+            sitk.WriteImage(sitk.GetImageFromArray(arr), file.parent / f'{file.stem}_{name}{file.suffix}')
 
 
 def walk_along_angle(blob: np.ndarray, start_x: int, start_y: int, direction: float) -> np.ndarray:
@@ -65,7 +63,7 @@ def walk_along_angle(blob: np.ndarray, start_x: int, start_y: int, direction: fl
     return edges[np.argmin(np.linalg.norm(shape // 2 - edges, axis=1))]
 
 
-def predict_by_pca(blob: np.ndarray) -> Prediction | None:
+def predict_by_pca(blob: np.ndarray) -> tuple[int, int, float] | None:
     indices = np.array(np.where(blob > 0))
     center = np.flip(np.mean(indices, axis=1, dtype=np.int32))
 
@@ -76,14 +74,15 @@ def predict_by_pca(blob: np.ndarray) -> Prediction | None:
     y, x = eigenvectors[:, np.argmax(eigenvalues)]
 
     # Calculate the angle of the major axis
-    angle_radians = np.arctan2(-y, x)
+    angle_radians: float = np.arctan2(-y, x)
     if -y < 0:
         angle_radians += np.pi
 
-    return Prediction(blob, *walk_along_angle(blob, *center, np.arctan2(y, x)), angle=angle_radians)
+    target_pred: list[int] = list(walk_along_angle(blob, *center, np.arctan2(y, x)))
+    return target_pred[0], target_pred[1], angle_radians
 
 
-def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
+def predict_by_hough_line_transform(blob: np.ndarray) -> tuple[int, int, float] | None:
     h, theta, d = hough_line(blob, theta=np.linspace(-np.pi / 2, np.pi / 2, 720, endpoint=False))
 
     target_pred = []
@@ -104,23 +103,24 @@ def predict_by_hough_line_transform(blob: np.ndarray) -> Prediction | None:
             angle += np.pi
         angle_pred.append(angle % (np.pi * 2))
 
-    if target_pred:
-        return Prediction(blob, *np.mean(target_pred, axis=0), angle=np.mean(angle_pred))
-    else:
-        return None
+    return (*np.mean(target_pred, axis=0), np.mean(angle_pred)) if target_pred else None
 
 
-def predict(blob: np.ndarray, strategy: str = 'pca') -> Prediction | None:
+def predict(blob: np.ndarray, gnd: tuple[int, int, float], strategy: str = 'pca') -> Prediction:
     blob = blob.squeeze()
     assert len(blob.shape) == 2, 'blob not a 2-dimensional array'
+
+    no_prediction = Prediction(blob, gnd, (0, 0, 0))
     if blob.max() == 0:
-        return None
+        return no_prediction
 
     match strategy:
         case 'hough_line_transform':
-            return predict_by_hough_line_transform(blob)
+            prediction = predict_by_hough_line_transform(blob)
         case 'pca' | None:
-            return predict_by_pca(blob)
+            prediction = predict_by_pca(blob)
         case _:
             raise ValueError(f'unknown strategy "{strategy}"')
+
+    return Prediction(blob, gnd, prediction) if prediction else no_prediction
 

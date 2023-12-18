@@ -54,15 +54,12 @@ def test_predict():
             with open(file.with_suffix('.json'), 'r') as f:
                 facts = json.load(f)
 
-            target_gnd = np.array(facts['inner'][:2])
-            angle_gnd = facts['angle']
+            target_gnd: tuple[int, int] = facts['inner'][:2]
+            angle_gnd: float = facts['angle']
             for strategy in prediction_strategies:
-                pred = predict(annotation[2], strategy=strategy)
-                if pred:
-                    pred.save(output_dir / (f'{i}_{strategy}_' + file.with_suffix('.png').name), *target_gnd, angle_gnd, debug=True)
-                    results[strategy].append(pred.error(*target_gnd, angle_gnd))
-                else:
-                    results[strategy].append((-1, -1))
+                pred = predict(annotation[2], (target_gnd[0], target_gnd[1], angle_gnd), strategy=strategy)
+                pred.save(output_dir / (f'{i}_{strategy}_' + file.with_suffix('.png').name), debug=True)
+                results[strategy].append(pred.error())
 
     fig, axes = plt.subplots(1, 2, figsize=(12, 6))
 
