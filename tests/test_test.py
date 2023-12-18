@@ -59,7 +59,7 @@ def test_predict():
             for strategy in prediction_strategies:
                 pred = predict(annotation[2], strategy=strategy)
                 if pred:
-                    pred.show(*target_gnd, angle_gnd, save=output_dir / (f'{i}_{strategy}_' + file.with_suffix('.png').name))
+                    pred.save(output_dir / (f'{i}_{strategy}_' + file.with_suffix('.png').name), *target_gnd, angle_gnd, debug=True)
                     results[strategy].append(pred.error(*target_gnd, angle_gnd))
                 else:
                     results[strategy].append((-1, -1))

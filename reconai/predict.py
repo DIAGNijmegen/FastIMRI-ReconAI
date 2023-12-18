@@ -3,6 +3,7 @@ from pathlib import Path
 import matplotlib
 import numpy as np
 from skimage.transform import hough_line, hough_line_peaks
+import SimpleITK as sitk
 
 import matplotlib.pyplot as plt
 
@@ -31,27 +32,18 @@ class Prediction:
         angle_error = np.rad2deg(np.abs(gnd_angle - self.angle))
         return float(target_error), float(angle_error)
 
-    def show(self, x: int, y: int, angle: float, save: Path = None):
-        gnd = (x, y, angle)
-        fig, axes = plt.subplots(1, 1, figsize=(6, 6))
+    def save(self, file: Path, x: int, y: int, angle: float, debug: bool = False):
+        if debug:
+            blob = (self._blob * 255).astype(np.uint8)
+            sitk.WriteImage(sitk.GetImageFromArray(blob), file.parent / f'{file.stem}_blob{file.suffix}')
 
-        axes.imshow(self._blob, cmap='gray')
-        axes.set_axis_off()
-        axes.set_title('Detected line')
+        gnd = np.zeros_like(self._blob, dtype=np.uint8)
+        gnd[y, x] = 255
+        sitk.WriteImage(sitk.GetImageFromArray(gnd), file.parent / f'{file.stem}_gnd{file.suffix}')
 
-        pred_gnd = [(self._x, self._y, self._a, '#C3A44C'), (*gnd, '#75BBCC')]
-        for x, y, a, color in pred_gnd:
-            x1, y1 = x + np.cos(a), y - np.sin(a)
-            # axes.axline((x1, y1), (x, y), color=color)
-            axes.add_patch(plt.Circle((x, y), 2, color=color))
-            # axes.text(0, 10 if color == 'b' else 20, f'{np.rad2deg(a):.3f}', fontsize=12, color=color)
-
-        plt.title(save.name[:50])
-        if save:
-            plt.savefig(save.as_posix())
-        else:
-            plt.show()
-        plt.close()
+        pred = np.zeros_like(self._blob, dtype=np.uint8)
+        pred[self._y, self._x] = 255
+        sitk.WriteImage(sitk.GetImageFromArray(pred), file.parent / f'{file.stem}_pred{file.suffix}')
 
 
 def walk_along_angle(blob: np.ndarray, start_x: int, start_y: int, direction: float) -> np.ndarray:

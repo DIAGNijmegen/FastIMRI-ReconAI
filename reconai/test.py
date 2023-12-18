@@ -153,9 +153,9 @@ def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path, debug:
                                 prediction = predict(pred_single, strategy=strategy)
                                 fn = f'{path_pred.stem}_{slice_gnd}_{strategy}.png' if multiple else f'{path_pred.stem}_{strategy}.png'
                                 if prediction:
-                                    prediction.show(*target_direction_gnd, save=params.out_dir / fn)
+                                    prediction.save(params.out_dir / fn, *target_direction_gnd)
                                 else:
-                                    Prediction(pred_single, *target_direction_gnd).show(0, 0, 0, save=params.out_dir / fn)
+                                    Prediction(pred_single, *target_direction_gnd).save(params.out_dir / fn, 0, 0, 0)
 
                     for suffix, segmentation in [('gnd', gnd), ('pred', pred)]:
                         for s in range(params.data.sequence_length if multiple else 1):
