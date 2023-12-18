@@ -39,11 +39,11 @@ class Prediction:
         axes.set_axis_off()
         axes.set_title('Detected line')
 
-        pred_gnd = [(self._x, self._y, self._a, 'b'), (*gnd, 'g')]
+        pred_gnd = [(self._x, self._y, self._a, '#C3A44C'), (*gnd, '#75BBCC')]
         for x, y, a, color in pred_gnd:
             x1, y1 = x + np.cos(a), y - np.sin(a)
             axes.axline((x1, y1), (x, y), color=color)
-            axes.add_patch(plt.Circle((x, y), 3, color=color))
+            axes.add_patch(plt.Circle((x, y), 2, color=color))
             axes.text(0, 10 if color == 'b' else 20, f'{np.rad2deg(a):.3f}', fontsize=12, color=color)
 
         plt.title(save.name[:50])
