@@ -4,8 +4,8 @@ import click
 import wandb
 
 from reconai import version
-from .parameters import TrainParameters, TestParameters
-from .reconstruction import train as train_reconstruction
+from .parameters import ModelTrainParameters, ModelParameters
+from .reconstruction import train as train_reconstruction, reconstruct
 from .segmentation import (train as train_segmentation,
                            nnunet2_prepare_nnunet, nnunet2_find_best_configuration, nnUNet_dataset_name)
 from .test import test
@@ -26,7 +26,7 @@ def cli():
               help='Config .yaml file. If undefined, use the config_debug.yaml file.')
 @click.option('--wandb_api', type=str, required=True, help='wandb api key')
 def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
-    params = TrainParameters(in_dir, out_dir, config)
+    params = ModelTrainParameters(in_dir, out_dir, config)
     if wandb_api:
         wandb.login(key=wandb_api)
         wandb.init(project='FastIMRI-ReconAI',
@@ -37,6 +37,22 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
 
     train_reconstruction(params)
     wandb.finish()
+
+
+@cli.command(name='reconstruct')
+@click.option('--in_dir', type=Path, required=True,
+              help='Test data directory.')
+@click.option('--model_dir', type=Path, required=True,
+              help='Trained model directory.')
+@click.option('--out_dir', type=Path, required=True,
+              help='Test data directory.')
+def reconai_reconstruct(in_dir: Path, model_dir: Path, out_dir: Path):
+    assert in_dir != out_dir
+    out_dir.mkdir(parents=True)
+    with reconstruct(ModelParameters(in_dir, model_dir)) as r:
+        for file in in_dir.iterdir():
+            if file.suffix == '.mha':
+                r(file, out_dir / file.name)
 
 
 @cli.command(name='train_segmentation')
@@ -73,7 +89,7 @@ def reconai_train_segmentation(in_dir: Path, annotations_dir: Path, out_dir: Pat
 @click.option('--debug', is_flag=True, hidden=True, default=False)
 def reconai_test(in_dir: Path, model_dir: Path, nnunet_dir: Path, annotations_dir: Path, model_name: str, tag: str, debug: bool = False):
     assert not ((nnunet_dir is None) ^ (annotations_dir is None)), '--nnunet_dir AND --annotations_dir need be defined'
-    params = TestParameters(in_dir, model_dir, model_name, tag)
+    params = ModelParameters(in_dir, model_dir, model_name, tag)
     test(params, nnunet_dir, annotations_dir, debug)
 
 

@@ -130,7 +130,7 @@ class Parameters:
 
 
 @dataclass
-class TrainParameters(Parameters):
+class ModelTrainParameters(Parameters):
     in_dir_: InitVar[Path] = None
     out_dir_: InitVar[Path] = None
     yaml_file: InitVar[Path | str] = None
@@ -171,7 +171,7 @@ class TrainParameters(Parameters):
 
 
 @dataclass
-class TestParameters(Parameters):
+class ModelParameters(Parameters):
     in_dir_: InitVar[Path] = None
     model_dir: InitVar[Path] = None
     model_name: InitVar[str] = None

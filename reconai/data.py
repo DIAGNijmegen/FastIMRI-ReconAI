@@ -21,7 +21,7 @@ class Dataset(torch.utils.data.Dataset):
         self._as_float32 = as_float32
         self._normalize = normalize
         if len(self._data_paths) == 0:
-            raise ValueError(f'no .mha files found at {data_dir}!')
+            raise ValueError(f'no .mha files found in {data_dir}!')
 
         z = self._image(self._data_paths[0]).shape[0]
         if sequence_len > 1:

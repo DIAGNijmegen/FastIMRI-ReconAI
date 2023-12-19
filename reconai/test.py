@@ -12,14 +12,14 @@ from reconai import version
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
-from reconai.parameters import TestParameters
+from reconai.parameters import ModelParameters
 from reconai.print import print_log, print_version
 from reconai.predict import predict, prediction_strategies, Prediction
 from reconai.random import rng
 from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir, nnunet2_prepare_nnunet
 
 
-def test(params: TestParameters, nnunet_dir: Path, annotations_dir: Path, debug: bool = False):
+def test(params: ModelParameters, nnunet_dir: Path, annotations_dir: Path, debug: bool = False):
     print_version(params.meta.name)
 
     version_re = r'(\d+)\.(\d+)\.(\d+)'

@@ -1,18 +1,22 @@
 import json
 import subprocess
+import tempfile
+from typing import Callable
 from datetime import datetime
 from pathlib import Path
+from contextlib import contextmanager
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 import torch.utils.data as torch_data
 import wandb
+import SimpleITK as sitk
 
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
 from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
-from reconai.parameters import TrainParameters
+from reconai.parameters import ModelTrainParameters, ModelParameters
 from reconai.print import print_log, print_version
 from reconai.random import rng
 
@@ -29,7 +33,7 @@ def view(x: torch.Tensor):
     plt.show()
 
 
-def train_optimizer_scheduler(params: TrainParameters, network: CRNNMRI) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.SequentialLR]:
+def train_optimizer_scheduler(params: ModelTrainParameters, network: CRNNMRI) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.SequentialLR]:
     optimizer = torch.optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
 
     warmup = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1/params.train.lr_warmup, total_iters=params.train.lr_warmup)
@@ -40,7 +44,49 @@ def train_optimizer_scheduler(params: TrainParameters, network: CRNNMRI) -> tupl
     return optimizer, scheduler
 
 
-def train(params: TrainParameters):
+@contextmanager
+def reconstruct(params: ModelParameters):
+    print_version(params.meta.name)
+
+    network = CRNNMRI(n_ch=params.model.channels,
+                      nf=params.model.filters,
+                      ks=params.model.kernelsize,
+                      nc=params.model.iterations,
+                      nd=params.model.layers,
+                      bcrnn=params.model.bcrnn
+                      ).cuda()
+
+    network.load_state_dict(torch.load(params.npz))
+    network.eval()
+
+    # multiple = params.data.sequence_length > 1
+    rng(params.data.seed)
+    torch.manual_seed(params.data.seed)
+
+    def func(file: Path, out: Path):
+        assert file.suffix == '.mha'
+        with tempfile.TemporaryDirectory() as tempdir:
+            tempdir = Path(tempdir)
+            (tempdir / 'scan.mha').symlink_to(file.resolve())
+            with torch.no_grad():
+                datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
+                for piece in datapiece:
+                    im_u, k_u, mask, _ = preprocess_as_variable(piece['data'], params.data.undersampling)
+                    for i in range(len(piece['paths'])):
+                        j = i + 1
+                        pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
+                        sitk_image = sitk.GetImageFromArray(pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1))
+                        sitk.WriteImage(sitk_image, out.resolve())
+
+    try:
+        yield func
+    finally:
+        del network
+        torch.cuda.empty_cache()
+
+
+
+def train(params: ModelTrainParameters):
     print_version(params.meta.name)
     print_log(str(params))
 
