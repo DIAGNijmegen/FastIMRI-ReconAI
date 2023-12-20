@@ -63,8 +63,7 @@ def nnunet2_segment(in_dir: Path, nnunet_dir: Path, out_dir: Path):
 
     selected_model = inference_information['best_model_or_ensemble']['selected_model_or_models'][0]
     config, plans, trainer = selected_model['configuration'], selected_model['plans_identifier'], selected_model['trainer']
-    folds = re.search(r'(\d)[\\/]+plans.json',
-                      Path(inference_information['best_model_or_ensemble']['some_plans_file']).as_posix()).group(1)
+    folds = [str(f) for f in inference_information['folds']]
 
     args = ['-d', nnUNet_dataset_name, '-i', in_dir.as_posix(), '-o', out_dir.as_posix(),
             '-f', *folds, '-c', config, '-tr', trainer, '-p', plans]
