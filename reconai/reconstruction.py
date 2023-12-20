@@ -85,7 +85,6 @@ def reconstruct(params: ModelParameters):
         torch.cuda.empty_cache()
 
 
-
 def train(params: ModelTrainParameters):
     print_version(params.meta.name)
     print_log(str(params))

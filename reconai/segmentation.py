@@ -27,21 +27,24 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
         out_dir = in_dir
     else:
         nnunet2_prepare_data(in_dir, annotation_dir, out_dir)
+    nnUNet_base, nnUNet_sync = (d.resolve().as_posix() for d in (out_dir, sync_dir))
 
     # out_dir is the parent of nnUNet_raw
     preprocess_dir = out_dir / nnUNet_dirnames[1]
     if preprocess_dir.exists() and not existing:
         shutil.rmtree(preprocess_dir)
 
+    with open(nnUNet_base / 'locals.json') as f:
+        json.dump({key: str(value) for key, value in locals().items() if not key.startswith('_')}, f)
+
     nnunet2_prepare_nnunet(out_dir, sync_dir)
     nnunet2_plan_and_preprocess(existing)
-    nnunet2_train(configs := ['2d'] if debug else ['2d', '3d_fullres'],
+    nnunet2_train(configs := ['2d'],# if debug else ['2d', '3d_fullres'],
                   folds := ['0'] if debug else [str(f) for f in range(folds)],
                   gpus, existing,
                   debug)
     nnunet2_find_best_configuration(configs, folds, debug)
     if sync_dir:
-        nnUNet_base, nnUNet_sync = (d.resolve().as_posix() for d in (out_dir, sync_dir))
         if os.name == 'nt':
             subprocess.run(['robocopy', nnUNet_base, nnUNet_sync, '/E', '/SL', '/XD', nnUNet_sync])
         else:
