@@ -23,7 +23,7 @@ class Dataset(torch.utils.data.Dataset):
         if len(self._data_paths) == 0:
             raise ValueError(f'no .mha files found in {data_dir}!')
 
-        img, _, _ = self._image(self._data_paths[0])
+        img, _, _, _ = self._image(self._data_paths[0])
         z = img.shape[0]
         if sequence_len > 1:
             self._data_len = len(self._data_paths)
