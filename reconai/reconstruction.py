@@ -75,7 +75,10 @@ def reconstruct(params: ModelParameters):
                     for i in range(len(piece['paths'])):
                         j = i + 1
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
+
                         sitk_image = sitk.GetImageFromArray(pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1))
+                        sitk_image.SetOrigin([float(o[i]) for o in piece['origin']])
+                        sitk_image.SetDirection([float(d[i]) for d in piece['direction']])
                         sitk.WriteImage(sitk_image, out.resolve())
 
     try:

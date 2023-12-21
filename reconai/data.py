@@ -23,7 +23,8 @@ class Dataset(torch.utils.data.Dataset):
         if len(self._data_paths) == 0:
             raise ValueError(f'no .mha files found in {data_dir}!')
 
-        z = self._image(self._data_paths[0]).shape[0]
+        img, _, _ = self._image(self._data_paths[0])
+        z = img.shape[0]
         if sequence_len > 1:
             self._data_len = len(self._data_paths)
             self._s = (z - sequence_len) // 2
@@ -46,17 +47,20 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         file = str(self._data_paths[idx])
-        img = self._image(file)
+        img, origin, direction = self._image(file)
+        item = {"paths": file, "origin": origin, "direction": direction}
         if self._s == self._e:
             i = int(idx // (len(self) / self._s))
-            return {"paths": file, "data": self._normal(img)[i:i+1], "slice": i}
+            return item | {"data": self._normal(img)[i:i+1], "slice": i}
         else:
-            return {"paths": file, "data": self._normal(img)[self._s:self._e], "slice": -1}
+            return item | {"data": self._normal(img)[self._s:self._e], "slice": -1}
 
-    def _image(self, file: Path | str):
+    def _image(self, file: Path | str) -> tuple[np.ndarray, tuple, tuple]:
         ifr = sitk.ImageFileReader()
         ifr.SetFileName(str(file))
-        return sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64')
+        return (sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64'),
+                ifr.GetOrigin(),
+                ifr.GetDirection())
 
     def _normal(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
         if self._normalize > 0:

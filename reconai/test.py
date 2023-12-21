@@ -110,6 +110,8 @@ def test(params: ModelParameters, nnunet_dir: Path, annotations_dir: Path, debug
                 if nnunet_enabled:
                     # prepare images as mha for nnunet
                     sitk_image = sitk.GetImageFromArray(pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1))
+                    sitk_image.SetOrigin([float(o[i]) for o in batch['origin']])
+                    sitk_image.SetDirection([float(d[i]) for d in batch['direction']])
                     sitk.WriteImage(sitk_image,
                                     nnunet_out / (path.name if params.data.sequence_length > 1 else f'{key}_0000.mha'))
 
