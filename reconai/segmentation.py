@@ -35,7 +35,7 @@ def train(in_dir: Path, annotation_dir: Path, out_dir: Path, sync_dir: Path, fol
         shutil.rmtree(preprocess_dir)
 
     with open(f'{nnUNet_base}/locals.json', 'w') as f:
-        json.dump({key: str(value) for key, value in locals().items() if not key.startswith('_')}, f)
+        json.dump({key: str(value) for key, value in locals().items() if not key.startswith('_')}, f, indent=2)
 
     nnunet2_prepare_nnunet(out_dir, sync_dir)
     nnunet2_plan_and_preprocess(existing)
