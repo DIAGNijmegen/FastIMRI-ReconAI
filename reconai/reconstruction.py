@@ -79,6 +79,7 @@ def reconstruct(params: ModelParameters):
                         sitk_image = sitk.GetImageFromArray(pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1))
                         sitk_image.SetOrigin([float(o[i]) for o in piece['origin']])
                         sitk_image.SetDirection([float(d[i]) for d in piece['direction']])
+                        sitk_image.SetSpacing([float(d[i]) for d in piece['spacing']])
                         sitk.WriteImage(sitk_image, out.resolve())
 
     try:

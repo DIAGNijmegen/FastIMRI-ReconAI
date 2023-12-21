@@ -47,20 +47,19 @@ class Dataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx):
         file = str(self._data_paths[idx])
-        img, origin, direction = self._image(file)
-        item = {"paths": file, "origin": origin, "direction": direction}
+        img, origin, direction, spacing = self._image(file)
+        item = {"paths": file, "origin": origin, "direction": direction, "spacing": spacing}
         if self._s == self._e:
             i = int(idx // (len(self) / self._s))
             return item | {"data": self._normal(img)[i:i+1], "slice": i}
         else:
             return item | {"data": self._normal(img)[self._s:self._e], "slice": -1}
 
-    def _image(self, file: Path | str) -> tuple[np.ndarray, tuple, tuple]:
+    def _image(self, file: Path | str) -> tuple[np.ndarray, tuple, tuple, tuple]:
         ifr = sitk.ImageFileReader()
         ifr.SetFileName(str(file))
         return (sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64'),
-                ifr.GetOrigin(),
-                ifr.GetDirection())
+                ifr.GetOrigin(), ifr.GetDirection(), ifr.GetSpacing())
 
     def _normal(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
         if self._normalize > 0:
