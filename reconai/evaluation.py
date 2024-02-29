@@ -91,7 +91,7 @@ class Evaluation:
         ]
         self._getitem = {crit.name: c for c, crit in enumerate(self._criterions)}
 
-        self._keys: dict[str, dict[str, float]] = {}
+        self._results: dict[str, dict[str, float]] = {}
         self._loss_only = loss_only
         self._start: datetime | None = None
 
@@ -101,7 +101,11 @@ class Evaluation:
 
     @property
     def criterion_value_per_key(self) -> dict[str, dict[str, float]]:
-        return self._keys
+        return self._results
+
+    def _add_dict_to_results(self, key: str, dictionary: dict):
+        if key:
+            self._results[key] = self._results.get(key, {}) | dictionary
 
     def criterion_stats(self, name: str) -> tuple[float, float, float]:
         if self._loss_only and name != 'loss':
@@ -118,16 +122,20 @@ class Evaluation:
         crit_dice = self._criterions[self._getitem['dice']]
         crit_dice.calculate(pred, gnd)
         if key:
-            self._keys[key] = self._keys.get(key, {}) | {'dice': crit_dice.result.item()}
+            self._add_dict_to_results(key, {'dice': crit_dice.result.item()})
 
     def calculate_target_direction(self, pred, gnd, spacing: tuple[float, float] = (1, 1), strategy: str = None, key: str = None):
         prediction = predict(pred, gnd, strategy=strategy)
         target, direction = prediction.error(spacing=spacing)
-        for item, error in zip(['target', 'direction'], [target, direction]):
+        self._add_dict_to_results(key, {'target_gnd': prediction.gnd_target, 'direction_gnd': prediction.gnd_target})
+        for item, pred, error in zip(['target', 'direction'],
+                                     [prediction.pred_target, prediction.pred_angle],
+                                     [target, direction]):
             crit = self._criterions[self._getitem[item]]
             crit.calculate(error, torch.tensor(0))
             if key:
-                self._keys[key] = self._keys.get(key, {}) | {f'{item}_{strategy}': crit.result.item()}
+                stats = {f'{item}_{strategy}': crit.result.item(), f'{item}_pred_{strategy}': pred}
+                self._add_dict_to_results(key, stats)
 
     def calculate_reconstruction(self, pred: torch.Tensor, gnd: torch.Tensor, key: str = None):
         """
@@ -149,7 +157,7 @@ class Evaluation:
 
         if key:
             stats = {crit.name: crit.result.item() for crit in self._criterions if crit.result is not None}
-            self._keys[key] = self._keys.get(key, {}) | stats
+            self._add_dict_to_results(key, stats)
 
     def _weighted_loss(self, pred, _) -> torch.Tensor:
         loss_sum = torch.tensor(0, device='cuda', dtype=pred.dtype)

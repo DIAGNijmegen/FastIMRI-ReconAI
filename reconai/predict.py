@@ -14,10 +14,26 @@ class Prediction:
     def __init__(self, blob: np.ndarray, gnd: tuple[int, int, float], pred: tuple[int, int, float]):
         self._blob = blob.squeeze()
         self._gnd_target = np.array(gnd[:2], np.int32)
-        self._gnd_angle = np.array(gnd[-1], np.int32)
+        self._gnd_angle = np.array(gnd[-1], np.float32)
         self._pred_target = np.array(pred[:2], np.int32)
-        self._pred_angle = np.array(pred[-1], np.int32)
+        self._pred_angle = np.array(pred[-1], np.float32)
         self._failed = sum(pred) == 0
+
+    @property
+    def gnd_angle(self) -> float:
+        return -1 if self._failed else float(self._gnd_angle)
+
+    @property
+    def gnd_target(self) -> tuple[int, int]:
+        return (-1, -1) if self._failed else tuple(self._gnd_target.tolist())
+
+    @property
+    def pred_angle(self) -> float:
+        return -1 if self._failed else float(self._pred_angle)
+
+    @property
+    def pred_target(self) -> tuple[int, int]:
+        return (-1, -1) if self._failed else tuple(self._pred_target.tolist())
 
     @property
     def failed(self) -> bool:
