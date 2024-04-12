@@ -45,14 +45,14 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
 @click.option('--model_dir', type=Path, required=True,
               help='Trained model directory.')
 @click.option('--out_dir', type=Path, required=True,
-              help='Test data directory.')
+              help='Results directory.')
 def reconai_reconstruct(in_dir: Path, model_dir: Path, out_dir: Path):
     assert in_dir != out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    with reconstruct(ModelParameters(in_dir, model_dir)) as r:
+    with reconstruct(ModelParameters(in_dir, model_dir)) as recon:
         for file in in_dir.iterdir():
             if file.suffix == '.mha':
-                r(file, out_dir / file.name)
+                recon(file, out_dir / file.name)
 
 
 @cli.command(name='train_segmentation')

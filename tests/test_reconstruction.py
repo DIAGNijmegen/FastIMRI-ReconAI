@@ -30,3 +30,12 @@ def test_reconstruct():
               in_dir='./tests/input/images',
               model_dir=f'./tests/output/{model}',
               out_dir='./tests/output')
+
+
+def test_reconstruct_kspace():
+    model = '20230830T1030_CRNN-MRI_R2_E3_DEBUG'
+    prepare_output_dir(model)
+    run_click(reconai_reconstruct,
+              in_dir='./tests/input/kspace',
+              model_dir=f'./tests/output/{model}',
+              out_dir='./tests/output')

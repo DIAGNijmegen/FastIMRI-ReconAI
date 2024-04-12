@@ -67,7 +67,7 @@ def reconstruct(params: ModelParameters):
         assert file.suffix == '.mha'
         with tempfile.TemporaryDirectory() as tempdir:
             tempdir = Path(tempdir)
-            (tempdir / 'scan.mha').symlink_to(file.resolve())
+            (tempdir / 'scan' + file.suffix).symlink_to(file.resolve())
             with torch.no_grad():
                 datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
                 for piece in datapiece:
