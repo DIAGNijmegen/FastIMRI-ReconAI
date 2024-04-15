@@ -44,6 +44,23 @@ def train_optimizer_scheduler(params: ModelTrainParameters, network: CRNNMRI) ->
     return optimizer, scheduler
 
 
+def reconstruct_stream(params: ModelParameters):
+    print_version(params.meta.name)
+
+    network = CRNNMRI(n_ch=params.model.channels,
+                      nf=params.model.filters,
+                      ks=params.model.kernelsize,
+                      nc=params.model.iterations,
+                      nd=params.model.layers,
+                      bcrnn=params.model.bcrnn
+                      ).cuda()
+
+    network.load_state_dict(torch.load(params.npz))
+    network.eval()
+
+
+
+
 @contextmanager
 def reconstruct(params: ModelParameters):
     print_version(params.meta.name)
@@ -64,10 +81,9 @@ def reconstruct(params: ModelParameters):
     torch.manual_seed(params.data.seed)
 
     def func(file: Path, out: Path):
-        assert file.suffix == '.mha'
         with tempfile.TemporaryDirectory() as tempdir:
             tempdir = Path(tempdir)
-            (tempdir / 'scan' + file.suffix).symlink_to(file.resolve())
+            (tempdir / ('scan' + file.suffix)).symlink_to(file.resolve())
             with torch.no_grad():
                 datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
                 for piece in datapiece:
@@ -84,6 +100,8 @@ def reconstruct(params: ModelParameters):
 
     try:
         yield func
+    except Exception as e:
+        raise e
     finally:
         del network
         torch.cuda.empty_cache()
