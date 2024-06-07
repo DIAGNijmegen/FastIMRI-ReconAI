@@ -1,10 +1,13 @@
 import json
+import logging
 from pathlib import Path
 
 from click.testing import CliRunner
+import numpy as np
 
 from conftest import run_click, prepare_output_dir
 from reconai.__main__ import reconai_train_reconstruction, reconai_reconstruct
+from reconai.fire import FireReconstruct
 
 runner = CliRunner()
 
@@ -39,3 +42,17 @@ def test_reconstruct_kspace():
               in_dir='./tests/input/kspace',
               model_dir=f'./tests/output/{model}',
               out_dir='./tests/output')
+
+
+def test_fire_module():
+    logger = logging.getLogger('test_fire_module')
+    logger.setLevel(logging.DEBUG)
+    logger.addHandler(logging.StreamHandler())
+
+    module = FireReconstruct()
+    module.logger = logger
+    module.load(model_dir='tests/input/realtime/')
+    array = np.load(Path('tests/input/realtime/imri_trufitrans_realtime.npy'))
+    for result in module.run(array, {}):
+        pass
+

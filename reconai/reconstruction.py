@@ -59,8 +59,6 @@ def reconstruct_stream(params: ModelParameters):
     network.eval()
 
 
-
-
 @contextmanager
 def reconstruct(params: ModelParameters):
     print_version(params.meta.name)

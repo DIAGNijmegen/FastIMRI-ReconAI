@@ -167,4 +167,4 @@ reconai/model/train-ignite.py
 /wandb
 /tests/output
 secrets.json
-/tests/input/kspace
+/tests/input/realtime

@@ -10,7 +10,7 @@ if __name__ == '__main__':
         e.msg += '\npip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121'
         raise e
 
-    if not torch.has_cuda:
+    if not torch.backends.cuda.is_built():
         print('WARNING: No CUDA installed!')
 
     setup(
@@ -30,7 +30,7 @@ if __name__ == '__main__':
             'SimpleITK~=2.2.1',
             'scipy~=1.10.1',
             'pandas~=1.5.3',
-            'opencv-python~=4.7.0.72',
+            'opencv-python~=4.7',
             'scikit-learn~=1.2.2',
             'scikit-image~=0.21.0',
             'PyYAML~=6.0',
@@ -46,6 +46,9 @@ if __name__ == '__main__':
                 'pytest-click',
                 'coverage',
                 'flake8'
+            ],
+            'fire': [
+                'fire @ git+https://github.com/DIAGNijmegen/FastIMRI-FIRE.git'
             ]
         },
         entry_points={
