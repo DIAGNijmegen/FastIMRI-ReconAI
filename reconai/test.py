@@ -10,11 +10,11 @@ from PIL import Image
 
 from reconai import version
 from reconai.data import preprocess_as_variable, DataLoader, Dataset
-from reconai.evaluation import Evaluation
+from reconai.evaluation import Evaluation, Prediction, predict
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import ModelParameters
 from reconai.print import print_log, print_version
-from reconai.predict import predict, prediction_strategies, Prediction
+# from reconai.predict import predict, prediction_strategies, Prediction
 from reconai.random import rng
 from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir, nnunet2_prepare_nnunet
 
@@ -148,7 +148,7 @@ def test(params: ModelParameters, nnunet_dir: Path, annotations_dir: Path, debug
 
                         spacing = mha.GetSpacing()[:2]
                         if multiple or slice_gnd == s:
-                            for strategy in prediction_strategies:
+                            for strategy in Prediction.STRATEGIES:
                                 pred_single = pred[slice_gnd] if multiple else pred
                                 key = f'{path_pred.stem}_{slice_gnd}' if multiple else path_pred.stem
                                 evaluator_slice.calculate_target_direction(pred_single, target_direction_gnd,

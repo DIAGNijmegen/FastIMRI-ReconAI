@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 
 from conftest import run_click, prepare_output_dir
 from reconai.__main__ import reconai_test
-from reconai.predict import predict, prediction_strategies
+from reconai.evaluation import predict, Prediction
 
 runner = CliRunner()
 
@@ -47,6 +47,7 @@ def test_predict():
     output_dir = Path('./tests/output')
     output_dir.mkdir(exist_ok=True)
 
+    prediction_strategies = Prediction.STRATEGIES
     results = {strat: [] for strat in prediction_strategies}
     for i, file in enumerate(Path('./tests/input/annotations').iterdir()):
         if file.suffix == '.mha':
