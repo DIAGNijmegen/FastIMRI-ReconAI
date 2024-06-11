@@ -21,42 +21,16 @@ from reconai.print import print_log, print_version
 from reconai.random import rng
 
 
-def get_gpu_memory():
-    command = "nvidia-smi --query-gpu=memory.free --format=csv"
-    memory_free_info = subprocess.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
-    memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
-    return memory_free_values
-
-
-def view(x: torch.Tensor):
-    plt.imshow(x.cpu(), cmap='gray')
-    plt.show()
-
-
-def train_optimizer_scheduler(params: ModelTrainParameters, network: CRNNMRI) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.SequentialLR]:
-    optimizer = torch.optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
-
-    warmup = torch.optim.lr_scheduler.LinearLR(optimizer, start_factor=1/params.train.lr_warmup, total_iters=params.train.lr_warmup)
-    decay = torch.optim.lr_scheduler.ExponentialLR(optimizer, gamma=params.train.lr_gamma)
-    # plateau = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, cooldown=5, verbose=True)
-
-    scheduler = torch.optim.lr_scheduler.SequentialLR(optimizer, [warmup, decay], milestones=[params.train.lr_warmup])
-    return optimizer, scheduler
-
-
-def reconstruct_stream(params: ModelParameters):
-    print_version(params.meta.name)
-
-    network = CRNNMRI(n_ch=params.model.channels,
-                      nf=params.model.filters,
-                      ks=params.model.kernelsize,
-                      nc=params.model.iterations,
-                      nd=params.model.layers,
-                      bcrnn=params.model.bcrnn
-                      ).cuda()
-
-    network.load_state_dict(torch.load(params.npz))
-    network.eval()
+# def get_gpu_memory():
+#     command = "nvidia-smi --query-gpu=memory.free --format=csv"
+#     memory_free_info = subprocess.check_output(command.split()).decode('ascii').split('\n')[:-1][1:]
+#     memory_free_values = [int(x.split()[0]) for i, x in enumerate(memory_free_info)]
+#     return memory_free_values
+#
+#
+# def view(x: torch.Tensor):
+#     plt.imshow(x.cpu(), cmap='gray')
+#     plt.show()
 
 
 @contextmanager
@@ -128,7 +102,17 @@ def train(params: ModelTrainParameters):
                       nd=params.model.layers,
                       bcrnn=params.model.bcrnn
                       ).cuda()
-    optimizer, scheduler = train_optimizer_scheduler(params, network)
+
+    def train_optimizer_scheduler() -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.SequentialLR]:
+        o = torch.optim.Adam(network.parameters(), lr=float(params.train.lr), betas=(0.5, 0.999))
+
+        warmup = torch.optim.lr_scheduler.LinearLR(o, start_factor=1 / params.train.lr_warmup, total_iters=params.train.lr_warmup)
+        decay = torch.optim.lr_scheduler.ExponentialLR(o, gamma=params.train.lr_gamma)
+        # plateau = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, cooldown=5, verbose=True)
+
+        return optimizer, torch.optim.lr_scheduler.SequentialLR(o, [warmup, decay], milestones=[params.train.lr_warmup])
+
+    optimizer, scheduler = train_optimizer_scheduler()
 
     print_log(f'trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}',
               f'data: {len(dataset_full)} items',

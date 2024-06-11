@@ -14,7 +14,6 @@ from reconai.evaluation import Evaluation, Prediction, predict
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import ModelParameters
 from reconai.print import print_log, print_version
-# from reconai.predict import predict, prediction_strategies, Prediction
 from reconai.random import rng
 from reconai.segmentation import nnunet2_segment, nnunet2_verify_results_dir, nnunet2_prepare_nnunet
 
