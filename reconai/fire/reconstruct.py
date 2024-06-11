@@ -2,6 +2,7 @@ from pathlib import Path
 
 import numpy as np
 import torch
+import cv2
 
 from fire.module import FireModule
 from ..parameters import ModelParameters
@@ -16,6 +17,8 @@ class FireReconstruct(FireModule):
         super().__init__()
         self._params: ModelParameters | None = None
         self._network: CRNNMRI | None = None
+        self._export: np.ndarray = np.ndarray(0, dtype=np.float32)
+        self._export_i: int = 0
 
     def load(self, **kwargs):
         model_dir = Path(kwargs['model_dir'])
@@ -37,6 +40,11 @@ class FireReconstruct(FireModule):
         self._params = params
 
     def run(self, data: np.ndarray, metadata: dict) -> None | np.ndarray | dict | tuple[np.ndarray, dict]:
+        """
+        Accepts data of shape t, y, x of dtype complex64, yields data of shape y, x of dtype float32
+
+        This undersamples such that the undersampling is equal to the model's trained undersampling rate.
+        """
         sampled_rows = np.abs(data[0, :, 0]) > 0
         target_rows = data.shape[1] / self._params.data.undersampling
         actual_rows = sampled_rows.sum()
@@ -50,39 +58,37 @@ class FireReconstruct(FireModule):
                 data[t, m2i_mask.astype(np.integer)] = 0
 
         params_shape = (self._params.data.shape_y, self._params.data.shape_y)
-        if params_shape != data.shape[1:]:
-            data_ = np.ndarray(shape=(data.shape[0], *params_shape), dtype=data.dtype)
-            crop = [(a - b) // 2 for a, b in zip(data.shape[1:], params_shape)]
-            for t in range(data.shape[0]):
-                i = np.fft.ifftshift(np.fft.ifft2(data[t]))
-                i = i[crop[0]:crop[0] + params_shape[0], crop[1]:crop[1] + params_shape[1]]
-                data_[t] = np.fft.fft2(np.fft.fftshift(i))
-            data = data_
+        data_ = np.ndarray(shape=(data.shape[0], *params_shape), dtype=data.dtype)
+        crop = [(a - b) // 2 for a, b in zip(data.shape[1:], params_shape)]
+        for t in range(data.shape[0]):
+            i = np.fft.ifftshift(np.fft.ifft2(data[t]))
+            data_[t] = i[crop[0]:crop[0] + params_shape[0], crop[1]:crop[1] + params_shape[1]]
 
-        result = np.ndarray(shape=(data.shape[0], *params_shape))
+        data = np.expand_dims(data_, axis=0)
+        win, dow = 0, self._params.data.sequence_length
         with torch.no_grad():
-            data = np.expand_dims(data, axis=0)
-            win, dow = 0, self._params.data.sequence_length
-            while dow <= data.shape[1]:
-                im, k, mask, _ = preprocess_as_variable(data[win:dow], acceleration=1)
+            while dow <= data.shape[1] and win < 5:
+                im, k, mask, _ = preprocess_as_variable(data[:, win:dow], acceleration=1)
+
+                # self._export = im[0, 0, :, :, -1].cpu().numpy()
+                # self._export_i = win
+                # yield self._export
+                #
+                # win += 1
+                # dow += 1
+
                 pred, _ = self._network(im, k, mask, test=True)
+
+                self._export = pred[0, 0, :, :, -1].cpu().numpy()
+                self._export_i = win
+                yield self._export
+
                 win += 1
                 dow += 1
-            pass
-            # datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
-            # for piece in datapiece:
-            #     im_u, k_u, mask, _ = preprocess_as_variable(piece['data'], params.data.undersampling)
-            #     for i in range(len(piece['paths'])):
-            #         j = i + 1
-            #         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
-            #
-            #         sitk_image = sitk.GetImageFromArray(pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1))
-            #         sitk_image.SetOrigin([float(o[i]) for o in piece['origin']])
-            #         sitk_image.SetDirection([float(d[i]) for d in piece['direction']])
-            #         sitk_image.SetSpacing([float(d[i]) for d in piece['spacing']])
-            #         sitk.WriteImage(sitk_image, out.resolve())
-
         yield None
 
     def export(self, export_dir: Path):
-        pass
+        array_min, array_max = self._export.min(), self._export.max() + np.finfo(self._export.dtype).eps
+        array_norm = (self._export - array_min) / (array_max - array_min)
+        array_uint8 = (np.clip(array_norm, 0, 1) * 255).astype(np.uint8)
+        cv2.imwrite((export_dir / f'{self._params.meta.name}.{self._export_i}.png').as_posix(), array_uint8)

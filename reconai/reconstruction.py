@@ -85,7 +85,7 @@ def reconstruct(params: ModelParameters):
             with torch.no_grad():
                 datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
                 for piece in datapiece:
-                    im_u, k_u, mask, _ = preprocess_as_variable(piece['data'], params.data.undersampling)
+                    im_u, k_u, mask, _ = preprocess_as_variable(piece['data'].numpy(), params.data.undersampling)
                     for i in range(len(piece['paths'])):
                         j = i + 1
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
@@ -169,7 +169,7 @@ def train(params: ModelTrainParameters):
 
             network.train()
             for batch in DataLoader(dataset_train, batch_size=params.train.batch_size, indices=indices):
-                im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
+                im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'].numpy(), params.data.undersampling)
                 for i in range(len(batch['paths'])):
                     j = i + 1
                     optimizer.zero_grad()

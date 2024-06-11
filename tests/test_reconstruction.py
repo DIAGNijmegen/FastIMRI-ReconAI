@@ -4,6 +4,7 @@ from pathlib import Path
 
 from click.testing import CliRunner
 import numpy as np
+import imageio
 
 from conftest import run_click, prepare_output_dir
 from reconai.__main__ import reconai_train_reconstruction, reconai_reconstruct
@@ -45,6 +46,8 @@ def test_reconstruct_kspace():
 
 
 def test_fire_module():
+    output_dir, = prepare_output_dir('fire_module')
+
     logger = logging.getLogger('test_fire_module')
     logger.setLevel(logging.DEBUG)
     logger.addHandler(logging.StreamHandler())
@@ -52,7 +55,8 @@ def test_fire_module():
     module = FireReconstruct()
     module.logger = logger
     module.load(model_dir='tests/input/realtime/')
+    # module.expo
     array = np.load(Path('tests/input/realtime/imri_trufitrans_realtime.npy'))
-    for result in module.run(array, {}):
-        pass
+    for _ in module.run(array, {}):
+        module.export(Path(output_dir))
 

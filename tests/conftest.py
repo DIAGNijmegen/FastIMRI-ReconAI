@@ -29,6 +29,10 @@ def prepare_output_dir(*dirnames_to_copy: str):
         else:
             os.remove(path)
 
+    outputs = []
     for path_expected in Path('./tests/output_expected').iterdir():
         if path_expected.name in dirnames_to_copy:
-            shutil.copytree(path_expected, f'./tests/output/{path_expected.name}')
+            outputs.append(f'./tests/output/{path_expected.name}')
+            shutil.copytree(path_expected, outputs[-1])
+
+    return tuple(outputs)
