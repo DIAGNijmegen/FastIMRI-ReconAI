@@ -9,7 +9,7 @@ from ..parameters import ModelParameters
 from ..reconstruction import CRNNMRI
 from ..random import rng
 from ..math.kspace import get_rand_exp_decay_mask
-from ..data import preprocess_as_variable
+from ..data import preprocess_real, preprocess_simulated
 
 
 class FireReconstruct(FireModule):
@@ -45,6 +45,8 @@ class FireReconstruct(FireModule):
 
         This undersamples such that the undersampling is equal to the model's trained undersampling rate.
         """
+        data = data.astype(np.complex128)
+
         sampled_rows = np.abs(data[0, :, 0]) > 0
         target_rows = data.shape[1] / self._params.data.undersampling
         actual_rows = sampled_rows.sum()
@@ -57,18 +59,28 @@ class FireReconstruct(FireModule):
                 m2i_mask: np.ndarray = m2i_mask[m2i_mask > 0]
                 data[t, m2i_mask.astype(np.integer)] = 0
 
-        params_shape = (self._params.data.shape_y, self._params.data.shape_y)
-        data_ = np.ndarray(shape=(data.shape[0], *params_shape), dtype=data.dtype)
-        crop = [(a - b) // 2 for a, b in zip(data.shape[1:], params_shape)]
+        params_shape = (self._params.data.shape_y, self._params.data.shape_x)
+        image = np.ndarray(shape=(data.shape[0], *params_shape), dtype=np.float32)
+        k = np.ndarray(shape=(data.shape[0], *params_shape), dtype=data.dtype)
+        cy, cx = [(a - b) // 2 for a, b in zip(data.shape[1:], params_shape)]
+        norm = []
         for t in range(data.shape[0]):
             i = np.fft.ifftshift(np.fft.ifft2(data[t]))
-            data_[t] = i[crop[0]:crop[0] + params_shape[0], crop[1]:crop[1] + params_shape[1]]
+            i = i[cy:-cy, cx:-cx]
+            # need to normalize here, then shift back to kspace. kspace isnt normalized!
+            image[t] = np.abs(i).astype(np.float32)
+            k[t] = np.fft.fft2(np.fft.fftshift(i))
+            norm.append(np.percentile(image[t], 99))
 
-        data = np.expand_dims(data_, axis=0)
+        norm = np.zeros(shape=image.shape, dtype=np.float32) + np.mean(norm)
+        image = np.expand_dims(np.clip(np.divide(image.astype(np.float32), norm), 0, 1), axis=0)
+        k = np.expand_dims(k, axis=0)
         win, dow = 0, self._params.data.sequence_length
         with torch.no_grad():
             while dow <= data.shape[1] and win < 5:
-                im, k, mask, _ = preprocess_as_variable(data[:, win:dow], acceleration=1)
+                preprocess_simulated(image[:, win:dow], acceleration=1)
+                imageT, kT, maskT = preprocess_real(image[:, win:dow], k[:, win:dow], sampled_rows[cx:-cx])
+
 
                 # self._export = im[0, 0, :, :, -1].cpu().numpy()
                 # self._export_i = win
@@ -77,7 +89,7 @@ class FireReconstruct(FireModule):
                 # win += 1
                 # dow += 1
 
-                pred, _ = self._network(im, k, mask, test=True)
+                pred, _ = self._network(imageT, kT, maskT, test=True)
 
                 self._export = pred[0, 0, :, :, -1].cpu().numpy()
                 self._export_i = win
@@ -92,3 +104,10 @@ class FireReconstruct(FireModule):
         array_norm = (self._export - array_min) / (array_max - array_min)
         array_uint8 = (np.clip(array_norm, 0, 1) * 255).astype(np.uint8)
         cv2.imwrite((export_dir / f'{self._params.meta.name}.{self._export_i}.png').as_posix(), array_uint8)
+
+    @staticmethod
+    def _normal(array: np.ndarray, norm: float, maximum_1: bool = True) -> np.ndarray:
+        norm = np.zeros(array.shape) + norm
+        if maximum_1:
+            return np.clip(np.divide(array, norm), 0, 1)
+        return np.divide(array, norm)

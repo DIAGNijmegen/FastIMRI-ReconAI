@@ -82,19 +82,27 @@ class DataLoader(torch.utils.data.DataLoader):
         return super().__iter__()
 
 
-def preprocess_as_variable(image: np.ndarray, acceleration: float = 4.0) -> (
-        torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor, torch.cuda.FloatTensor):
-    im_und, k_und, mask, im_gnd = preprocess(image, acceleration)
-    im_u = Variable(im_und.type(Module.TensorType))
-    k_u = Variable(k_und.type(Module.TensorType))
-    mask = Variable(mask.type(Module.TensorType))
-    gnd = Variable(im_gnd.type(Module.TensorType))
+def preprocess_real(image: np.ndarray, k: np.ndarray, mask: np.ndarray) -> (torch.Tensor, torch.Tensor, torch.Tensor):
+    assert len(image.shape) == 4
 
-    return im_u, k_u, mask, gnd
+    if mask.ndim == 1 and mask.shape[0] == image.shape[2]:
+        mask = np.tile(mask[None, None, :, None], (*image.shape[:2], 1, image.shape[3]))
+    elif mask.ndim == 2 and mask.shape == image.shape[2:]:
+        # untested
+        mask = np.tile(mask[None, None, :, :], (*image.shape[:2], 1, 1))
+    elif mask.ndim == 3 and mask.shape == image.shape[3:]:
+        mask = np.expand_dims(mask, axis=0)
+    else:
+        mask = np.ones(shape=image.shape, dtype=np.uint8)
+
+    im_und_l = Variable(torch.from_numpy(to_tensor_format(image)).type(Module.TensorType))
+    k_und_l = Variable(torch.from_numpy(to_tensor_format(k, complex=True)).type(Module.TensorType))
+    mask_l = Variable(torch.from_numpy(to_tensor_format(mask).astype(np.uint8)).type(Module.TensorType))
+
+    return im_und_l, k_und_l, mask_l
 
 
-def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (
-        torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
+def preprocess_simulated(image: np.ndarray, acceleration: float = 4.0) -> (torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor):
     """Undersample the batch, then reformat them into what the network accepts.
 
     Parameters
@@ -117,9 +125,9 @@ def preprocess(image: np.ndarray, acceleration: float = 4.0) -> (
             for s_ in range(s):
                 mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3)
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
-    im_gnd_l = torch.from_numpy(to_tensor_format(image))
-    im_und_l = torch.from_numpy(to_tensor_format(im_und))
-    k_und_l = torch.from_numpy(to_tensor_format(k_und, complex=True))
-    mask_l = torch.from_numpy(to_tensor_format(mask))
+    im_gnd_l = Variable(torch.from_numpy(to_tensor_format(image)).type(Module.TensorType))
+    im_und_l = Variable(torch.from_numpy(to_tensor_format(im_und)).type(Module.TensorType))
+    k_und_l = Variable(torch.from_numpy(to_tensor_format(k_und, complex=True)).type(Module.TensorType))
+    mask_l = Variable(torch.from_numpy(to_tensor_format(mask)).type(Module.TensorType))
 
     return im_und_l, k_und_l, mask_l, im_gnd_l

@@ -9,7 +9,7 @@ import torch
 from PIL import Image
 
 from reconai import version
-from reconai.data import preprocess_as_variable, DataLoader, Dataset
+from reconai.data import preprocess_simulated, DataLoader, Dataset
 from reconai.evaluation import Evaluation, Prediction, predict
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import ModelParameters
@@ -86,7 +86,7 @@ def test(params: ModelParameters, nnunet_dir: Path, annotations_dir: Path, debug
         dataloader_test = DataLoader(dataset_test, batch_size=params.train.batch_size)
 
         for batch in dataloader_test:
-            im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
+            im_u, k_u, mask, gnd = preprocess_simulated(batch['data'], params.data.undersampling)
             paths = batch['paths']
             for i in range(len(paths)):
                 j = i + 1

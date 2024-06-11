@@ -13,7 +13,7 @@ import torch.utils.data as torch_data
 import wandb
 import SimpleITK as sitk
 
-from reconai.data import preprocess_as_variable, DataLoader, Dataset
+from reconai.data import preprocess_simulated, DataLoader, Dataset
 from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import ModelTrainParameters, ModelParameters
@@ -59,7 +59,7 @@ def reconstruct(params: ModelParameters):
             with torch.no_grad():
                 datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
                 for piece in datapiece:
-                    im_u, k_u, mask, _ = preprocess_as_variable(piece['data'].numpy(), params.data.undersampling)
+                    im_u, k_u, mask, _ = preprocess_simulated(piece['data'].numpy(), params.data.undersampling)
                     for i in range(len(piece['paths'])):
                         j = i + 1
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
@@ -153,7 +153,7 @@ def train(params: ModelTrainParameters):
 
             network.train()
             for batch in DataLoader(dataset_train, batch_size=params.train.batch_size, indices=indices):
-                im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'].numpy(), params.data.undersampling)
+                im_u, k_u, mask, gnd = preprocess_simulated(batch['data'].numpy(), params.data.undersampling)
                 for i in range(len(batch['paths'])):
                     j = i + 1
                     optimizer.zero_grad()
@@ -167,7 +167,7 @@ def train(params: ModelTrainParameters):
             network.eval()
             with torch.no_grad():
                 for batch in DataLoader(dataset_validate, batch_size=params.train.batch_size, indices=params.train.steps):
-                    im_u, k_u, mask, gnd = preprocess_as_variable(batch['data'], params.data.undersampling)
+                    im_u, k_u, mask, gnd = preprocess_simulated(batch['data'], params.data.undersampling)
                     for i in range(len(batch['paths'])):
                         j = i + 1
                         evaluator_validate.start_timer()

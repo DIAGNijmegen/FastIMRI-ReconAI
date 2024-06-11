@@ -197,15 +197,18 @@ def undersample(x, mask, centred=False, norm='ortho', noise=0):
     """
     assert x.shape == mask.shape
     # zero mean complex Gaussian noise
-    noise_power = noise
-    nz = np.sqrt(.5)*(rng().normal(0, 1, x.shape) + 1j * rng().normal(0, 1, x.shape))
-    nz = nz * np.sqrt(noise_power)
+    if noise > 0:
+        noise_power = noise
+        nz = np.sqrt(.5)*(rng().normal(0, 1, x.shape) + 1j * rng().normal(0, 1, x.shape))
+        nz = nz * np.sqrt(noise_power)
 
-    if norm == 'ortho':
-        # multiplicative factor
-        nz = nz * np.sqrt(np.prod(mask.shape[-2:]))
+        if norm == 'ortho':
+            # multiplicative factor
+            nz = nz * np.sqrt(np.prod(mask.shape[-2:]))
+        else:
+            nz = nz * np.prod(mask.shape[-2:])
     else:
-        nz = nz * np.prod(mask.shape[-2:])
+        nz = np.zeros(shape=x.shape, dtype=x.dtype)
 
     if centred:
         x_f = fourier.fft2c(x)
