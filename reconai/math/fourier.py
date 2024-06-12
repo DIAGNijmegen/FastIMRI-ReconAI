@@ -24,8 +24,7 @@ def fft2c(x, axes=(-2, -1)):
     :return:
     """
     # axes = (len(x.shape)-2, len(x.shape)-1)  # get last 2 axes
-    res = fftshift(fft2(ifftshift(x, axes=axes), norm='ortho'), axes=axes)
-    return res
+    return fftshift(fft2(ifftshift(x, axes=axes), norm='ortho'), axes=axes)
 
 
 def ifft2c(x, axes=(-2, -1)):
@@ -36,8 +35,7 @@ def ifft2c(x, axes=(-2, -1)):
     :param axes: axes to shift
     :return:
     """
-    res = fftshift(ifft2(ifftshift(x, axes=axes), norm='ortho'), axes=axes)
-    return res
+    return fftshift(ifft2(ifftshift(x, axes=axes), norm='ortho'), axes=axes)
 
 
 def fourier_matrix(rows, cols):

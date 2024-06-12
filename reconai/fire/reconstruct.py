@@ -9,6 +9,7 @@ from ..parameters import ModelParameters
 from ..reconstruction import CRNNMRI
 from ..random import rng
 from ..math.kspace import get_rand_exp_decay_mask
+from ..math.fourier import fft2c, ifft2c
 from ..data import preprocess_real, preprocess_simulated
 
 
@@ -41,53 +42,46 @@ class FireReconstruct(FireModule):
 
     def run(self, data: np.ndarray, metadata: dict) -> None | np.ndarray | dict | tuple[np.ndarray, dict]:
         """
-        Accepts data of shape t, y, x of dtype complex64, yields data of shape y, x of dtype float32
+        Accepts data of shape rep, y, x of dtype complex64, yields data of shape y, x of dtype float32
 
         This undersamples such that the undersampling is equal to the model's trained undersampling rate.
         """
         data = data.astype(np.complex128)
+        rep, y, x = data.shape
 
         sampled_rows = np.abs(data[0, :, 0]) > 0
-        target_rows = data.shape[1] / self._params.data.undersampling
         actual_rows = sampled_rows.sum()
+        target_rows = y / self._params.data.undersampling
         if actual_rows > target_rows:
             m2i = [i for i, b in enumerate(sampled_rows) if b]
-            for t in range(data.shape[0]):
+            for t in range(rep):
                 mask = get_rand_exp_decay_mask(actual_rows, 1, target_rows / actual_rows, 1 / 3)
                 m2i_mask = (1 - mask.flatten()) * m2i
                 m2i_mask[0] = 1 if np.all(mask[0] == 0) else 0
                 m2i_mask: np.ndarray = m2i_mask[m2i_mask > 0]
                 data[t, m2i_mask.astype(np.integer)] = 0
 
-        params_shape = (self._params.data.shape_y, self._params.data.shape_x)
-        image = np.ndarray(shape=(data.shape[0], *params_shape), dtype=np.float32)
-        k = np.ndarray(shape=(data.shape[0], *params_shape), dtype=data.dtype)
-        cy, cx = [(a - b) // 2 for a, b in zip(data.shape[1:], params_shape)]
-        norm = []
-        for t in range(data.shape[0]):
-            i = np.fft.ifftshift(np.fft.ifft2(data[t]))
-            i = i[cy:-cy, cx:-cx]
-            # need to normalize here, then shift back to kspace. kspace isnt normalized!
-            image[t] = np.abs(i).astype(np.float32)
-            k[t] = np.fft.fft2(np.fft.fftshift(i))
-            norm.append(np.percentile(image[t], 99))
+        params_shape = (y, y)
+        # warn if data.shape[1] != self._params.data.shape_y
+        image = np.ndarray(shape=(rep, *params_shape), dtype=data.dtype)
+        k = np.ndarray(shape=(rep, *params_shape), dtype=data.dtype)
+        cy, cx = [(a - b) // 2 for a, b in zip((y, x), params_shape)]
+        norm = 0
+        
+        for t in range(rep):
+            image[t] = ifft2c(data[t, cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None])
+            norm += np.percentile(image[t], 99) / rep
+        image = np.clip(np.divide(image, norm), 0, 1)
+        for t in range(rep):
+            k[t] = fft2c(image[t])
 
-        norm = np.zeros(shape=image.shape, dtype=np.float32) + np.mean(norm)
-        image = np.expand_dims(np.clip(np.divide(image.astype(np.float32), norm), 0, 1), axis=0)
+        image = np.expand_dims(np.abs(image).astype(np.float32), axis=0)
         k = np.expand_dims(k, axis=0)
         win, dow = 0, self._params.data.sequence_length
         with torch.no_grad():
             while dow <= data.shape[1] and win < 5:
                 preprocess_simulated(image[:, win:dow], acceleration=1)
-                imageT, kT, maskT = preprocess_real(image[:, win:dow], k[:, win:dow], sampled_rows[cx:-cx])
-
-
-                # self._export = im[0, 0, :, :, -1].cpu().numpy()
-                # self._export_i = win
-                # yield self._export
-                #
-                # win += 1
-                # dow += 1
+                imageT, kT, maskT = preprocess_real(image[:, win:dow], k[:, win:dow], sampled_rows[cy:-cy if cy > 0 else None])
 
                 pred, _ = self._network(imageT, kT, maskT, test=True)
 
