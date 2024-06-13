@@ -19,9 +19,12 @@ class FireReconstruct(FireModule):
         self._params: ModelParameters | None = None
         self._network: CRNNMRI | None = None
         self._export: np.ndarray = np.ndarray(0, dtype=np.float32)
-        self._export_i: int = 0
+        self._export_suffix: int = 0
+        self._debug = False
 
     def load(self, **kwargs):
+        self._debug = kwargs.get('debug', False)
+
         model_dir = Path(kwargs['model_dir'])
         params = ModelParameters(model_dir, model_dir)
         rng(params.data.seed)
@@ -39,6 +42,11 @@ class FireReconstruct(FireModule):
         self._network.load_state_dict(torch.load(params.npz))
         self._network.eval()
         self._params = params
+
+    def _yield_export(self, data: np.ndarray, suffix: str = None):
+        self._export = data
+        self._export_suffix = suffix
+        return self._export
 
     def run(self, data: np.ndarray, metadata: dict) -> None | np.ndarray | dict | tuple[np.ndarray, dict]:
         """
@@ -59,35 +67,46 @@ class FireReconstruct(FireModule):
                 m2i_mask = (1 - mask.flatten()) * m2i
                 m2i_mask[0] = 1 if np.all(mask[0] == 0) else 0
                 m2i_mask: np.ndarray = m2i_mask[m2i_mask > 0]
-                data[t, m2i_mask.astype(np.integer)] = 0
+                #data[t, m2i_mask.astype(np.integer)] = 0
 
         params_shape = (y, y)
         # warn if data.shape[1] != self._params.data.shape_y
         image = np.ndarray(shape=(rep, *params_shape), dtype=data.dtype)
-        k = np.ndarray(shape=(rep, *params_shape), dtype=data.dtype)
+        phase = np.empty_like(image)
+        k = np.empty_like(image)
         cy, cx = [(a - b) // 2 for a, b in zip((y, x), params_shape)]
         norm = 0
         
         for t in range(rep):
-            image[t] = ifft2c(data[t, cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None])
+            phase[t] = ifft2c(data[t])[cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None]
+            image[t] = np.real(phase[t])
+            if self._debug and t < 5:
+                yield self._yield_export(image[t], f'{t}_ifft')
             norm += np.percentile(image[t], 99) / rep
         image = np.clip(np.divide(image, norm), 0, 1)
         for t in range(rep):
-            k[t] = fft2c(image[t])
+            if self._debug and t < 5:
+                yield self._yield_export(np.abs(image[t]), f'{t}_ifft_norm')
+            k[t] = fft2c(image[t] * np.exp(1j * np.angle(phase[t])))
+            if self._debug and t < 5:
+                yield self._yield_export(ifft2c(k[t]), f'{t}_ifft_norm_from_k')
+        return
 
         image = np.expand_dims(np.abs(image).astype(np.float32), axis=0)
         k = np.expand_dims(k, axis=0)
         win, dow = 0, self._params.data.sequence_length
         with torch.no_grad():
-            while dow <= data.shape[1] and win < 5:
-                preprocess_simulated(image[:, win:dow], acceleration=1)
+            while dow <= data.shape[1]:
                 imageT, kT, maskT = preprocess_real(image[:, win:dow], k[:, win:dow], sampled_rows[cy:-cy if cy > 0 else None])
+
+                if self._debug:
+                    if win >= 5:
+                        break
+                    yield self._yield_export(imageT[0, 0, :, :, -1].cpu().numpy(), f'{win}')
 
                 pred, _ = self._network(imageT, kT, maskT, test=True)
 
-                self._export = pred[0, 0, :, :, -1].cpu().numpy()
-                self._export_i = win
-                yield self._export
+                yield self._yield_export(pred[0, 0, :, :, -1].cpu().numpy(), f'{win}_pred')
 
                 win += 1
                 dow += 1
@@ -97,7 +116,9 @@ class FireReconstruct(FireModule):
         array_min, array_max = self._export.min(), self._export.max() + np.finfo(self._export.dtype).eps
         array_norm = (self._export - array_min) / (array_max - array_min)
         array_uint8 = (np.clip(array_norm, 0, 1) * 255).astype(np.uint8)
-        cv2.imwrite((export_dir / f'{self._params.meta.name}.{self._export_i}.png').as_posix(), array_uint8)
+
+        suffix = f'.{self._export_suffix}' if self._export_suffix else ''
+        cv2.imwrite((export_dir / f'{self._params.meta.name}{suffix}.png').as_posix(), array_uint8)
 
     @staticmethod
     def _normal(array: np.ndarray, norm: float, maximum_1: bool = True) -> np.ndarray:
