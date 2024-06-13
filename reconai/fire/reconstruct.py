@@ -78,19 +78,19 @@ class FireReconstruct(FireModule):
         norm = 0
         
         for t in range(rep):
-            phase[t] = ifft2c(data[t])[cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None]
-            image[t] = np.real(phase[t])
+            image[t] = ifft2c(data[t])[cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None]
+            image[t] = np.rot90(np.abs(image[t]), 2)
             if self._debug and t < 5:
-                yield self._yield_export(image[t], f'{t}_ifft')
+                yield self._yield_export(image[t], f'{t}_ifft_abs')
             norm += np.percentile(image[t], 99) / rep
         image = np.clip(np.divide(image, norm), 0, 1)
         for t in range(rep):
             if self._debug and t < 5:
-                yield self._yield_export(np.abs(image[t]), f'{t}_ifft_norm')
-            k[t] = fft2c(image[t] * np.exp(1j * np.angle(phase[t])))
+                yield self._yield_export(image[t], f'{t}_ifft_abs_norm')
+            k[t] = fft2c(image[t])# * np.exp(1j * np.angle(phase[t])))
             if self._debug and t < 5:
-                yield self._yield_export(ifft2c(k[t]), f'{t}_ifft_norm_from_k')
-        return
+                yield self._yield_export(ifft2c(k[t]), f'{t}_ifft_abs_norm_from_k')
+        # return
 
         image = np.expand_dims(np.abs(image).astype(np.float32), axis=0)
         k = np.expand_dims(k, axis=0)
@@ -102,11 +102,11 @@ class FireReconstruct(FireModule):
                 if self._debug:
                     if win >= 5:
                         break
-                    yield self._yield_export(imageT[0, 0, :, :, -1].cpu().numpy(), f'{win}')
+                    yield self._yield_export(imageT[0, 0, :, :, -1].cpu().numpy(), f'{win}_pred_input')
 
                 pred, _ = self._network(imageT, kT, maskT, test=True)
 
-                yield self._yield_export(pred[0, 0, :, :, -1].cpu().numpy(), f'{win}_pred')
+                yield self._yield_export(pred[0, 0, :, :, -1].cpu().numpy(), f'{win}_pred_output')
 
                 win += 1
                 dow += 1
