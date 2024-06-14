@@ -42,7 +42,17 @@ def test_reconstruct_kspace():
     run_click(reconai_reconstruct,
               in_dir='./tests/input/kspace',
               model_dir=f'./tests/output/{model}',
-              out_dir='./tests/output')
+              out_dir='./tests/output',
+              out_png=True)
+
+
+def test_reconstruct_r8():
+    prepare_output_dir('r8')
+    run_click(reconai_reconstruct,
+              in_dir='./tests/input/images',
+              model_dir=f'./tests/input/realtime',
+              out_dir='./tests/output/r8',
+              out_png=True)
 
 
 def test_fire_module():

@@ -46,10 +46,11 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
               help='Trained model directory.')
 @click.option('--out_dir', type=Path, required=True,
               help='Results directory.')
-def reconai_reconstruct(in_dir: Path, model_dir: Path, out_dir: Path):
+@click.option('--out_png', type=bool, help='Also output images.')
+def reconai_reconstruct(in_dir: Path, model_dir: Path, out_dir: Path, out_png: bool):
     assert in_dir != out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    with reconstruct(ModelParameters(in_dir, model_dir)) as recon:
+    with reconstruct(ModelParameters(in_dir, model_dir), out_png) as recon:
         for file in in_dir.iterdir():
             if file.suffix == '.mha':
                 recon(file, out_dir / file.name)

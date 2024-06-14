@@ -1,19 +1,17 @@
 import json
-import subprocess
 import tempfile
-from typing import Callable
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from contextlib import contextmanager
 
-import matplotlib.pyplot as plt
+import SimpleITK as sitk
 import numpy as np
 import torch
 import torch.utils.data as torch_data
 import wandb
-import SimpleITK as sitk
+import cv2
 
-from reconai.data import preprocess_simulated, DataLoader, Dataset
+from reconai.data import preprocess_simulated, DataLoader, Dataset, image
 from reconai.evaluation import Evaluation
 from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import ModelTrainParameters, ModelParameters
@@ -34,7 +32,7 @@ from reconai.random import rng
 
 
 @contextmanager
-def reconstruct(params: ModelParameters):
+def reconstruct(params: ModelParameters, png: bool = False):
     print_version(params.meta.name)
 
     network = CRNNMRI(n_ch=params.model.channels,
@@ -63,8 +61,12 @@ def reconstruct(params: ModelParameters):
                     for i in range(len(piece['paths'])):
                         j = i + 1
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
+                        pred = pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1)
 
-                        sitk_image = sitk.GetImageFromArray(pred.squeeze(dim=(0, 1)).cpu().numpy().transpose(2, 0, 1))
+                        if png:
+                            cv2.imwrite(out.with_suffix('.png').resolve().as_posix(), image(pred[-1]))
+
+                        sitk_image = sitk.GetImageFromArray(pred)
                         sitk_image.SetOrigin([float(o[i]) for o in piece['origin']])
                         sitk_image.SetDirection([float(d[i]) for d in piece['direction']])
                         sitk_image.SetSpacing([float(d[i]) for d in piece['spacing']])

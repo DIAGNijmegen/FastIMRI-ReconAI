@@ -85,7 +85,9 @@ class DataLoader(torch.utils.data.DataLoader):
 def preprocess_real(image: np.ndarray, k: np.ndarray, mask: np.ndarray) -> (torch.Tensor, torch.Tensor, torch.Tensor):
     assert len(image.shape) == 4
 
-    if mask.ndim == 1 and mask.shape[0] == image.shape[2]:
+    if mask.shape == image.shape:
+        pass
+    elif mask.ndim == 1 and mask.shape[0] == image.shape[2]:
         mask = np.tile(mask[None, None, :, None], (*image.shape[:2], 1, image.shape[3]))
     elif mask.ndim == 2 and mask.shape == image.shape[2:]:
         # untested
@@ -97,7 +99,7 @@ def preprocess_real(image: np.ndarray, k: np.ndarray, mask: np.ndarray) -> (torc
 
     im_und_l = Variable(torch.from_numpy(to_tensor_format(image)).type(Module.TensorType))
     k_und_l = Variable(torch.from_numpy(to_tensor_format(k, complex=True)).type(Module.TensorType))
-    mask_l = Variable(torch.from_numpy(to_tensor_format(mask).astype(np.uint8)).type(Module.TensorType))
+    mask_l = Variable(torch.from_numpy(to_tensor_format(mask)).type(Module.TensorType))
 
     return im_und_l, k_und_l, mask_l
 
@@ -131,3 +133,9 @@ def preprocess_simulated(image: np.ndarray, acceleration: float = 4.0) -> (torch
     mask_l = Variable(torch.from_numpy(to_tensor_format(mask)).type(Module.TensorType))
 
     return im_und_l, k_und_l, mask_l, im_gnd_l
+
+
+def image(array: np.ndarray) -> np.ndarray:
+    array_min, array_max = array.min(), array.max() + np.finfo(array.dtype).eps
+    array_norm = (array - array_min) / (array_max - array_min)
+    return (np.clip(array_norm, 0, 1) * 255).astype(np.uint8)

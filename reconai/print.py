@@ -1,5 +1,7 @@
 from datetime import datetime
 
+import numpy as np
+
 from reconai import version
 
 
