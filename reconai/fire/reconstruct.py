@@ -79,40 +79,56 @@ class FireReconstruct(FireModule):
         phase = np.empty_like(image)
         k = np.empty_like(image)
         cy, cx = [(a - b) // 2 for a, b in zip((y, x), params_shape)]
+        norm = []
+
+        k_i = lambda a: np.fft.ifftshift(np.fft.ifft2(a))
+        i_k = lambda a: np.fft.fft2(np.fft.fftshift(a))
 
         for t in range(rep):
-            phase[t] = ifft2c(data[t])[cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None]
+            phase[t] = np.fft.ifftshift(np.fft.ifft2(data[t]))[cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None]
             # phase[t] = np.rot90(phase[t], 2)
             image[t] = np.abs(phase[t])
             if self._debug and t < 5:
                 yield self._yield_export(image[t], f'{t}_ifft_abs')
-            image[t] = np.clip(np.divide(image[t], np.percentile(image[t], 99)), 0, 1)
+            k[t] = np.fft.fft2(np.fft.fftshift(image[t] * np.exp(1j * np.angle(phase[t]))))
             if self._debug and t < 5:
-                yield self._yield_export(image[t], f'{t}_ifft_abs_norm')
+                yield self._yield_export(np.abs(np.fft.ifftshift(np.fft.ifft2(k[t]))), f'{t}_ifft+angle_abs')
+
+            np.isclose(phase[t], np.fft.ifft2(np.fft.fft2(phase[t])))  # true
+            np.isclose(phase[t], image[t] * np.exp(1j * np.angle(phase[t])))  # true
+            np.isclose(phase[t], np.fft.ifft2(np.fft.fft2(image[t] * np.exp(1j * np.angle(phase[t])))))
+
+            norm.append(np.percentile(image[t], 99))
+
+
+            # image[t] = np.clip(np.divide(image[t], np.percentile(image[t], 99)), 0, 1)
+            # if self._debug and t < 5:
+            #     yield self._yield_export(image[t], f'{t}_ifft_abs_norm')
 
         for t in range(rep):
+            image[t] = np.clip(np.divide(image[t], np.max(norm)), 0, 1)
             if self._debug and t < 5:
                 yield self._yield_export(image[t], f'{t}_ifft_abs_norm')
-            k[t] = fft2c(image[t] * np.exp(1j * np.angle(phase[t])))
+            k[t] = np.fft.fftshift(np.fft.fft2(image[t] * np.exp(1j * np.angle(phase[t]))))
             if self._debug and t < 5:
-                yield self._yield_export(ifft2c(k[t]), f'{t}_ifft_abs_norm_from_k')
+                yield self._yield_export(np.abs(np.fft.ifft2(k[t])), f'{t}_ifft+angle_abs_norm')
 
         image = np.expand_dims(image.astype(np.float32), axis=0)
         mask_rows = np.expand_dims(mask_rows, axis=0)
         k = np.expand_dims(k, axis=0)
         win, dow = 0, self._params.data.sequence_length
         with torch.no_grad():
-            while dow <= data.shape[1]:
+            while dow <= rep:
                 imageT, kT, maskT = preprocess_real(image[:, win:dow], k[:, win:dow], mask_rows[:, win:dow])
 
                 if self._debug:
                     if win >= 5:
                         break
-                    yield self._yield_export(imageT[0, 0, :, :, -1].cpu().numpy(), f'{win}_pred_input')
+                    yield self._yield_export(imageT[0, 0, :, :, -1].cpu().numpy(), f'{dow - 1}_pred_input')
 
                 pred, _ = self._network(imageT, kT, maskT, test=True)
 
-                yield self._yield_export(pred[0, 0, :, :, -1].cpu().numpy(), f'{win}_pred_output')
+                yield self._yield_export(pred[0, 0, :, :, -1].cpu().numpy(), f'{dow - 1}_pred_output')
 
                 win += 1
                 dow += 1

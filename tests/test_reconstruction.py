@@ -65,7 +65,7 @@ def test_fire_module():
     module = FireReconstruct()
     module.logger = logger
     module.load(model_dir='tests/input/realtime/', debug=True)
-    array = np.load(Path('tests/input/realtime/imri_trufitrans_realtime.npy'))
+    array = np.load(Path('tests/input/realtime/IMRI#SRDMR5#F31277#M212#D280823#T150233#imri_trufitrans.npy'))
     for _ in module.run(array, {}):
         module.export(Path(output_dir))
 

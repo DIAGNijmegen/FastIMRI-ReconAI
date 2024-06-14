@@ -17,6 +17,7 @@ from reconai.model.model_pytorch import CRNNMRI
 from reconai.parameters import ModelTrainParameters, ModelParameters
 from reconai.print import print_log, print_version
 from reconai.random import rng
+from reconai.math.fourier import fft2c, ifft2c
 
 
 # def get_gpu_memory():
@@ -57,7 +58,15 @@ def reconstruct(params: ModelParameters, png: bool = False):
             with torch.no_grad():
                 datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
                 for piece in datapiece:
-                    im_u, k_u, mask, _ = preprocess_simulated(piece['data'].numpy(), params.data.undersampling)
+                    data = piece['data'].numpy()
+                    data_i = np.pad(data, ((0, 0), (0, 0), (32, 32), (32, 32)))
+                    # data_k = fft2c(data_i_pad)
+                    # data_i = ifft2c(data_k_pad)
+                    cv2.imwrite(out.with_name('test.png').resolve().as_posix(), image(data_i[0, -1]))
+                    im_u, k_u, mask, _ = preprocess_simulated(data_i, params.data.undersampling)
+                    cv2.imwrite(out.with_name('test_u.png').resolve().as_posix(), image(im_u[0, 0, :, :, -1].cpu().numpy()))
+
+                    # im_u, k_u, mask, _ = preprocess_simulated(piece['data'].numpy(), params.data.undersampling)
                     for i in range(len(piece['paths'])):
                         j = i + 1
                         pred, _ = network(im_u[i:j], k_u[i:j], mask[i:j], test=True)
