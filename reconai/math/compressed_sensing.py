@@ -188,7 +188,7 @@ def undersample(x, mask, centred=False, norm='ortho', noise=0):
 
     Returns
     -------
-    xu: array_like
+    x_u: array_like
         undersampled image in image domain. Note that it is complex valued
 
     x_fu: array_like
