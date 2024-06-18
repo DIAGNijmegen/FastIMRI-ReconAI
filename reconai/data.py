@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import torch.utils.data
 from torch.autograd import Variable
+import monai
 
 import reconai.math.compressed_sensing as cs
 from reconai.math.kspace import get_rand_exp_decay_mask
@@ -25,8 +26,18 @@ class Dataset(torch.utils.data.Dataset):
             raise ValueError(f'no .mha files found in {data_dir}!')
 
         img, _, _, _ = self._image(self._data_paths[0])
-        z = img.shape[0]
+        z, y, x = img.shape
         seq = params.data.sequence_length
+        self._step1 = monai.transforms.Compose([
+            monai.transforms.SpatialPad([z, max(y, params.data.shape_y), max(x, params.data.shape_x)]),
+            monai.transforms.ScaleIntensity()
+        ], lazy=True)
+        self._step2 = monai.transforms.SomeOf([
+            monai.transforms.RandRotate((-np.pi, np.pi), prob=1),
+            monai.transforms.RandFlip(prob=1, spatial_axis=-1),
+            monai.transforms.RandFlip(prob=1, spatial_axis=-2)
+        ], lazy=True, weights=[75, 50, 50], num_transforms=(0 if self._params.train.augment_all else 1, 3))
+
         if seq > 1:
             self._data_len = len(self._data_paths)
             self._s = (z - seq) // 2
@@ -37,17 +48,26 @@ class Dataset(torch.utils.data.Dataset):
             self._s, self._e = z, z
 
     def __len__(self):
-        return self._data_len
+        return self._data_len * max(1, self._params.train.augment_mult)
 
     def __getitem__(self, idx):
-        file = str(self._data_paths[idx])
+        index = idx // self._params.train.augment_mult if idx >= self._data_len else idx
+        try:
+            file = str(self._data_paths[index])
+        except:
+            raise ValueError(f'oh no: {index} {idx}')
         img, origin, direction, spacing = self._image(file)
         item = {"paths": file, "origin": origin, "direction": direction, "spacing": spacing}
+
+        img = self._step1(torch.from_numpy(np.expand_dims(img, axis=0)))
+        if idx >= self._data_len or self._params.train.augment_all:
+            img = self._step2(img)
+
         if self._s == self._e:
             i = int(idx // (len(self) / self._s))
-            return item | {"data": self._normal(img)[i:i+1], "slice": i}
+            return item | {"data": img.numpy().squeeze(axis=0)[i:i+1], "slice": i}
         else:
-            return item | {"data": self._normal(img)[self._s:self._e], "slice": -1}
+            return item | {"data": img.numpy().squeeze(axis=0)[self._s:self._e], "slice": -1}
 
     def _image(self, file: Path | str) -> tuple[np.ndarray, tuple, tuple, tuple]:
         ifr = sitk.ImageFileReader()

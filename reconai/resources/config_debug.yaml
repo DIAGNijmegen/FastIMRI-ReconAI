@@ -2,7 +2,7 @@ data:
   shape_y: 256
   shape_x: 256
   sequence_length: 1
-  normalize: -1
+  normalize: 0
   undersampling: 2
   seed: 11
 

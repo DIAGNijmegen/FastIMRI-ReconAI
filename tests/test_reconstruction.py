@@ -15,17 +15,19 @@ runner = CliRunner()
 
 def test_train_reconstruction():
     secrets_path = Path('./tests/input/secret.json')
-    if not secrets_path.exists():
-        secrets = None
-    else:
+    kwargs = {'in_dir': './tests/input/images', 'out_dir': './tests/output'}
+    if secrets_path.exists():
         with open(secrets_path, 'r') as j:
-            secrets = json.load(j)['wandb']
+            kwargs['wandb_api'] = json.load(j)['wandb']
 
     prepare_output_dir()
-    run_click(reconai_train_reconstruction,
-              in_dir='./tests/input/images',
-              out_dir='./tests/output',
-              wandb_api=secrets)
+    run_click(reconai_train_reconstruction, **kwargs)
+
+
+def test_train_reconstruction_320():
+    kwargs = {'in_dir': './tests/input/images', 'out_dir': './tests/output', 'config': './tests/input/test_train_reconstruction_320.yaml'}
+    prepare_output_dir()
+    run_click(reconai_train_reconstruction, **kwargs)
 
 
 def test_reconstruct():

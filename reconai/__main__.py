@@ -22,10 +22,11 @@ def cli():
               help='Training data directory.')
 @click.option('--out_dir', type=Path, required=True,
               help='Trained model output directory.')
-@click.option('--config', type=Path,
+@click.option('--config', type=Path, required=False,
               help='Config .yaml file. If undefined, use the config_debug.yaml file.')
-@click.option('--wandb_api', type=str, help='wandb api key')
-def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
+@click.option('--wandb_api', type=str, required=False, help='wandb api key')
+@click.option('--retry', type=bool, default=False, help='Retry fold if loss explodes.')
+def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wandb_api: str, retry: bool):
     params = ModelTrainParameters(in_dir, out_dir, config)
     if wandb_api:
         wandb.login(key=wandb_api)
@@ -35,7 +36,7 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
                    config=params.as_dict())
         wandb.define_metric('epoch')
 
-    train_reconstruction(params)
+    train_reconstruction(params, bool(wandb_api), retry)
     if wandb_api:
         wandb.finish()
 
@@ -47,7 +48,7 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
               help='Trained model directory.')
 @click.option('--out_dir', type=Path, required=True,
               help='Results directory.')
-@click.option('--out_png', type=bool, help='Also output images.')
+@click.option('--out_png', type=bool, help='Also output as images.')
 def reconai_reconstruct(in_dir: Path, model_dir: Path, out_dir: Path, out_png: bool):
     assert in_dir != out_dir
     out_dir.mkdir(parents=True, exist_ok=True)

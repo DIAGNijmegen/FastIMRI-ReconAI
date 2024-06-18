@@ -89,6 +89,8 @@ class Parameters:
         lr: float = 0.001
         lr_gamma: float = 0.95
         lr_warmup: int = 0
+        augment_mult: int = 1
+        augment_all: bool = False
 
     @dataclass
     class Meta:

@@ -87,7 +87,7 @@ def reconstruct(params: ModelParameters, png: bool = False):
         torch.cuda.empty_cache()
 
 
-def train(params: ModelTrainParameters):
+def train(params: ModelTrainParameters, wandb_active: bool = False, retry: bool = False):
     print_version(params.meta.name)
     print_log(str(params))
 
@@ -95,6 +95,7 @@ def train(params: ModelTrainParameters):
         raise Exception('Can only run in Cuda')
 
     dataset_full = Dataset(params.in_dir, params)
+    dataset_fold = torch_data.random_split(dataset_full, [1 / params.train.folds] * params.train.folds)
     network = CRNNMRI(n_ch=params.model.channels,
                       nf=params.model.filters,
                       ks=params.model.kernelsize,
@@ -110,27 +111,14 @@ def train(params: ModelTrainParameters):
         decay = torch.optim.lr_scheduler.ExponentialLR(o, gamma=params.train.lr_gamma)
         # plateau = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, cooldown=5, verbose=True)
 
-        return optimizer, torch.optim.lr_scheduler.SequentialLR(o, [warmup, decay], milestones=[params.train.lr_warmup])
+        return o, torch.optim.lr_scheduler.SequentialLR(o, [warmup, decay], milestones=[params.train.lr_warmup])
 
-    optimizer, scheduler = train_optimizer_scheduler()
+    def train_fold(fold):
+        optimizer, scheduler = train_optimizer_scheduler()
+        rng(params.data.seed)
+        torch.manual_seed(params.data.seed)
 
-    print_log(f'trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}',
-              f'data: {len(dataset_full)} items',
-              f'saving model data to {params.out_dir.resolve()}')
-    params.mkoutdir()
-
-    folds = params.train.folds
-    start = datetime.now()
-    print_log(f'starting {folds}-fold training at {start}')
-
-    dataset_fold = torch_data.random_split(dataset_full, [1 / folds] * folds)
-
-    seed = params.data.seed
-    for fold in range(folds):
-        rng(seed)
-        torch.manual_seed(seed)
-
-        if folds > 1:
+        if params.train.folds > 1:
             dataset_train = torch_data.ConcatDataset(ds for f, ds in enumerate(dataset_fold) if f != fold)
             dataset_validate = dataset_fold[fold]
         else:
@@ -167,7 +155,7 @@ def train(params: ModelTrainParameters):
             network.eval()
             with torch.no_grad():
                 for batch in DataLoader(dataset_validate, batch_size=params.train.batch_size, indices=params.train.steps):
-                    im_u, k_u, mask, gnd = preprocess_simulated(batch['data'], params.data.undersampling)
+                    im_u, k_u, mask, gnd = preprocess_simulated(batch['data'].numpy(), params.data.undersampling)
                     for i in range(len(batch['paths'])):
                         j = i + 1
                         evaluator_validate.start_timer()
@@ -198,15 +186,15 @@ def train(params: ModelTrainParameters):
                 last_5_loss = last_5_loss[1:5] + [train_loss_min]
 
             if len(last_5_loss) == 5 and np.polyfit(range(5), last_5_loss, 1)[0] > 0 and np.mean(last_5_loss) > 0.66:
-                print_log(f'exploded loss: {validate_loss}; retrying fold {fold} with seed {seed}')
-                seed += 1
-                rng(seed)
-                torch.manual_seed(seed)
-                epoch, last_5_loss = 0, []
-                optimizer, scheduler = train_optimizer_scheduler(params, network)
-                continue
+                params.data.seed += 1
+                print_log(f'exploded loss: {validate_loss}')
+                if retry:
+                    print_log(f'retrying fold {fold} with seed {params.data.seed}')
+                    return False
+                return True
 
-            wandb.log(stats)
+            if wandb_active:
+                wandb.log(stats)
 
             def save_model(path: Path, model_stats: dict):
                 torch.save(model, path)
@@ -217,10 +205,24 @@ def train(params: ModelTrainParameters):
 
             if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
-                save_model(params.out_dir / f'reconai_{fold}_best.npz', stats)
+                save_model(params.out_dir / f'reconai_{params.meta.name}_{fold}_best.npz', stats)
 
             scheduler.step()
             epoch += 1
+        return True
+
+    print_log(f'trainable parameters: {sum(p.numel() for p in network.parameters() if p.requires_grad)}',
+              f'data: {len(dataset_full)} items',
+              f'saving model data to {params.out_dir.resolve()}')
+    params.mkoutdir()
+
+    start = datetime.now()
+    print_log(f'starting {params.train.folds}-fold training at {start}')
+
+    for _ in range(params.train.folds):
+        while not train_fold(_):
+            pass
+        params.data.seed += 1
 
     end = datetime.now()
     print_log(f'completed training in {(end - start).total_seconds()} seconds, at {end}')
