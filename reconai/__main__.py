@@ -22,9 +22,9 @@ def cli():
               help='Training data directory.')
 @click.option('--out_dir', type=Path, required=True,
               help='Trained model output directory.')
-@click.option('--config', type=Path, required=False,
+@click.option('--config', type=Path,
               help='Config .yaml file. If undefined, use the config_debug.yaml file.')
-@click.option('--wandb_api', type=str, required=True, help='wandb api key')
+@click.option('--wandb_api', type=str, help='wandb api key')
 def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wandb_api: str):
     params = ModelTrainParameters(in_dir, out_dir, config)
     if wandb_api:
@@ -36,7 +36,8 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
         wandb.define_metric('epoch')
 
     train_reconstruction(params)
-    wandb.finish()
+    if wandb_api:
+        wandb.finish()
 
 
 @cli.command(name='reconstruct')

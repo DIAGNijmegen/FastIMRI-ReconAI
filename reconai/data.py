@@ -11,36 +11,30 @@ import reconai.math.compressed_sensing as cs
 from reconai.math.kspace import get_rand_exp_decay_mask
 from reconai.model.dnn_io import to_tensor_format
 from reconai.model.module import Module
+from reconai.parameters import Parameters
 
 
 class Dataset(torch.utils.data.Dataset):
-    def __init__(self, data_dir: Path, *, normalize: float = 0, as_float32: bool = True, sequence_len: int = 5):
+    def __init__(self, data_dir: Path, params: Parameters, as_float32: bool = True):
         self._data_paths: List[Path] = [item.resolve() for item in data_dir.iterdir() if
                                         item.suffix in ['.npy', '.mha']]
 
         self._as_float32 = as_float32
-        self._normalize = normalize
+        self._params = params
         if len(self._data_paths) == 0:
             raise ValueError(f'no .mha files found in {data_dir}!')
 
         img, _, _, _ = self._image(self._data_paths[0])
         z = img.shape[0]
-        if sequence_len > 1:
+        seq = params.data.sequence_length
+        if seq > 1:
             self._data_len = len(self._data_paths)
-            self._s = (z - sequence_len) // 2
-            self._e = self._s + sequence_len
+            self._s = (z - seq) // 2
+            self._e = self._s + seq
         else:
             self._data_paths = self._data_paths * z
             self._data_len = len(self._data_paths)
             self._s, self._e = z, z
-
-    @property
-    def normalize(self) -> float:
-        return self._normalize
-
-    @normalize.setter
-    def normalize(self, value: float):
-        self._normalize = value
 
     def __len__(self):
         return self._data_len
@@ -62,12 +56,14 @@ class Dataset(torch.utils.data.Dataset):
                 ifr.GetOrigin(), ifr.GetDirection(), ifr.GetSpacing())
 
     def _normal(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
-        if self._normalize > 0:
-            norm = np.zeros(img.shape) + self._normalize
-            if maximum_1:
-                return np.clip(np.divide(img, norm), 0, 1)
-            return np.divide(img, norm)
-        return img
+        if self._params.data.normalize == 0:
+            norm = np.zeros(img.shape) + np.percentile(img, 99)
+        else:
+            norm = np.zeros(img.shape) + self._params.data.normalize
+
+        if maximum_1:
+            return np.clip(np.divide(img, norm), 0, 1)
+        return np.divide(img, norm)
 
 
 class DataLoader(torch.utils.data.DataLoader):

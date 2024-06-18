@@ -58,13 +58,6 @@ def reconstruct(params: ModelParameters, png: bool = False):
             with torch.no_grad():
                 datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
                 for piece in datapiece:
-                    # data = piece['data'].numpy()
-                    # data_i = np.pad(data, ((0, 0), (0, 0), (32, 32), (32, 32)))
-                    # # data_k = fft2c(data_i_pad)
-                    # # data_i = ifft2c(data_k_pad)
-                    # cv2.imwrite(out.with_name('test.png').resolve().as_posix(), image(data_i[0, -1]))
-                    # im_u, k_u, mask, _ = preprocess_simulated(data_i, params.data.undersampling)
-                    # cv2.imwrite(out.with_name('test_u.png').resolve().as_posix(), image(im_u[0, 0, :, :, -1].cpu().numpy()))
                     if png:
                         np.save(out.with_name(f'{out.stem}_in.npy'), piece['data'].numpy())
 
@@ -101,15 +94,7 @@ def train(params: ModelTrainParameters):
     if not torch.cuda.is_available():
         raise Exception('Can only run in Cuda')
 
-    dataset_full = Dataset(params.in_dir, sequence_len=params.data.sequence_length)
-    if params.data.normalize <= 0:
-        for sample in DataLoader(dataset_full, batch_size=1000):
-            params.data.normalize = float(np.percentile(sample['data'], 95))
-            print_log(f'data:\n  normalize: {params.data.normalize}')
-            break
-
-    dataset_full.normalize = params.data.normalize
-
+    dataset_full = Dataset(params.in_dir, params)
     network = CRNNMRI(n_ch=params.model.channels,
                       nf=params.model.filters,
                       ks=params.model.kernelsize,

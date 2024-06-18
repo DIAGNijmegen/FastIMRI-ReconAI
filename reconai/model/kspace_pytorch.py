@@ -43,8 +43,7 @@ class DataConsistencyInKspace(Module):
             x_res[i, :, :] = torch.abs(fourier.fftshift(fourier.ifft2(fourier.ifftshift(k_c), norm=self.normalized)))
 
         x_res = x_res[None, None, :, :, :]  # Add 2 dims back again
-        x_res = x_res.permute(0, 1, 3, 4, 2)
-        return x_res
+        return x_res.permute(0, 1, 3, 4, 2)
 
     @staticmethod
     def data_consistency(k, k0, mask, noise_lvl=None):

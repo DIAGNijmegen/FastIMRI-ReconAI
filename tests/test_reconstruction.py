@@ -14,17 +14,18 @@ runner = CliRunner()
 
 
 def test_train_reconstruction():
-    secrets_path = Path('./tests/input/secrets.json')
+    secrets_path = Path('./tests/input/secret.json')
     if not secrets_path.exists():
-        raise FileNotFoundError(f'no secrets.json file found at {secrets_path}')
-    with open(secrets_path, 'r') as j:
-        secrets = json.load(j)
+        secrets = None
+    else:
+        with open(secrets_path, 'r') as j:
+            secrets = json.load(j)['wandb']
 
     prepare_output_dir()
     run_click(reconai_train_reconstruction,
               in_dir='./tests/input/images',
               out_dir='./tests/output',
-              wandb_api=secrets['wandb'])
+              wandb_api=secrets)
 
 
 def test_reconstruct():
@@ -57,6 +58,7 @@ def test_reconstruct_r8():
 
 def test_fire_module():
     output_dir, = prepare_output_dir('fire_module')
+    input_dir = 'tests/input/realtime16/'
 
     logger = logging.getLogger('test_fire_module')
     logger.setLevel(logging.DEBUG)
@@ -64,8 +66,8 @@ def test_fire_module():
 
     module = FireReconstruct()
     module.logger = logger
-    module.load(model_dir='tests/input/realtime/', debug=True)
-    array = np.load(Path('tests/input/realtime/IMRI#SRDMR5#F26921#M46#D240723#T101823#imri_trufitrans_realtime.npy'))
+    module.load(model_dir=input_dir, debug=True)
+    array = np.load(Path(input_dir + 'IMRI#SRDMR5#F28959#M39#D140823#T084958#imri_trufisag.npy'))
     for _ in module.run(array, {}):
         module.export(Path(output_dir))
 

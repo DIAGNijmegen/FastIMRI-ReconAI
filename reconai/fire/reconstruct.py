@@ -53,8 +53,9 @@ class FireReconstruct(FireModule):
         Accepts data of shape rep, y, x of dtype complex64, yields data of shape y, x of dtype float32
 
         This undersamples such that the undersampling is equal to the model's trained undersampling rate.
+        normalize > fft > remove lines > ifft
         """
-        test = 0
+        test = 1
         data = data.astype(np.complex128)
         rep, y, x = data.shape
         params_shape = (y, y)
@@ -72,7 +73,7 @@ class FireReconstruct(FireModule):
                 if np.all(mask[0]):
                     mask_m2i = np.pad(mask_m2i, (1, 0))
                 mask_rows[t, mask_m2i.astype(np.integer)] = False
-                data[t, mask_rows[t]] = 0
+                # data[t, mask_rows[t]] = 0
         mask_rows = 1 - np.repeat(mask_rows.astype(np.integer)[:, :, np.newaxis], y, axis=2)
 
         # warn if data.shape[1] != self._params.data.shape_y
@@ -90,10 +91,9 @@ class FireReconstruct(FireModule):
                 yield self._yield_export(phase[t], f'{t}_raw_ifft_crop')
             image[t] = np.abs(phase[t])
             norm.append(np.percentile(image[t], 99))
-            k[t] = fft2c(image[t] * np.exp(1j * np.angle(phase[t])))
             if self._debug and t < test:
                 yield self._yield_export(image[t], f'{t}_raw_ifft_crop_abs')
-                yield self._yield_export(k[t], f'{t}_raw_ifft_crop_abs_fft')
+                yield self._yield_export(fft2c(image[t] * np.exp(1j * np.angle(phase[t]))), f'{t}_raw_ifft_crop_abs_fft')
                 yield self._yield_export(ifft2c(k[t]), f'{t}_raw_ifft_crop_abs_fft_ifft')
 
         for t in range(rep):
@@ -108,12 +108,12 @@ class FireReconstruct(FireModule):
         example_im_u, example_k_u, example_mask, _ = (ex.cpu().numpy()[:, :, :, :, 0].squeeze() for ex in preprocess_simulated(example_load, self._params.data.undersampling))
         example = example_load[:, 0, :, :].squeeze()
 
+        img = np.abs(image[0])
         img_mask = mask_rows[0, :, :].squeeze()
         img_k = np.zeros((2, *k.shape[1:]), dtype=np.float32)
         img_k[0, :, :] = k[0, :, :].real * img_mask
         img_k[1, :, :] = k[0, :, :].imag * img_mask
 
-        out = 'tests/output/fire_module/'
         if self._debug:
             yield self._yield_export(example_k_u[0], '_example_k_real')
             yield self._yield_export(example_k_u[1], '_example_k_imag')
