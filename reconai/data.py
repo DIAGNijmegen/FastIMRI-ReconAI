@@ -34,10 +34,10 @@ class Dataset(torch.utils.data.Dataset):
             monai.transforms.RandRicianNoise(1, 0.005, 0.005)
         ], lazy=True)
         self._step2 = monai.transforms.SomeOf([
-            monai.transforms.RandRotate((-np.pi, np.pi), prob=1),
             monai.transforms.RandFlip(prob=1, spatial_axis=-1),
-            monai.transforms.RandFlip(prob=1, spatial_axis=-2)
-        ], lazy=True, weights=[75, 50, 50], num_transforms=(0 if self._params.train.augment_all else 1, 3))
+            monai.transforms.RandFlip(prob=1, spatial_axis=-2),
+            monai.transforms.OneOf([monai.transforms.Rotate(np.pi * r / 2) for r in range(-3, 4) if r != 0])
+        ], lazy=True, weights=[50, 50, 75], num_transforms=(0 if self._params.train.augment_all else 1, 3))
 
         if seq > 1:
             self._data_len = len(self._data_paths)
