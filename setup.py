@@ -6,9 +6,9 @@ if __name__ == '__main__':
     try:
         import torch
     except ModuleNotFoundError as e:
-        e.msg += '\nMake sure PyTorch is preinstalled!'
+        e.msg += '\nMake sure PyTorch is preinstalled, as it must be installed with CUDA included!'
         e.msg += '\npip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121'
-        raise e
+        print(e)
 
     if not torch.backends.cuda.is_built():
         print('WARNING: No CUDA installed!')
