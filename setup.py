@@ -21,7 +21,7 @@ if __name__ == '__main__':
         author='C.R. Noordman',
         author_email='stan.noordman@radboudumc.nl',
         description='',
-        packages=find_packages(exclude=["tests", "tests.*"]),
+        packages=find_packages(),
         package_data={"reconai.resources": ["*.yaml"]},
         install_requires=[
             'pytest~=7.2.2',
