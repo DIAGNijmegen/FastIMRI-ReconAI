@@ -2,7 +2,6 @@ import shutil
 import os
 import json
 import subprocess
-import re
 from pathlib import Path
 from importlib.metadata import distribution
 from importlib.resources import files

@@ -9,7 +9,6 @@ from piqa import SSIM
 from skimage.transform import hough_line, hough_line_peaks
 
 from .parameters import Parameters
-# from .predict import predict
 
 
 def tensor_zero(dtype: torch.dtype):

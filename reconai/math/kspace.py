@@ -5,18 +5,10 @@ import math
 import re
 import sqlite3
 
-import matplotlib.pyplot as plt
 import numpy as np
 from numpy.fft import ifft2, fft2, fftshift
 
 from reconai.random import rng
-
-
-def show(arr):
-    arr = np.abs(arr)
-    arr = (arr - np.amin(arr)) / np.amax(arr)
-    plt.imshow(arr, cmap='gray')
-    plt.show()
 
 
 def image_to_kspace(arr: np.ndarray):

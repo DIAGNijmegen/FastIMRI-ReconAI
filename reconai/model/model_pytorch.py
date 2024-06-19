@@ -7,7 +7,6 @@ import torch.nn as nn
 
 from reconai.model.kspace_pytorch import DataConsistencyInKspace
 from reconai.model.module import Module
-import matplotlib.pyplot as plt
 
 
 class CRNNcell(Module):
@@ -298,40 +297,8 @@ class CRNNMRI(Module):
         return net[ti_out], out
 
 
-def print_progress_model(gnd, pred, name, shape: bool):
-    fig = plt.figure(figsize=(20, 8))
-    axes = [plt.subplot(2, 4, j + 1) for j in range(4 + 2)]
-
-    gnd = gnd.permute(4, 0, 1, 2, 3).cpu()[0][0]
-    pred = pred.detach().cpu()
-    axes, ax = set_ax(axes, 0, "ground truth", gnd[0])
-    # axes, ax = set_ax(axes, ax, f"{1}x undersampled", und[0])
-    for k in range(3):
-        if shape:
-            im = pred.permute(1, 0, 2, 3)[-1]
-            axes, ax = set_ax(axes, ax, f"pred {k}", im[k])
-        else:
-            k_pred = pred.permute(4, 0, 1, 2, 3)
-            axes, ax = set_ax(axes, ax, f"pred {k}", k_pred[k, 0, 0])
-
-    fig.tight_layout()
-    plt.savefig(pathlib.Path('../data') / f'{name}_seq.png', pad_inches=0)
-    plt.close(fig)
-
-
-def set_ax(axes, ax: int, title: str, image, cmap="Greys_r"):
-    axes[ax].set_title(title)
-    axes[ax].imshow(np.abs(image), cmap=cmap, interpolation="nearest", aspect='auto')
-    axes[ax].set_axis_off()
-    return axes, ax + 1
-
-
-def m(a):
-    gb = 1073741824
-    return np.round(a/gb, decimals=2)
-
-
 def mem_info():
+    m = lambda a: np.round(a / 1073741824, decimals=2)
     t = torch.cuda.get_device_properties(0).total_memory
     r = torch.cuda.memory_reserved(0)
     a = torch.cuda.memory_allocated(0)
