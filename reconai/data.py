@@ -30,7 +30,8 @@ class Dataset(torch.utils.data.Dataset):
         seq = params.data.sequence_length
         self._step1 = monai.transforms.Compose([
             monai.transforms.SpatialPad([z, max(y, params.data.shape_y), max(x, params.data.shape_x)]),
-            monai.transforms.ScaleIntensity()
+            monai.transforms.ScaleIntensity(),
+            monai.transforms.RandRicianNoise(1, 0.005, 0.005)
         ], lazy=True)
         self._step2 = monai.transforms.SomeOf([
             monai.transforms.RandRotate((-np.pi, np.pi), prob=1),
@@ -74,16 +75,6 @@ class Dataset(torch.utils.data.Dataset):
         ifr.SetFileName(str(file))
         return (sitk.GetArrayFromImage(ifr.Execute()).astype('float32' if self._as_float32 else 'float64'),
                 ifr.GetOrigin(), ifr.GetDirection(), ifr.GetSpacing())
-
-    def _normal(self, img: np.ndarray, maximum_1: bool = True) -> np.ndarray:
-        if self._params.data.normalize == 0:
-            norm = np.zeros(img.shape) + np.percentile(img, 99)
-        else:
-            norm = np.zeros(img.shape) + self._params.data.normalize
-
-        if maximum_1:
-            return np.clip(np.divide(img, norm), 0, 1)
-        return np.divide(img, norm)
 
 
 class DataLoader(torch.utils.data.DataLoader):
