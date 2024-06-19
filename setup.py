@@ -10,8 +10,8 @@ if __name__ == '__main__':
         e.msg += '\npip3 install torch torchvision --index-url https://download.pytorch.org/whl/cu121'
         print(e)
 
-    if not torch.backends.cuda.is_built():
-        print('WARNING: No CUDA installed!')
+        if not torch.backends.cuda.is_built():
+            print('WARNING: No CUDA installed!')
 
     setup(
         name='reconai',
