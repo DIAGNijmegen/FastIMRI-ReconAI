@@ -30,7 +30,7 @@ class Parameters:
         shape_x: int = 256
         shape_y: int = 256
         sequence_length: int = 5
-        normalize: float = 1961.06
+        normalize: float = 0
         undersampling: int = 8
         seed: int = 11
 

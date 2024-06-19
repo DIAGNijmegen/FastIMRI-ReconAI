@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-version = '1.9.2'
+version = '1.10.0'
 
 if __name__ == '__main__':
     try:
@@ -21,7 +21,7 @@ if __name__ == '__main__':
         author='C.R. Noordman',
         author_email='stan.noordman@radboudumc.nl',
         description='',
-        packages=find_packages(),
+        packages=find_packages(exclude=["tests", "tests.*"]),
         package_data={"reconai.resources": ["*.yaml"]},
         install_requires=[
             'pytest~=7.2.2',
