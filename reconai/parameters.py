@@ -111,10 +111,16 @@ class Parameters:
 
     def _load_yaml(self, yaml: str):
         self._yaml = yaml_load(yaml)
+        self.meta.name = self._yaml.data.get('name', self.meta.name)
         __deep_update__(self, self._yaml)
 
     def mkoutdir(self):
         raise NotImplementedError()
+
+    @property
+    def name(self) -> str:
+        debug = '_DEBUG' if self.meta.debug else ''
+        return f'{self.meta.name}_R{self.data.undersampling}{debug}'
 
     @property
     def in_dir(self) -> Path:
@@ -151,16 +157,8 @@ class ModelTrainParameters(Parameters):
                 yaml = f.read()
         self._load_yaml(yaml)
 
-        args = [
-            now(),
-            'CRNN-MRI' + '' if self.model.bcrnn else 'b',
-            f'R{self.data.undersampling}',
-            f'E{self.train.epochs}',
-            'DEBUG' if debug else None
-        ]
-
-        self.meta.name = '_'.join(a for a in args if a)
-        self.meta.date = args[0]
+        self.meta.name = self.name
+        self.meta.date = now()
         self.meta.in_dir = Path(in_dir_).as_posix()
         self.meta.out_dir = (Path(out_dir_) / self.meta.name).as_posix()
         self.meta.debug = debug
@@ -168,7 +166,7 @@ class ModelTrainParameters(Parameters):
 
     def mkoutdir(self):
         self.out_dir.mkdir(exist_ok=False, parents=True)
-        with open(self.out_dir / 'config.yaml', 'w') as f:
+        with open(self.out_dir / f'config_{self.name}.yaml', 'w') as f:
             f.write(str(self))
 
 
@@ -240,5 +238,8 @@ def __deep_update__(obj, yaml: YAML):
             ty = type(getattr(obj, key))
             for t in types:
                 if ty == t:
-                    setattr(obj, key, t(value.value))
+                    try:
+                        setattr(obj, key, t(value.value))
+                    except AttributeError:
+                        pass
                     break

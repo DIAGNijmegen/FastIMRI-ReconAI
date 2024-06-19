@@ -56,7 +56,7 @@ def reconstruct(params: ModelParameters, png: bool = False):
             tempdir = Path(tempdir)
             (tempdir / ('scan' + file.suffix)).symlink_to(file.resolve())
             with torch.no_grad():
-                datapiece = DataLoader(Dataset(tempdir, normalize=params.data.normalize, sequence_len=params.data.sequence_length))
+                datapiece = DataLoader(Dataset(tempdir, params))
                 for piece in datapiece:
                     if png:
                         np.save(out.with_name(f'{out.stem}_in.npy'), piece['data'].numpy())
@@ -201,11 +201,11 @@ def train(params: ModelTrainParameters, wandb_active: bool = False, retry: bool 
                 with open(path.with_suffix('.json'), 'w') as f:
                     json.dump(model_stats, f, indent=4)
 
-            save_model(params.out_dir / f'reconai_{fold}.npz', stats)
+            save_model(params.out_dir / f'reconai_{params.name}_{fold}.npz', stats)
 
             if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
-                save_model(params.out_dir / f'reconai_{params.meta.name}_{fold}_best.npz', stats)
+                save_model(params.out_dir / f'reconai_{params.name}_{fold}_best.npz', stats)
 
             scheduler.step()
             epoch += 1

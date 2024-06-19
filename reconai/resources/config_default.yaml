@@ -1,3 +1,5 @@
+name: DEFAULT
+
 data:
   shape_y: 256
   shape_x: 256
