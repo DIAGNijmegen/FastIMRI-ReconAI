@@ -30,7 +30,7 @@ class Parameters:
         shape_x: int = 256
         shape_y: int = 256
         sequence_length: int = 5
-        normalize: float = 0
+        normalize: float = 0.0
         undersampling: int = 8
         seed: int = 11
 
@@ -72,9 +72,9 @@ class Parameters:
             :param ssim: structural similarity index measure
             :param dice: Dice segmentation coefficient
             """
-            mse: float = 0
-            ssim: float = 1
-            dice: float = 0
+            mse: float = 0.0
+            ssim: float = 1.0
+            dice: float = 0.0
 
             def __post_init__(self):
                 total = sum(self.__dict__.values())

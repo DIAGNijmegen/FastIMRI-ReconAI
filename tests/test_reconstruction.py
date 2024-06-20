@@ -1,10 +1,12 @@
 import json
 import logging
+import shutil
 from pathlib import Path
 
 from click.testing import CliRunner
 import numpy as np
-import imageio
+import pytest
+import torch
 
 from conftest import run_click, prepare_output_dir
 from reconai.__main__ import reconai_train_reconstruction, reconai_reconstruct
@@ -58,9 +60,28 @@ def test_reconstruct_r8():
               out_png=True)
 
 
-def test_fire_module():
-    output_dir, = prepare_output_dir('fire_module')
-    input_dir = 'tests/input/realtime16/'
+experiments = ([['example', '16'], ['example', 'realtime'], ['example', '16', 'realtime'], ['simulated', '16'],
+               ['simulated', 'realtime'], ['simulated', '16', 'realtime'], ['abs', '16'],
+               ['abs', 'realtime'], ['abs', '16', 'realtime'], ['16'], ['realtime'], ['16', 'realtime'],
+                ['example'], ['simulated'], ['abs'], []])
+
+
+@pytest.mark.parametrize("experiment", experiments)
+def test_fire_module(output_dir, experiment):
+    output_dir_renamed = output_dir.parent / (output_dir.stem + '[' + '_'.join(sorted(experiment)) + ']')
+    if output_dir_renamed.exists():
+        shutil.rmtree(output_dir_renamed)
+    output_dir = output_dir.rename(output_dir_renamed)
+
+    if '16' in experiment:
+        input_dir = 'tests/input/model_16/'
+    else:
+        input_dir = 'tests/input/model/'
+
+    if 'realtime' in experiment:
+        array = np.load(Path(input_dir + '../data/realtime.npy'))
+    else:
+        array = np.load(Path(input_dir + '../data/slice.npy'))
 
     logger = logging.getLogger('test_fire_module')
     logger.setLevel(logging.DEBUG)
@@ -68,8 +89,6 @@ def test_fire_module():
 
     module = FireReconstruct()
     module.logger = logger
-    module.load(model_dir=input_dir, debug=True)
-    array = np.load(Path(input_dir + 'IMRI#SRDMR5#F28959#M39#D140823#T084958#imri_trufisag.npy'))
+    module.load(model_dir=input_dir, debug=True, experiment=experiment)
     for _ in module.run(array, {}):
-        module.export(Path(output_dir))
-
+        module.export(output_dir)

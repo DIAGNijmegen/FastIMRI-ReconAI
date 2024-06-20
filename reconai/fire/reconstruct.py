@@ -3,6 +3,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import cv2
+import scipy.signal
 
 from fire.module import FireModule
 from ..parameters import ModelParameters
@@ -21,9 +22,15 @@ class FireReconstruct(FireModule):
         self._export: np.ndarray = np.ndarray(0, dtype=np.float32)
         self._export_suffix: int = 0
         self._debug = False
+        self._experiment = []
+
+    def __del__(self):
+        self._network.cpu()
+        torch.cuda.empty_cache()
 
     def load(self, **kwargs):
         self._debug = kwargs.get('debug', False)
+        self._experiment = kwargs.get('experiment', [])
 
         model_dir = Path(kwargs['model_dir'])
         params = ModelParameters(model_dir, model_dir)
@@ -73,7 +80,8 @@ class FireReconstruct(FireModule):
                 if np.all(mask[0]):
                     mask_m2i = np.pad(mask_m2i, (1, 0))
                 mask_rows[t, mask_m2i.astype(np.integer)] = False
-                # data[t, mask_rows[t]] = 0
+                if 'simulated' not in self._experiment:
+                    data[t, mask_rows[t]] = 0
         mask_rows = 1 - np.repeat(mask_rows.astype(np.integer)[:, :, np.newaxis], y, axis=2)
 
         # warn if data.shape[1] != self._params.data.shape_y
@@ -85,12 +93,14 @@ class FireReconstruct(FireModule):
 
         for t in range(rep):
             phase[t] = ifft2c(data[t])[cy:-cy if cy > 0 else None, cx:-cx if cx > 0 else None]
+
             if self._debug and t < test:
                 yield self._yield_export(data[t], f'{t}_raw')
                 yield self._yield_export(ifft2c(data[t]), f'{t}_raw_ifft')
                 yield self._yield_export(phase[t], f'{t}_raw_ifft_crop')
             image[t] = np.abs(phase[t])
             norm.append(np.percentile(image[t], 99))
+
             if self._debug and t < test:
                 yield self._yield_export(image[t], f'{t}_raw_ifft_crop_abs')
                 yield self._yield_export(fft2c(image[t] * np.exp(1j * np.angle(phase[t]))), f'{t}_raw_ifft_crop_abs_fft')
@@ -98,27 +108,31 @@ class FireReconstruct(FireModule):
 
         for t in range(rep):
             image[t] = np.clip(np.divide(image[t], np.max(norm)), 0, 1)
-            k[t] = fft2c(image[t])# * np.exp(1j * np.angle(phase[t])))
+            if 'abs' in self._experiment:
+                k[t] = fft2c(image[t])
+            else:
+                k[t] = fft2c(image[t] * np.exp(1j * np.angle(phase[t])))
+
             if self._debug and t < test:
                 yield self._yield_export(image[t], f'{t}_raw_ifft_crop_abs_norm')
                 yield self._yield_export(k[t], f'{t}_raw_ifft_crop_abs_norm_fft')
                 yield self._yield_export(ifft2c(k[t]), f'{t}_raw_ifft_crop_abs_norm_fft_ifft')
 
-        example_load = np.load('tests/input/realtime/12307_9dcf_in.npy')
-        example_im_u, example_k_u, example_mask, _ = (ex.cpu().numpy()[:, :, :, :, 0].squeeze() for ex in preprocess_simulated(example_load, self._params.data.undersampling))
-        example = example_load[:, 0, :, :].squeeze()
-
-        img = np.abs(image[0])
-        img_mask = mask_rows[0, :, :].squeeze()
-        img_k = np.zeros((2, *k.shape[1:]), dtype=np.float32)
-        img_k[0, :, :] = k[0, :, :].real * img_mask
-        img_k[1, :, :] = k[0, :, :].imag * img_mask
-
-        if self._debug:
-            yield self._yield_export(example_k_u[0], '_example_k_real')
-            yield self._yield_export(example_k_u[1], '_example_k_imag')
-            yield self._yield_export(img_k[0], '_k_real')
-            yield self._yield_export(img_k[1], '_k_imag')
+        example_load = np.load('tests/input/data/example.npy')
+        # example_im_u, example_k_u, example_mask, _ = (ex.cpu().numpy()[:, :, :, :, 0].squeeze() for ex in preprocess_simulated(example_load, self._params.data.undersampling))
+        # example = example_load[:, 0, :, :].squeeze()
+        #
+        # img = np.abs(image[0])
+        # img_mask = mask_rows[0, :, :].squeeze()
+        # img_k = np.zeros((2, *k.shape[1:]), dtype=np.float32)
+        # img_k[0, :, :] = k[0, :, :].real * img_mask
+        # img_k[1, :, :] = k[0, :, :].imag * img_mask
+        #
+        # if self._debug:
+        #     yield self._yield_export(example_k_u[0], '_example_k_real')
+        #     yield self._yield_export(example_k_u[1], '_example_k_imag')
+        #     yield self._yield_export(img_k[0], '_k_real')
+        #     yield self._yield_export(img_k[1], '_k_imag')
 
         image = np.expand_dims(image.astype(np.float32), axis=0)
         mask_rows = np.expand_dims(mask_rows, axis=0)
@@ -126,32 +140,32 @@ class FireReconstruct(FireModule):
         win, dow = 0, self._params.data.sequence_length
         with torch.no_grad():
             while dow <= rep:
-                imageT, kT, maskT = preprocess_real(image[:, win:dow], k[:, win:dow], mask_rows[:, win:dow])
-                # imageT, kT, maskT, _ = preprocess_simulated(example_load, self._params.data.undersampling)
+                if 'example' in self._experiment:
+                    imageT, kT, maskT, _ = preprocess_simulated(example_load, self._params.data.undersampling)
+                else:
+                    if 'simulated' in self._experiment:
+                        imageT, kT, maskT, _ = preprocess_simulated(image[:, win:dow], self._params.data.undersampling)
+                    else:
+                        imageT, kT, maskT = preprocess_real(image[:, win:dow], k[:, win:dow], mask_rows[:, win:dow])
 
                 if self._debug:
-                    if win >= 5:
+                    if win > 0:
                         break
-                    yield self._yield_export(imageT[0, 0, :, :, 0].cpu().numpy(), f'{dow - 1}_pred_input')
+                    yield self._yield_export(con := imageT[0, 0, :, :, 0].cpu().numpy(), f'{dow - 1}_pred_input')
                     yield self._yield_export(kT[0, 0, :, :, 0].cpu().numpy(), f'{dow - 1}_pred_input_real')
                     yield self._yield_export(kT[0, 1, :, :, 0].cpu().numpy(), f'{dow - 1}_pred_input_imag')
                     yield self._yield_export(maskT[0, 0, :, :, 0].cpu().numpy(), f'{dow - 1}_pred_input_mask')
 
                 pred, _ = self._network(imageT, kT, maskT, test=True)
 
-                yield self._yield_export(pred[0, 0, :, :, 0].cpu().numpy(), f'{dow - 1}_pred_output')
+                yield self._yield_export(cat := pred[0, 0, :, :, 0].cpu().numpy(), f'{dow - 1}_pred_output')
+                yield self._yield_export(np.concatenate((con, cat), axis=1), f'{dow - 1}_pred_output_comparison')
 
                 win += 1
                 dow += 1
+
         yield None
 
     def export(self, export_dir: Path):
         suffix = f'.{self._export_suffix}' if self._export_suffix else ''
         cv2.imwrite((export_dir / f'{self._params.meta.name}{suffix}.png').as_posix(), imagepng(self._export))
-
-    @staticmethod
-    def _normal(array: np.ndarray, norm: float, maximum_1: bool = True) -> np.ndarray:
-        norm = np.zeros(array.shape) + norm
-        if maximum_1:
-            return np.clip(np.divide(array, norm), 0, 1)
-        return np.divide(array, norm)

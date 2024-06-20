@@ -134,6 +134,9 @@ def preprocess_simulated(image: np.ndarray, acceleration: float = 4.0) -> (torch
             for s_ in range(s):
                 mask[b_, s_] = get_rand_exp_decay_mask(y, x, 1 / acceleration, 1 / 3)
     im_und, k_und = cs.undersample(image, mask, centred=True, norm='ortho')
+    from reconai.math.fourier import fft2c, ifft2c
+    for k in range(k_und.shape[1]):
+        k_und[0, k] = fft2c(np.abs(ifft2c(k_und[0, k])))
     im_gnd_l = Variable(torch.from_numpy(to_tensor_format(image)).type(Module.TensorType))
     im_und_l = Variable(torch.from_numpy(to_tensor_format(im_und)).type(Module.TensorType))
     k_und_l = Variable(torch.from_numpy(to_tensor_format(k_und, complex=True)).type(Module.TensorType))
