@@ -63,6 +63,7 @@ class Dataset(torch.utils.data.Dataset):
         img = self._step1(torch.from_numpy(np.expand_dims(img, axis=0)))
         if idx >= self._data_len or self._params.train.augment_all:
             img = self._step2(img)
+        img = torch.clip(img, 0, 1)
 
         if self._s == self._e:
             i = int(idx // (len(self) / self._s))
