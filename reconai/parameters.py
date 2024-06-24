@@ -165,7 +165,7 @@ class ModelTrainParameters(Parameters):
         self.meta.version = version
 
     def mkoutdir(self):
-        self.out_dir.mkdir(exist_ok=False, parents=True)
+        self.out_dir.mkdir(exist_ok=True, parents=True)
         with open(self.out_dir / f'config_{self.name}.yaml', 'w') as f:
             f.write(str(self))
 
