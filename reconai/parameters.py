@@ -157,8 +157,8 @@ class ModelTrainParameters(Parameters):
                 yaml = f.read()
         self._load_yaml(yaml)
 
-        self.meta.name = self.name
         self.meta.date = now()
+        self.meta.name = self.name + '_' + self.meta.date
         self.meta.in_dir = Path(in_dir_).as_posix()
         self.meta.out_dir = (Path(out_dir_) / self.meta.name).as_posix()
         self.meta.debug = debug
