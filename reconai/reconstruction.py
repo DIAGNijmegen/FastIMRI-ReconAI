@@ -201,11 +201,11 @@ def train(params: ModelTrainParameters, wandb_active: bool = False, retry: bool 
                 with open(path.with_suffix('.json'), 'w') as f:
                     json.dump(model_stats, f, indent=4)
 
-            save_model(params.out_dir / f'reconai_{params.name}_{fold}.npz', stats)
+            save_model(params.out_dir / f'reconai_{params.model_name}_{fold}.npz', stats)
 
             if validate_loss <= validate_loss_best:
                 validate_loss_best = validate_loss
-                save_model(params.out_dir / f'reconai_{params.name}_{fold}_best.npz', stats)
+                save_model(params.out_dir / f'reconai_{params.model_name}_{fold}_best.npz', stats)
 
             scheduler.step()
             epoch += 1

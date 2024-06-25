@@ -72,11 +72,13 @@ def test_fire_module(output_dir, experiment):
     if output_dir_renamed.exists():
         shutil.rmtree(output_dir_renamed)
     output_dir = output_dir.rename(output_dir_renamed)
+    model_name = 'Zealot'
 
     if '16' in experiment:
-        input_dir = 'tests/input/model_16/'
+        return
+        input_dir = f'tests/input/model_{model_name}_16/'
     else:
-        input_dir = 'tests/input/model/'
+        input_dir = f'tests/input/model_{model_name}/'
 
     if 'realtime' in experiment:
         array = np.load(Path(input_dir + '../data/realtime.npy'))

@@ -118,9 +118,13 @@ class Parameters:
         raise NotImplementedError()
 
     @property
-    def name(self) -> str:
+    def model_name(self) -> str:
         debug = '_DEBUG' if self.meta.debug else ''
         return f'{self.meta.name}_R{self.data.undersampling}{debug}'
+
+    @property
+    def dir_name(self) -> str:
+        return f'{self.model_name}_{self.meta.date}'
 
     @property
     def in_dir(self) -> Path:
@@ -158,15 +162,14 @@ class ModelTrainParameters(Parameters):
         self._load_yaml(yaml)
 
         self.meta.date = now()
-        self.meta.name = self.name + '_' + self.meta.date
         self.meta.in_dir = Path(in_dir_).as_posix()
-        self.meta.out_dir = (Path(out_dir_) / self.meta.name).as_posix()
+        self.meta.out_dir = (Path(out_dir_) / self.dir_name).as_posix()
         self.meta.debug = debug
         self.meta.version = version
 
     def mkoutdir(self):
         self.out_dir.mkdir(exist_ok=True, parents=True)
-        with open(self.out_dir / f'config_{self.name}.yaml', 'w') as f:
+        with open(self.out_dir / f'reconai_{self.model_name}.yaml', 'w') as f:
             f.write(str(self))
 
 
@@ -174,36 +177,33 @@ class ModelTrainParameters(Parameters):
 class ModelParameters(Parameters):
     in_dir_: InitVar[Path] = None
     model_dir: InitVar[Path] = None
-    model_name: InitVar[str] = None
     tag: InitVar[str] = None
 
-    def __post_init__(self, in_dir_: Path, model_dir: Path, model_name: str, tag: str):
+    def __post_init__(self, in_dir_: Path, model_dir: Path, tag: str):
         super().__post_init__()
 
-        if model_name:
-            model = (model_dir / model_name).with_suffix('.npz')
-            if model.exists():
-                self._model = model
-            else:
-                raise FileNotFoundError(f'no model named {model_name}')
-        else:
-            losses: dict[Path, float] = {}
-            for file in model_dir.iterdir():
-                if file.suffix == '.json':
-                    with open(file, 'r') as f:
-                        stats = json.load(f)
-                        losses[file] = stats['loss_validate_mean']
-            if not losses:
-                raise FileNotFoundError(f'no models found in {model_dir}')
-            self._model = min(losses, key=lambda k: losses[k])
+        stem = None
+        for file in model_dir.iterdir():
+            if file.suffix == '.yaml':
+                with open(file, 'r') as f:
+                    yaml = f.read()
+                self._load_yaml(yaml)
+                stem = file.stem
+        if not stem:
+            raise FileNotFoundError(f'no config for model found in {model_dir}')
 
-        with open(model_dir / 'config.yaml', 'r') as f:
-            yaml = f.read()
-        self._load_yaml(yaml)
+        losses: dict[Path, float] = {}
+        for file in model_dir.iterdir():
+            if file.stem.startswith(stem) and file.suffix == '.json':
+                with open(file, 'r') as f:
+                    stats = json.load(f)
+                    losses[file] = stats['loss_validate_mean']
+        if not losses:
+            raise FileNotFoundError(f'no models found in {model_dir}')
+        self._model = min(losses, key=lambda k: losses[k])
 
         self.meta.in_dir = Path(in_dir_).as_posix()
-        test_name = '_'.join([now(), self._model.stem] + ([tag] if tag else []))
-        self.meta.out_dir = (model_dir / test_name).as_posix()
+        self.meta.out_dir = (model_dir / '_'.join([now(), self._model.stem] + ([tag] if tag else []))).as_posix()
 
     def mkoutdir(self):
         if self.out_dir.exists():
