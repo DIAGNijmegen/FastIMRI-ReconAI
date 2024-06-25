@@ -94,7 +94,6 @@ class Parameters:
 
     @dataclass
     class Meta:
-        name: str = 'untitled'
         date: str = 'date'
         in_dir: str = 'in_dir'
         out_dir: str = 'out_dir'
@@ -107,11 +106,11 @@ class Parameters:
     meta: Meta = field(init=False, default_factory=Meta)
 
     def __post_init__(self):
+        self.name = '_untitled_'
         self._yaml = None
 
     def _load_yaml(self, yaml: str):
         self._yaml = yaml_load(yaml)
-        self.meta.name = self._yaml.data.get('name', self.meta.name)
         __deep_update__(self, self._yaml)
 
     def mkoutdir(self):
@@ -120,7 +119,7 @@ class Parameters:
     @property
     def model_name(self) -> str:
         debug = '_DEBUG' if self.meta.debug else ''
-        return f'{self.meta.name}_R{self.data.undersampling}{debug}'
+        return f'{self.name}_R{self.data.undersampling}{debug}'
 
     @property
     def dir_name(self) -> str:

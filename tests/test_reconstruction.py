@@ -60,30 +60,22 @@ def test_reconstruct_r8():
               out_png=True)
 
 
-experiments = ([['example', '16'], ['example', 'realtime'], ['example', '16', 'realtime'], ['simulated', '16'],
-               ['simulated', 'realtime'], ['simulated', '16', 'realtime'], ['abs', '16'],
-               ['abs', 'realtime'], ['abs', '16', 'realtime'], ['16'], ['realtime'], ['16', 'realtime'],
-                ['example'], ['simulated'], ['abs'], []])
+@pytest.mark.parametrize('model', ['Vanilla', 'Zealot'])
+@pytest.mark.parametrize('und', [8, 16])
+@pytest.mark.parametrize('data', ['realtime', 'slice', 'example'])
+@pytest.mark.parametrize('preprocessing', ['none', 'abs', 'simulated'])
+def test_fire_module(output_dir, model: str, und: int, data: str, preprocessing: str):
+    if data == 'example' and preprocessing != 'simulated':
+        shutil.rmtree(output_dir)
+        pytest.skip('meaningless combination of parameters')
 
+    input_dir = Path(f'tests/input/model_{model}_{und}')
+    if not input_dir.exists():
+        shutil.rmtree(output_dir)
+        pytest.skip(f'{model}_{und} does not exist')
 
-@pytest.mark.parametrize("experiment", experiments)
-def test_fire_module(output_dir, experiment):
-    output_dir_renamed = output_dir.parent / (output_dir.stem + '[' + '_'.join(sorted(experiment)) + ']')
-    if output_dir_renamed.exists():
-        shutil.rmtree(output_dir_renamed)
-    output_dir = output_dir.rename(output_dir_renamed)
-    model_name = 'Zealot'
-
-    if '16' in experiment:
-        return
-        input_dir = f'tests/input/model_{model_name}_16/'
-    else:
-        input_dir = f'tests/input/model_{model_name}/'
-
-    if 'realtime' in experiment:
-        array = np.load(Path(input_dir + '../data/realtime.npy'))
-    else:
-        array = np.load(Path(input_dir + '../data/slice.npy'))
+    experiment = {'model': model, 'und': und, 'data': data, 'preprocessing': preprocessing}
+    array = np.load(Path(input_dir / f'../data/{data}.npy'))
 
     logger = logging.getLogger('test_fire_module')
     logger.setLevel(logging.DEBUG)

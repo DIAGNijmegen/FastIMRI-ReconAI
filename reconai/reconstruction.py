@@ -88,7 +88,7 @@ def reconstruct(params: ModelParameters, png: bool = False):
 
 
 def train(params: ModelTrainParameters, wandb_active: bool = False, retry: bool = False):
-    print_version(params.meta.name)
+    print_version(params.name)
     print_log(str(params))
 
     if not torch.cuda.is_available():
