@@ -161,4 +161,4 @@ class FireReconstruct(FireModule):
 
     def export(self, export_dir: Path):
         suffix = f'.{self._export_suffix}' if self._export_suffix else ''
-        cv2.imwrite((export_dir / f'{self._params.meta.name}{suffix}.png').as_posix(), imagepng(self._export))
+        cv2.imwrite((export_dir / f'{self._params.name}{suffix}.png').as_posix(), imagepng(self._export))

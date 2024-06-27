@@ -94,6 +94,7 @@ class Parameters:
 
     @dataclass
     class Meta:
+        name: str = 'deprecated'
         date: str = 'date'
         in_dir: str = 'in_dir'
         out_dir: str = 'out_dir'
