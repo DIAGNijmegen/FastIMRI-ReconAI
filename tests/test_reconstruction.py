@@ -62,8 +62,8 @@ def test_reconstruct_r8():
 
 @pytest.mark.parametrize('model', ['Vanilla', 'Zealot'])
 @pytest.mark.parametrize('und', [8, 16])
-# @pytest.mark.parametrize('data', ['realtime', 'slice', 'example'])
-@pytest.mark.parametrize('data', ['100000_1690186648_trufisag'])
+@pytest.mark.parametrize('data', ['realtime', 'realtime_bad', 'sag', 'trans', 'trans_bad'])
+# @pytest.mark.parametrize('data', ['100000_1690186648_trufisag'])
 @pytest.mark.parametrize('preprocessing', ['none', 'abs', 'simulated'])
 def test_fire_module(output_dir, model: str, und: int, data: str, preprocessing: str):
     if data == 'example' and preprocessing != 'simulated':
