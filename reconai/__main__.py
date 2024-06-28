@@ -32,7 +32,7 @@ def reconai_train_reconstruction(in_dir: Path, out_dir: Path, config: Path, wand
         wandb.login(key=wandb_api)
         wandb.init(project='FastIMRI-ReconAI',
                    group='train_debug' if params.meta.debug else 'train',
-                   name=params.dir_name,
+                   name=out_dir.name,
                    config=params.as_dict())
         wandb.define_metric('epoch')
 

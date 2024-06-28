@@ -95,7 +95,7 @@ class Parameters:
     @dataclass
     class Meta:
         name: str = 'deprecated'
-        date: str = 'date'
+        date: str = 'deprecated'
         in_dir: str = 'in_dir'
         out_dir: str = 'out_dir'
         debug: bool = False
@@ -121,10 +121,6 @@ class Parameters:
     def model_name(self) -> str:
         debug = '_DEBUG' if self.meta.debug else ''
         return f'{self.name}_R{self.data.undersampling}{debug}'
-
-    @property
-    def dir_name(self) -> str:
-        return f'{self.model_name}_{self.meta.date}'
 
     @property
     def in_dir(self) -> Path:
@@ -161,16 +157,17 @@ class ModelTrainParameters(Parameters):
                 yaml = f.read()
         self._load_yaml(yaml)
 
-        self.meta.date = now()
         self.meta.in_dir = Path(in_dir_).as_posix()
-        self.meta.out_dir = (Path(out_dir_) / self.dir_name).as_posix()
+        self.meta.out_dir = out_dir_.as_posix()
         self.meta.debug = debug
         self.meta.version = version
 
     def mkoutdir(self):
         self.out_dir.mkdir(exist_ok=True, parents=True)
-        with open(self.out_dir / f'reconai_{self.model_name}.yaml', 'w') as f:
-            f.write(str(self))
+        yaml = self.out_dir / f'reconai_{self.model_name}.yaml'
+        if not yaml.exists():
+            with open(yaml, 'w') as f:
+                f.write(str(self))
 
 
 @dataclass
